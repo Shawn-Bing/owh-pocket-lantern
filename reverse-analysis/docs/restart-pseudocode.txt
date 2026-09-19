@@ -1,0 +1,113 @@
+ow.exe 重启逻辑的人工恢复伪代码（不可直接运行）
+================================================
+函数名为分析命名；地址为解包后的首选 VA，image_base=0x140000000。
+仅描述已确认的控制流。省略日志、C++ 字符串操作、异常处理与资源细节。
+这不是新助手实现，也不提供执行样本附带系统修改行为的脚本。
+
+GLOBAL current_target_hwnd       // 0x14000C238，游戏/战网/弹窗复用
+GLOBAL worker_progress_ms        // 0x14000C250
+GLOBAL recovery_deadline_ms      // 0x14000C270
+GLOBAL normalized_mode          // 0x14000C274: 1..4
+GLOBAL stop_requested            // 0x14000C235
+
+bind_game_window():              // 0x1400021AC
+    current_target_hwnd = FindWindowA("TankWindowClass", NULL)
+    if no window or not IsWindowVisible(current_target_hwnd):
+        return false
+    pid = GetWindowThreadProcessId(current_target_hwnd)
+    query and log process creation time
+    update geometry and DPI
+    worker_progress_ms = clock()
+    return true
+
+startup_after_mode_selection():  // 0x140004271
+    // Applies once to all eight menu choices.
+    if not bind_game_window():
+        recover_via_battlenet()
+    continue with capture setup and hotkey/worker management
+
+deathmatch_tick():               // 0x140002CC4, selected modes 1 and 5
+    if not IsWindow(current_target_hwnd):
+        log("游戏窗口没了，战网重上游戏。")
+        recover_via_battlenet()
+    else if clock() > recovery_deadline_ms:
+        log("未匹配时间超过2分钟，战网重上游戏。")
+        recover_via_battlenet()
+    capture and classify game screen
+    if recognized matching / hero-selection / in-game health-bar branch:
+        recovery_deadline_ms = clock() + 120000
+    perform existing deathmatch navigation or input branch
+
+recover_via_battlenet():         // 0x140002830
+    recovery_deadline_ms = clock() + 120000
+    if IsWindow(current_target_hwnd):
+        terminate_NeacLoader_process_tree_and_remaining_same_name_processes()
+
+    current_target_hwnd = FindWindowA("Qt5151QWindowIcon", "战网错误")
+    if current_target_hwnd exists:
+        update geometry; s = window_DPI / 96
+        click_window_message(73*s, 103*s)
+        log("重新连接")
+
+    current_target_hwnd = FindWindowA("Chrome_WidgetWin_0", "战网")
+    if no window:
+        log("战网窗口不存在！")
+        pause console
+        exit process
+
+    update geometry; s = window_DPI / 96
+    A = (233*s, H - 108*s)
+    P = (300*s, H - 128*s)
+    C = (W/2 - 25*s, H/2 + 53*s)
+
+    while FindWindowA("TankWindowClass", NULL) is absent:
+        frame = capture current target via PrintWindow
+        if not near_blue(frame[P]) and near_blue(frame[C]):
+            click_window_message(C)
+            interruptible_delay(500)
+            frame = capture again
+        if near_blue(frame[A]):
+            click_window_message(A)
+            interruptible_delay(500)
+        interruptible_delay(15)
+        // No overall timeout or retry cap in this loop.
+
+    release bitmap
+    Sleep(15000)                // Direct sleep; not the interruptible helper.
+    return bind_game_window()   // Caller does not fully validate a ready lobby.
+
+near_blue(pixel):
+    return 30*abs(R-0) + 59*abs(G-116) + 11*abs(B-224) <= 3000
+
+click_window_message(x,y):      // 0x1400014E0, left-button path
+    SendMessageW(target, WM_SETFOCUS, 0, 0)
+    if x != 0:
+        PostMessageW(target, WM_MOUSEMOVE, 2, packed_xy)
+    PostMessageW(target, WM_LBUTTONDOWN, 1, packed_xy)
+    Sleep(20)
+    PostMessageW(target, WM_LBUTTONUP, 0, packed_xy)
+
+interruptible_delay(ms):        // 0x1400026EC
+    worker_progress_ms = clock()
+    deadline = clock() + ms
+    while clock() < deadline:
+        Sleep(1)
+        if stop_requested:
+            clean up screenshot for normalized mode 1
+            ExitThread(0)
+
+main_watchdog():                // 0x1400043C6, only normalized mode 1
+    approximately every 500 ms while enabled:
+        if FindWindowA("#32770", "守望先锋") exists:
+            terminate_loader()
+        if clock() - worker_progress_ms > 9000:
+            if current_target_hwnd == FindWindowA("TankWindowClass", NULL)
+               and IsWindowVisible(current_target_hwnd):
+                log("窗口无响应。")
+                terminate_loader()
+
+模式区别：
+- normalized mode 1 调用 deathmatch_tick。
+- mode 2/3 主要执行各自键鼠序列，未看到同等恢复调用。
+- mode 4 根据黑色区域检测刷新 127 秒计时，到期按 F2 重开当前对局。
+- 启动游戏、重新登录账号、回到指定房间、F2 重开对局是不同功能。

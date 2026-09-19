@@ -1,0 +1,14 @@
+/build/
+/dist/
+/.venv/
+*.obj
+*.o
+*.pdb
+.DS_Store
+owh-server-data/
+settings.ini
+*.log
+*.log.1
+agent-token.txt
+view-token.txt
+/reverse-analysis/analysis/ow/*.bin

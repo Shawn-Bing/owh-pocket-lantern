@@ -1,0 +1,14 @@
+{
+  "passed": [
+    "invalid-token rejection",
+    "viewer login",
+    "live SSE updates",
+    "healthy/attention totals",
+    "bounded event rendering",
+    "desktop layout",
+    "390px mobile layout",
+    "90-second offline display",
+    "logout"
+  ],
+  "pageErrors": []
+}

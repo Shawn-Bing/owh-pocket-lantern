@@ -1,0 +1,2036 @@
+[
+  {
+    "va": "0x140008670",
+    "offset": "0x7070",
+    "encoding": "utf-8",
+    "text": "bad allocation"
+  },
+  {
+    "va": "0x140008698",
+    "offset": "0x7098",
+    "encoding": "utf-8",
+    "text": "Unknown exception"
+  },
+  {
+    "va": "0x1400086b0",
+    "offset": "0x70b0",
+    "encoding": "utf-8",
+    "text": "bad array new length"
+  },
+  {
+    "va": "0x1400086c8",
+    "offset": "0x70c8",
+    "encoding": "utf-8",
+    "text": "string too long"
+  },
+  {
+    "va": "0x1400086d8",
+    "offset": "0x70d8",
+    "encoding": "utf-8",
+    "text": "invalid stoi argument"
+  },
+  {
+    "va": "0x1400086f0",
+    "offset": "0x70f0",
+    "encoding": "utf-8",
+    "text": "stoi argument out of range"
+  },
+  {
+    "va": "0x140008710",
+    "offset": "0x7110",
+    "encoding": "utf-8",
+    "text": "bad cast"
+  },
+  {
+    "va": "0x140008728",
+    "offset": "0x7128",
+    "encoding": "utf-8",
+    "text": "%02d:%02d:%02d.%03d "
+  },
+  {
+    "va": "0x140008748",
+    "offset": "0x7148",
+    "encoding": "gb18030",
+    "text": "检测到全屏窗口，切到窗口模式。"
+  },
+  {
+    "va": "0x140008768",
+    "offset": "0x7168",
+    "encoding": "gb18030",
+    "text": "检测到窗口宽度超出屏幕宽度，设置窗口宽高：%d, %d"
+  },
+  {
+    "va": "0x1400087a0",
+    "offset": "0x71a0",
+    "encoding": "gb18030",
+    "text": "检测到窗口位置超出屏幕边界，设置窗口位置：%d, %d"
+  },
+  {
+    "va": "0x1400087e0",
+    "offset": "0x71e0",
+    "encoding": "gb18030",
+    "text": "窗口位置：%d, %d 宽高：%d, %d 黑边：%d, %d, %d, %d 缩放：%0.2f 屏幕：%d, %d"
+  },
+  {
+    "va": "0x140008830",
+    "offset": "0x7230",
+    "encoding": "utf-8",
+    "text": "%d-%02d-%02d %02d:%02d:%02d"
+  },
+  {
+    "va": "0x140008850",
+    "offset": "0x7250",
+    "encoding": "utf-8",
+    "text": "TankWindowClass"
+  },
+  {
+    "va": "0x140008860",
+    "offset": "0x7260",
+    "encoding": "gb18030",
+    "text": "PID：%d HWND：0x%08llX 启动时间：%s"
+  },
+  {
+    "va": "0x140008888",
+    "offset": "0x7288",
+    "encoding": "utf-8",
+    "text": "taskkill /T /F /IM NeacLoader.exe"
+  },
+  {
+    "va": "0x1400088d0",
+    "offset": "0x72d0",
+    "encoding": "gb18030",
+    "text": "关闭游戏窗口。"
+  },
+  {
+    "va": "0x1400088e0",
+    "offset": "0x72e0",
+    "encoding": "gb18030",
+    "text": "战网错误"
+  },
+  {
+    "va": "0x1400088f0",
+    "offset": "0x72f0",
+    "encoding": "utf-8",
+    "text": "Qt5151QWindowIcon"
+  },
+  {
+    "va": "0x140008908",
+    "offset": "0x7308",
+    "encoding": "gb18030",
+    "text": "重新连接"
+  },
+  {
+    "va": "0x140008914",
+    "offset": "0x7314",
+    "encoding": "gb18030",
+    "text": "战网"
+  },
+  {
+    "va": "0x140008920",
+    "offset": "0x7320",
+    "encoding": "utf-8",
+    "text": "Chrome_WidgetWin_0"
+  },
+  {
+    "va": "0x140008938",
+    "offset": "0x7338",
+    "encoding": "gb18030",
+    "text": "战网窗口不存在！"
+  },
+  {
+    "va": "0x14000894c",
+    "offset": "0x734c",
+    "encoding": "utf-8",
+    "text": "pause"
+  },
+  {
+    "va": "0x140008958",
+    "offset": "0x7358",
+    "encoding": "gb18030",
+    "text": "等待启动游戏"
+  },
+  {
+    "va": "0x140008968",
+    "offset": "0x7368",
+    "encoding": "gb18030",
+    "text": "关闭隐身提示"
+  },
+  {
+    "va": "0x140008978",
+    "offset": "0x7378",
+    "encoding": "gb18030",
+    "text": "点赞玩家"
+  },
+  {
+    "va": "0x140008988",
+    "offset": "0x7388",
+    "encoding": "gb18030",
+    "text": "游戏窗口没了，战网重上游戏。"
+  },
+  {
+    "va": "0x1400089a8",
+    "offset": "0x73a8",
+    "encoding": "gb18030",
+    "text": "未匹配时间超过2分钟，战网重上游戏。"
+  },
+  {
+    "va": "0x1400089d0",
+    "offset": "0x73d0",
+    "encoding": "gb18030",
+    "text": "确认界面"
+  },
+  {
+    "va": "0x1400089e0",
+    "offset": "0x73e0",
+    "encoding": "gb18030",
+    "text": "确认离开"
+  },
+  {
+    "va": "0x1400089f0",
+    "offset": "0x73f0",
+    "encoding": "gb18030",
+    "text": "顶部黑边"
+  },
+  {
+    "va": "0x140008a00",
+    "offset": "0x7400",
+    "encoding": "gb18030",
+    "text": "顶部菜单"
+  },
+  {
+    "va": "0x140008a10",
+    "offset": "0x7410",
+    "encoding": "gb18030",
+    "text": "总览界面"
+  },
+  {
+    "va": "0x140008a20",
+    "offset": "0x7420",
+    "encoding": "gb18030",
+    "text": "再次排队"
+  },
+  {
+    "va": "0x140008a30",
+    "offset": "0x7430",
+    "encoding": "gb18030",
+    "text": "点击继续"
+  },
+  {
+    "va": "0x140008a40",
+    "offset": "0x7440",
+    "encoding": "gb18030",
+    "text": "选项菜单"
+  },
+  {
+    "va": "0x140008a50",
+    "offset": "0x7450",
+    "encoding": "gb18030",
+    "text": "点击离开"
+  },
+  {
+    "va": "0x140008a60",
+    "offset": "0x7460",
+    "encoding": "gb18030",
+    "text": "大厅界面"
+  },
+  {
+    "va": "0x140008a70",
+    "offset": "0x7470",
+    "encoding": "gb18030",
+    "text": "点击街机"
+  },
+  {
+    "va": "0x140008a80",
+    "offset": "0x7480",
+    "encoding": "gb18030",
+    "text": "点击死斗"
+  },
+  {
+    "va": "0x140008a90",
+    "offset": "0x7490",
+    "encoding": "gb18030",
+    "text": "正在匹配"
+  },
+  {
+    "va": "0x140008aa0",
+    "offset": "0x74a0",
+    "encoding": "gb18030",
+    "text": "黑屏界面"
+  },
+  {
+    "va": "0x140008ab0",
+    "offset": "0x74b0",
+    "encoding": "gb18030",
+    "text": "游戏时间：%d 秒 %d 次"
+  },
+  {
+    "va": "0x140008ac8",
+    "offset": "0x74c8",
+    "encoding": "gb18030",
+    "text": "比赛结束"
+  },
+  {
+    "va": "0x140008ad8",
+    "offset": "0x74d8",
+    "encoding": "gb18030",
+    "text": "按键ESC"
+  },
+  {
+    "va": "0x140008ae0",
+    "offset": "0x74e0",
+    "encoding": "gb18030",
+    "text": "选择英雄"
+  },
+  {
+    "va": "0x140008af0",
+    "offset": "0x74f0",
+    "encoding": "gb18030",
+    "text": "排队时间：%d 秒"
+  },
+  {
+    "va": "0x140008b00",
+    "offset": "0x7500",
+    "encoding": "gb18030",
+    "text": "随机按键"
+  },
+  {
+    "va": "0x140008b10",
+    "offset": "0x7510",
+    "encoding": "gb18030",
+    "text": "没有血条"
+  },
+  {
+    "va": "0x140008b1c",
+    "offset": "0x751c",
+    "encoding": "gb18030",
+    "text": "秒重上"
+  },
+  {
+    "va": "0x140008b28",
+    "offset": "0x7528",
+    "encoding": "gb18030",
+    "text": "重开次数：%d 间隔时间：%.2f"
+  },
+  {
+    "va": "0x140008b48",
+    "offset": "0x7548",
+    "encoding": "gb18030",
+    "text": "%d 秒 次数：%d"
+  },
+  {
+    "va": "0x140008b58",
+    "offset": "0x7558",
+    "encoding": "gb18030",
+    "text": "线程启动"
+  },
+  {
+    "va": "0x140008b68",
+    "offset": "0x7568",
+    "encoding": "gb18030",
+    "text": "正在运行"
+  },
+  {
+    "va": "0x140008b78",
+    "offset": "0x7578",
+    "encoding": "gb18030",
+    "text": "正在停止"
+  },
+  {
+    "va": "0x140008b88",
+    "offset": "0x7588",
+    "encoding": "gb18030",
+    "text": "线程停止"
+  },
+  {
+    "va": "0x140008b98",
+    "offset": "0x7598",
+    "encoding": "gb18030",
+    "text": "等待开启"
+  },
+  {
+    "va": "0x140008bb0",
+    "offset": "0x75b0",
+    "encoding": "utf-8",
+    "text": "reg query \"HKLM\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\FirewallRules\" /s | findstr /i \"Name="
+  },
+  {
+    "va": "0x140008c38",
+    "offset": "0x7638",
+    "encoding": "utf-8",
+    "text": "netsh advfirewall firewall delete rule name=\""
+  },
+  {
+    "va": "0x140008c68",
+    "offset": "0x7668",
+    "encoding": "utf-8",
+    "text": "\" dir=out action=block"
+  },
+  {
+    "va": "0x140008c80",
+    "offset": "0x7680",
+    "encoding": "utf-8",
+    "text": "\" program=\""
+  },
+  {
+    "va": "0x140008c90",
+    "offset": "0x7690",
+    "encoding": "utf-8",
+    "text": "netsh advfirewall firewall add rule name=\""
+  },
+  {
+    "va": "0x140008cc0",
+    "offset": "0x76c0",
+    "encoding": "utf-8",
+    "text": "netsh advfirewall set allprofiles state on"
+  },
+  {
+    "va": "0x140008cf0",
+    "offset": "0x76f0",
+    "encoding": "gb18030",
+    "text": "添加规则：%s"
+  },
+  {
+    "va": "0x140008d00",
+    "offset": "0x7700",
+    "encoding": "utf-8",
+    "text": "667546138"
+  },
+  {
+    "va": "0x140008d10",
+    "offset": "0x7710",
+    "encoding": "utf-8",
+    "text": "SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Overwatch"
+  },
+  {
+    "va": "0x140008d60",
+    "offset": "0x7760",
+    "encoding": "utf-8",
+    "text": "InstallLocation"
+  },
+  {
+    "va": "0x140008d70",
+    "offset": "0x7770",
+    "encoding": "utf-8",
+    "text": "\\_retail_\\OWNeacClient.exe"
+  },
+  {
+    "va": "0x140008d90",
+    "offset": "0x7790",
+    "encoding": "gb18030",
+    "text": "无法获取安装路径。"
+  },
+  {
+    "va": "0x140008da8",
+    "offset": "0x77a8",
+    "encoding": "utf-8",
+    "text": "COMSPEC"
+  },
+  {
+    "va": "0x140008db0",
+    "offset": "0x77b0",
+    "encoding": "utf-8",
+    "text": "SOFTWARE\\VMware, Inc.\\VMware Tools"
+  },
+  {
+    "va": "0x140008dd8",
+    "offset": "0x77d8",
+    "encoding": "utf-8",
+    "text": "======================================"
+  },
+  {
+    "va": "0x140008e00",
+    "offset": "0x7800",
+    "encoding": "gb18030",
+    "text": "自由死斗 (宽高比,颜色,赞赏键需默认。HDR,显卡/颜色滤镜关闭，保留战网窗口可自动重上。)"
+  },
+  {
+    "va": "0x140008e58",
+    "offset": "0x7858",
+    "encoding": "gb18030",
+    "text": "托比昂赢 (战令房托比昂赢的那边开启。帧率：不要低于60。)"
+  },
+  {
+    "va": "0x140008e90",
+    "offset": "0x7890",
+    "encoding": "gb18030",
+    "text": "托比昂输 (战令房托比昂输的那边开启，路霸、女王也通用。)"
+  },
+  {
+    "va": "0x140008ed0",
+    "offset": "0x78d0",
+    "encoding": "gb18030",
+    "text": "房主重开 (需先设置热键 重新开始自定游戏 为F2。黑屏结束127秒后重开。)"
+  },
+  {
+    "va": "0x140008f18",
+    "offset": "0x7918",
+    "encoding": "gb18030",
+    "text": "自由死斗"
+  },
+  {
+    "va": "0x140008f28",
+    "offset": "0x7928",
+    "encoding": "gb18030",
+    "text": "托比昂赢"
+  },
+  {
+    "va": "0x140008f38",
+    "offset": "0x7938",
+    "encoding": "gb18030",
+    "text": "托比昂输"
+  },
+  {
+    "va": "0x140008f48",
+    "offset": "0x7948",
+    "encoding": "gb18030",
+    "text": "房主重开"
+  },
+  {
+    "va": "0x140008f60",
+    "offset": "0x7960",
+    "encoding": "gb18030",
+    "text": "用前须知：这是免费的使用造成的一切后果自负！更新Q群：667546138 更新日期：6月17日 17点30分"
+  },
+  {
+    "va": "0x140008fc0",
+    "offset": "0x79c0",
+    "encoding": "gb18030",
+    "text": "(后台版：需要开窗口化，可最小化玩电脑)"
+  },
+  {
+    "va": "0x140008fe8",
+    "offset": "0x79e8",
+    "encoding": "utf-8",
+    "text": "%d = %s"
+  },
+  {
+    "va": "0x140008ff0",
+    "offset": "0x79f0",
+    "encoding": "gb18030",
+    "text": "(前台版：与宏效果一样，不可以操作电脑)"
+  },
+  {
+    "va": "0x140009018",
+    "offset": "0x7a18",
+    "encoding": "gb18030",
+    "text": "请输入脚本编号 (1-8)："
+  },
+  {
+    "va": "0x140009038",
+    "offset": "0x7a38",
+    "encoding": "gb18030",
+    "text": "选择：%s %s"
+  },
+  {
+    "va": "0x140009048",
+    "offset": "0x7a48",
+    "encoding": "gb18030",
+    "text": "开关热键：F3需在(游戏内或当前窗口内)。"
+  },
+  {
+    "va": "0x140009070",
+    "offset": "0x7a70",
+    "encoding": "gb18030",
+    "text": "已切换取色方案！"
+  },
+  {
+    "va": "0x140009088",
+    "offset": "0x7a88",
+    "encoding": "gb18030",
+    "text": "守望先锋"
+  },
+  {
+    "va": "0x140009094",
+    "offset": "0x7a94",
+    "encoding": "utf-8",
+    "text": "#32770"
+  },
+  {
+    "va": "0x1400090a0",
+    "offset": "0x7aa0",
+    "encoding": "gb18030",
+    "text": "出现异常报错。"
+  },
+  {
+    "va": "0x1400090b0",
+    "offset": "0x7ab0",
+    "encoding": "gb18030",
+    "text": "窗口无响应。"
+  },
+  {
+    "va": "0x1400090e0",
+    "offset": "0x7ae0",
+    "encoding": "gb18030",
+    "text": "00010203040506070809101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384858687888990919293949596979899WSADVEQ爊tdll"
+  },
+  {
+    "va": "0x1400091b8",
+    "offset": "0x7bb8",
+    "encoding": "utf-8",
+    "text": "RtlGetVersion"
+  },
+  {
+    "va": "0x1400091c8",
+    "offset": "0x7bc8",
+    "encoding": "utf-8",
+    "text": "NtManageHotPatch"
+  },
+  {
+    "va": "0x1400091e0",
+    "offset": "0x7be0",
+    "encoding": "utf-8",
+    "text": "ZwQueryVirtualMemory"
+  },
+  {
+    "va": "0x1400091f8",
+    "offset": "0x7bf8",
+    "encoding": "utf-8",
+    "text": "\"%s\" \"%s\""
+  },
+  {
+    "va": "0x1400092d9",
+    "offset": "0x7cd9",
+    "encoding": "gb18030",
+    "text": "瓽醶"
+  },
+  {
+    "va": "0x1400092e2",
+    "offset": "0x7ce2",
+    "encoding": "gb18030",
+    "text": "呺Q羹?"
+  },
+  {
+    "va": "0x1400092ef",
+    "offset": "0x7cef",
+    "encoding": "utf-8",
+    "text": "@ffffff"
+  },
+  {
+    "va": "0x14000930f",
+    "offset": "0x7d0f",
+    "encoding": "gb18030",
+    "text": "@做vKr`"
+  },
+  {
+    "va": "0x140009337",
+    "offset": "0x7d37",
+    "encoding": "gb18030",
+    "text": "@腓⺋总"
+  },
+  {
+    "va": "0x140009389",
+    "offset": "0x7d89",
+    "encoding": "gb18030",
+    "text": "-$`t袵@2鑴蠥滼@"
+  },
+  {
+    "va": "0x140009858",
+    "offset": "0x8258",
+    "encoding": "utf-8",
+    "text": "GCTL"
+  },
+  {
+    "va": "0x140009864",
+    "offset": "0x8264",
+    "encoding": "utf-8",
+    "text": ".text$di"
+  },
+  {
+    "va": "0x140009878",
+    "offset": "0x8278",
+    "encoding": "utf-8",
+    "text": ".text$mn"
+  },
+  {
+    "va": "0x14000988c",
+    "offset": "0x828c",
+    "encoding": "utf-8",
+    "text": ".text$mn$00"
+  },
+  {
+    "va": "0x1400098a0",
+    "offset": "0x82a0",
+    "encoding": "utf-8",
+    "text": ".text$x"
+  },
+  {
+    "va": "0x1400098b0",
+    "offset": "0x82b0",
+    "encoding": "utf-8",
+    "text": ".text$yd"
+  },
+  {
+    "va": "0x1400098c4",
+    "offset": "0x82c4",
+    "encoding": "utf-8",
+    "text": ".idata$5"
+  },
+  {
+    "va": "0x1400098d8",
+    "offset": "0x82d8",
+    "encoding": "utf-8",
+    "text": ".00cfg"
+  },
+  {
+    "va": "0x1400098e8",
+    "offset": "0x82e8",
+    "encoding": "utf-8",
+    "text": ".CRT$XCA"
+  },
+  {
+    "va": "0x1400098fc",
+    "offset": "0x82fc",
+    "encoding": "utf-8",
+    "text": ".CRT$XCAA"
+  },
+  {
+    "va": "0x140009910",
+    "offset": "0x8310",
+    "encoding": "utf-8",
+    "text": ".CRT$XCL"
+  },
+  {
+    "va": "0x140009924",
+    "offset": "0x8324",
+    "encoding": "utf-8",
+    "text": ".CRT$XCZ"
+  },
+  {
+    "va": "0x140009938",
+    "offset": "0x8338",
+    "encoding": "utf-8",
+    "text": ".CRT$XIA"
+  },
+  {
+    "va": "0x14000994c",
+    "offset": "0x834c",
+    "encoding": "utf-8",
+    "text": ".CRT$XIAA"
+  },
+  {
+    "va": "0x140009960",
+    "offset": "0x8360",
+    "encoding": "utf-8",
+    "text": ".CRT$XIAC"
+  },
+  {
+    "va": "0x140009974",
+    "offset": "0x8374",
+    "encoding": "utf-8",
+    "text": ".CRT$XIZ"
+  },
+  {
+    "va": "0x140009988",
+    "offset": "0x8388",
+    "encoding": "utf-8",
+    "text": ".CRT$XPA"
+  },
+  {
+    "va": "0x14000999c",
+    "offset": "0x839c",
+    "encoding": "utf-8",
+    "text": ".CRT$XPZ"
+  },
+  {
+    "va": "0x1400099b0",
+    "offset": "0x83b0",
+    "encoding": "utf-8",
+    "text": ".CRT$XTA"
+  },
+  {
+    "va": "0x1400099c4",
+    "offset": "0x83c4",
+    "encoding": "utf-8",
+    "text": ".CRT$XTZ"
+  },
+  {
+    "va": "0x1400099d8",
+    "offset": "0x83d8",
+    "encoding": "utf-8",
+    "text": ".rdata"
+  },
+  {
+    "va": "0x1400099e8",
+    "offset": "0x83e8",
+    "encoding": "utf-8",
+    "text": ".rdata$r"
+  },
+  {
+    "va": "0x1400099fc",
+    "offset": "0x83fc",
+    "encoding": "utf-8",
+    "text": ".rdata$voltmd"
+  },
+  {
+    "va": "0x140009a14",
+    "offset": "0x8414",
+    "encoding": "utf-8",
+    "text": ".rdata$zzzdbg"
+  },
+  {
+    "va": "0x140009a2c",
+    "offset": "0x842c",
+    "encoding": "utf-8",
+    "text": ".rtc$IAA"
+  },
+  {
+    "va": "0x140009a40",
+    "offset": "0x8440",
+    "encoding": "utf-8",
+    "text": ".rtc$IZZ"
+  },
+  {
+    "va": "0x140009a54",
+    "offset": "0x8454",
+    "encoding": "utf-8",
+    "text": ".rtc$TAA"
+  },
+  {
+    "va": "0x140009a68",
+    "offset": "0x8468",
+    "encoding": "utf-8",
+    "text": ".rtc$TZZ"
+  },
+  {
+    "va": "0x140009a7c",
+    "offset": "0x847c",
+    "encoding": "utf-8",
+    "text": ".xdata"
+  },
+  {
+    "va": "0x140009a8c",
+    "offset": "0x848c",
+    "encoding": "utf-8",
+    "text": ".xdata$x"
+  },
+  {
+    "va": "0x140009aa0",
+    "offset": "0x84a0",
+    "encoding": "utf-8",
+    "text": ".idata$2"
+  },
+  {
+    "va": "0x140009ab4",
+    "offset": "0x84b4",
+    "encoding": "utf-8",
+    "text": ".idata$3"
+  },
+  {
+    "va": "0x140009ac8",
+    "offset": "0x84c8",
+    "encoding": "utf-8",
+    "text": ".idata$4"
+  },
+  {
+    "va": "0x140009adc",
+    "offset": "0x84dc",
+    "encoding": "utf-8",
+    "text": ".idata$6"
+  },
+  {
+    "va": "0x140009af0",
+    "offset": "0x84f0",
+    "encoding": "utf-8",
+    "text": ".data"
+  },
+  {
+    "va": "0x140009b00",
+    "offset": "0x8500",
+    "encoding": "utf-8",
+    "text": ".data$r"
+  },
+  {
+    "va": "0x140009b10",
+    "offset": "0x8510",
+    "encoding": "utf-8",
+    "text": ".data$rs"
+  },
+  {
+    "va": "0x140009b24",
+    "offset": "0x8524",
+    "encoding": "utf-8",
+    "text": ".bss"
+  },
+  {
+    "va": "0x140009b34",
+    "offset": "0x8534",
+    "encoding": "utf-8",
+    "text": ".pdata"
+  },
+  {
+    "va": "0x140009b44",
+    "offset": "0x8544",
+    "encoding": "utf-8",
+    "text": ".rsrc$01"
+  },
+  {
+    "va": "0x140009b58",
+    "offset": "0x8558",
+    "encoding": "utf-8",
+    "text": ".rsrc$02"
+  },
+  {
+    "va": "0x140009e7f",
+    "offset": "0x887f",
+    "encoding": "gb18030",
+    "text": "P2郞"
+  },
+  {
+    "va": "0x14000a9e2",
+    "offset": "0x93e2",
+    "encoding": "utf-8",
+    "text": "SetConsoleTextAttribute"
+  },
+  {
+    "va": "0x14000a9fc",
+    "offset": "0x93fc",
+    "encoding": "utf-8",
+    "text": "SetConsoleTitleA"
+  },
+  {
+    "va": "0x14000aa10",
+    "offset": "0x9410",
+    "encoding": "utf-8",
+    "text": "GetStdHandle"
+  },
+  {
+    "va": "0x14000aa20",
+    "offset": "0x9420",
+    "encoding": "utf-8",
+    "text": "SetConsoleMode"
+  },
+  {
+    "va": "0x14000aa32",
+    "offset": "0x9432",
+    "encoding": "utf-8",
+    "text": "TerminateProcess"
+  },
+  {
+    "va": "0x14000aa46",
+    "offset": "0x9446",
+    "encoding": "utf-8",
+    "text": "GetEnvironmentVariableA"
+  },
+  {
+    "va": "0x14000aa60",
+    "offset": "0x9460",
+    "encoding": "utf-8",
+    "text": "WaitForSingleObject"
+  },
+  {
+    "va": "0x14000aa76",
+    "offset": "0x9476",
+    "encoding": "utf-8",
+    "text": "ExitThread"
+  },
+  {
+    "va": "0x14000aa84",
+    "offset": "0x9484",
+    "encoding": "utf-8",
+    "text": "OpenProcess"
+  },
+  {
+    "va": "0x14000aa92",
+    "offset": "0x9492",
+    "encoding": "utf-8",
+    "text": "CreateToolhelp32Snapshot"
+  },
+  {
+    "va": "0x14000aaae",
+    "offset": "0x94ae",
+    "encoding": "utf-8",
+    "text": "Sleep"
+  },
+  {
+    "va": "0x14000aab6",
+    "offset": "0x94b6",
+    "encoding": "utf-8",
+    "text": "GetConsoleMode"
+  },
+  {
+    "va": "0x14000aac8",
+    "offset": "0x94c8",
+    "encoding": "utf-8",
+    "text": "Process32NextW"
+  },
+  {
+    "va": "0x14000aada",
+    "offset": "0x94da",
+    "encoding": "utf-8",
+    "text": "FileTimeToSystemTime"
+  },
+  {
+    "va": "0x14000aaf2",
+    "offset": "0x94f2",
+    "encoding": "utf-8",
+    "text": "Process32FirstW"
+  },
+  {
+    "va": "0x14000ab04",
+    "offset": "0x9504",
+    "encoding": "utf-8",
+    "text": "CloseHandle"
+  },
+  {
+    "va": "0x14000ab12",
+    "offset": "0x9512",
+    "encoding": "utf-8",
+    "text": "CreateThread"
+  },
+  {
+    "va": "0x14000ab22",
+    "offset": "0x9522",
+    "encoding": "utf-8",
+    "text": "GetLocalTime"
+  },
+  {
+    "va": "0x14000ab32",
+    "offset": "0x9532",
+    "encoding": "utf-8",
+    "text": "SetThreadExecutionState"
+  },
+  {
+    "va": "0x14000ab4c",
+    "offset": "0x954c",
+    "encoding": "utf-8",
+    "text": "GetConsoleWindow"
+  },
+  {
+    "va": "0x14000ab60",
+    "offset": "0x9560",
+    "encoding": "utf-8",
+    "text": "lstrcmpiA"
+  },
+  {
+    "va": "0x14000ab6c",
+    "offset": "0x956c",
+    "encoding": "utf-8",
+    "text": "SystemTimeToTzSpecificLocalTime"
+  },
+  {
+    "va": "0x14000ab8e",
+    "offset": "0x958e",
+    "encoding": "utf-8",
+    "text": "SetConsoleOutputCP"
+  },
+  {
+    "va": "0x14000aba4",
+    "offset": "0x95a4",
+    "encoding": "utf-8",
+    "text": "GetProcessTimes"
+  },
+  {
+    "va": "0x14000abb6",
+    "offset": "0x95b6",
+    "encoding": "utf-8",
+    "text": "ReadFile"
+  },
+  {
+    "va": "0x14000abc2",
+    "offset": "0x95c2",
+    "encoding": "utf-8",
+    "text": "GetModuleFileNameA"
+  },
+  {
+    "va": "0x14000abd8",
+    "offset": "0x95d8",
+    "encoding": "utf-8",
+    "text": "GetFileSizeEx"
+  },
+  {
+    "va": "0x14000abe8",
+    "offset": "0x95e8",
+    "encoding": "utf-8",
+    "text": "WriteProcessMemory"
+  },
+  {
+    "va": "0x14000abfe",
+    "offset": "0x95fe",
+    "encoding": "utf-8",
+    "text": "HeapFree"
+  },
+  {
+    "va": "0x14000ac0a",
+    "offset": "0x960a",
+    "encoding": "utf-8",
+    "text": "VirtualFree"
+  },
+  {
+    "va": "0x14000ac18",
+    "offset": "0x9618",
+    "encoding": "utf-8",
+    "text": "WriteFile"
+  },
+  {
+    "va": "0x14000ac24",
+    "offset": "0x9624",
+    "encoding": "utf-8",
+    "text": "VirtualAlloc"
+  },
+  {
+    "va": "0x14000ac34",
+    "offset": "0x9634",
+    "encoding": "utf-8",
+    "text": "Wow64SetThreadContext"
+  },
+  {
+    "va": "0x14000ac4c",
+    "offset": "0x964c",
+    "encoding": "utf-8",
+    "text": "Wow64GetThreadContext"
+  },
+  {
+    "va": "0x14000ac64",
+    "offset": "0x9664",
+    "encoding": "utf-8",
+    "text": "SetFilePointer"
+  },
+  {
+    "va": "0x14000ac76",
+    "offset": "0x9676",
+    "encoding": "utf-8",
+    "text": "ResumeThread"
+  },
+  {
+    "va": "0x14000ac86",
+    "offset": "0x9686",
+    "encoding": "utf-8",
+    "text": "GetModuleHandleA"
+  },
+  {
+    "va": "0x14000ac9a",
+    "offset": "0x969a",
+    "encoding": "utf-8",
+    "text": "CreateFileA"
+  },
+  {
+    "va": "0x14000aca8",
+    "offset": "0x96a8",
+    "encoding": "utf-8",
+    "text": "HeapAlloc"
+  },
+  {
+    "va": "0x14000acb4",
+    "offset": "0x96b4",
+    "encoding": "utf-8",
+    "text": "GetThreadContext"
+  },
+  {
+    "va": "0x14000acc8",
+    "offset": "0x96c8",
+    "encoding": "utf-8",
+    "text": "GetProcAddress"
+  },
+  {
+    "va": "0x14000acda",
+    "offset": "0x96da",
+    "encoding": "utf-8",
+    "text": "VirtualAllocEx"
+  },
+  {
+    "va": "0x14000acec",
+    "offset": "0x96ec",
+    "encoding": "utf-8",
+    "text": "ReadProcessMemory"
+  },
+  {
+    "va": "0x14000ad00",
+    "offset": "0x9700",
+    "encoding": "utf-8",
+    "text": "GetProcessHeap"
+  },
+  {
+    "va": "0x14000ad12",
+    "offset": "0x9712",
+    "encoding": "utf-8",
+    "text": "CreateProcessA"
+  },
+  {
+    "va": "0x14000ad24",
+    "offset": "0x9724",
+    "encoding": "utf-8",
+    "text": "SetThreadContext"
+  },
+  {
+    "va": "0x14000ad36",
+    "offset": "0x9736",
+    "encoding": "utf-8",
+    "text": "KERNEL32.DLL"
+  },
+  {
+    "va": "0x14000ad46",
+    "offset": "0x9746",
+    "encoding": "utf-8",
+    "text": "ReleaseDC"
+  },
+  {
+    "va": "0x14000ad52",
+    "offset": "0x9752",
+    "encoding": "utf-8",
+    "text": "IsIconic"
+  },
+  {
+    "va": "0x14000ad5e",
+    "offset": "0x975e",
+    "encoding": "utf-8",
+    "text": "FindWindowA"
+  },
+  {
+    "va": "0x14000ad6c",
+    "offset": "0x976c",
+    "encoding": "utf-8",
+    "text": "GetClientRect"
+  },
+  {
+    "va": "0x14000ad7c",
+    "offset": "0x977c",
+    "encoding": "utf-8",
+    "text": "PrintWindow"
+  },
+  {
+    "va": "0x14000ad8a",
+    "offset": "0x978a",
+    "encoding": "utf-8",
+    "text": "mouse_event"
+  },
+  {
+    "va": "0x14000ad98",
+    "offset": "0x9798",
+    "encoding": "utf-8",
+    "text": "GetForegroundWindow"
+  },
+  {
+    "va": "0x14000adae",
+    "offset": "0x97ae",
+    "encoding": "utf-8",
+    "text": "SetThreadDpiAwarenessContext"
+  },
+  {
+    "va": "0x14000adce",
+    "offset": "0x97ce",
+    "encoding": "utf-8",
+    "text": "ClientToScreen"
+  },
+  {
+    "va": "0x14000ade0",
+    "offset": "0x97e0",
+    "encoding": "utf-8",
+    "text": "GetAsyncKeyState"
+  },
+  {
+    "va": "0x14000adf4",
+    "offset": "0x97f4",
+    "encoding": "utf-8",
+    "text": "IsWindow"
+  },
+  {
+    "va": "0x14000ae00",
+    "offset": "0x9800",
+    "encoding": "utf-8",
+    "text": "ShowWindow"
+  },
+  {
+    "va": "0x14000ae0e",
+    "offset": "0x980e",
+    "encoding": "utf-8",
+    "text": "GetWindowLongPtrW"
+  },
+  {
+    "va": "0x14000ae22",
+    "offset": "0x9822",
+    "encoding": "utf-8",
+    "text": "GetSystemMetrics"
+  },
+  {
+    "va": "0x14000ae36",
+    "offset": "0x9836",
+    "encoding": "utf-8",
+    "text": "SendMessageW"
+  },
+  {
+    "va": "0x14000ae46",
+    "offset": "0x9846",
+    "encoding": "utf-8",
+    "text": "GetDpiForWindow"
+  },
+  {
+    "va": "0x14000ae58",
+    "offset": "0x9858",
+    "encoding": "utf-8",
+    "text": "keybd_event"
+  },
+  {
+    "va": "0x14000ae66",
+    "offset": "0x9866",
+    "encoding": "utf-8",
+    "text": "SetWindowPos"
+  },
+  {
+    "va": "0x14000ae76",
+    "offset": "0x9876",
+    "encoding": "utf-8",
+    "text": "IsWindowVisible"
+  },
+  {
+    "va": "0x14000ae88",
+    "offset": "0x9888",
+    "encoding": "utf-8",
+    "text": "GetDC"
+  },
+  {
+    "va": "0x14000ae90",
+    "offset": "0x9890",
+    "encoding": "utf-8",
+    "text": "GetMenu"
+  },
+  {
+    "va": "0x14000ae9a",
+    "offset": "0x989a",
+    "encoding": "utf-8",
+    "text": "MapVirtualKeyW"
+  },
+  {
+    "va": "0x14000aeac",
+    "offset": "0x98ac",
+    "encoding": "utf-8",
+    "text": "PostMessageW"
+  },
+  {
+    "va": "0x14000aebc",
+    "offset": "0x98bc",
+    "encoding": "utf-8",
+    "text": "AdjustWindowRectEx"
+  },
+  {
+    "va": "0x14000aed2",
+    "offset": "0x98d2",
+    "encoding": "utf-8",
+    "text": "GetWindowThreadProcessId"
+  },
+  {
+    "va": "0x14000aeee",
+    "offset": "0x98ee",
+    "encoding": "utf-8",
+    "text": "GetWindowLongW"
+  },
+  {
+    "va": "0x14000aefe",
+    "offset": "0x98fe",
+    "encoding": "utf-8",
+    "text": "USER32.dll"
+  },
+  {
+    "va": "0x14000af0c",
+    "offset": "0x990c",
+    "encoding": "utf-8",
+    "text": "DeleteObject"
+  },
+  {
+    "va": "0x14000af1c",
+    "offset": "0x991c",
+    "encoding": "utf-8",
+    "text": "DeleteDC"
+  },
+  {
+    "va": "0x14000af28",
+    "offset": "0x9928",
+    "encoding": "utf-8",
+    "text": "CreateCompatibleDC"
+  },
+  {
+    "va": "0x14000af3e",
+    "offset": "0x993e",
+    "encoding": "utf-8",
+    "text": "CreateDIBSection"
+  },
+  {
+    "va": "0x14000af52",
+    "offset": "0x9952",
+    "encoding": "utf-8",
+    "text": "SelectObject"
+  },
+  {
+    "va": "0x14000af62",
+    "offset": "0x9962",
+    "encoding": "utf-8",
+    "text": "BitBlt"
+  },
+  {
+    "va": "0x14000af6a",
+    "offset": "0x996a",
+    "encoding": "utf-8",
+    "text": "GDI32.dll"
+  },
+  {
+    "va": "0x14000af76",
+    "offset": "0x9976",
+    "encoding": "utf-8",
+    "text": "RegOpenKeyExA"
+  },
+  {
+    "va": "0x14000af86",
+    "offset": "0x9986",
+    "encoding": "utf-8",
+    "text": "RegQueryValueExA"
+  },
+  {
+    "va": "0x14000af9a",
+    "offset": "0x999a",
+    "encoding": "utf-8",
+    "text": "RegCloseKey"
+  },
+  {
+    "va": "0x14000afa6",
+    "offset": "0x99a6",
+    "encoding": "utf-8",
+    "text": "ADVAPI32.dll"
+  },
+  {
+    "va": "0x14000afb6",
+    "offset": "0x99b6",
+    "encoding": "utf-8",
+    "text": "??1_Lockit@std@@QEAA@XZ"
+  },
+  {
+    "va": "0x14000afd0",
+    "offset": "0x99d0",
+    "encoding": "utf-8",
+    "text": "??0_Lockit@std@@QEAA@H@Z"
+  },
+  {
+    "va": "0x14000afec",
+    "offset": "0x99ec",
+    "encoding": "utf-8",
+    "text": "?_Getgloballocale@locale@std@@CAPEAV_Locimp@12@XZ"
+  },
+  {
+    "va": "0x14000b020",
+    "offset": "0x9a20",
+    "encoding": "utf-8",
+    "text": "?cin@std@@3V?$basic_istream@DU?$char_traits@D@std@@@1@A"
+  },
+  {
+    "va": "0x14000b05a",
+    "offset": "0x9a5a",
+    "encoding": "utf-8",
+    "text": "?_Xinvalid_argument@std@@YAXPEBD@Z"
+  },
+  {
+    "va": "0x14000b080",
+    "offset": "0x9a80",
+    "encoding": "utf-8",
+    "text": "?_Id_cnt@id@locale@std@@0HA"
+  },
+  {
+    "va": "0x14000b09e",
+    "offset": "0x9a9e",
+    "encoding": "utf-8",
+    "text": "?_Xout_of_range@std@@YAXPEBD@Z"
+  },
+  {
+    "va": "0x14000b0c0",
+    "offset": "0x9ac0",
+    "encoding": "utf-8",
+    "text": "?id@?$ctype@D@std@@2V0locale@2@A"
+  },
+  {
+    "va": "0x14000b0e4",
+    "offset": "0x9ae4",
+    "encoding": "utf-8",
+    "text": "?_Xlength_error@std@@YAXPEBD@Z"
+  },
+  {
+    "va": "0x14000b106",
+    "offset": "0x9b06",
+    "encoding": "utf-8",
+    "text": "?_Ipfx@?$basic_istream@DU?$char_traits@D@std@@@std@@QEAA_N_N@Z"
+  },
+  {
+    "va": "0x14000b148",
+    "offset": "0x9b48",
+    "encoding": "utf-8",
+    "text": "?setstate@?$basic_ios@DU?$char_traits@D@std@@@std@@QEAAXH_N@Z"
+  },
+  {
+    "va": "0x14000b188",
+    "offset": "0x9b88",
+    "encoding": "utf-8",
+    "text": "?sgetc@?$basic_streambuf@DU?$char_traits@D@std@@@std@@QEAAHXZ"
+  },
+  {
+    "va": "0x14000b1c8",
+    "offset": "0x9bc8",
+    "encoding": "utf-8",
+    "text": "?snextc@?$basic_streambuf@DU?$char_traits@D@std@@@std@@QEAAHXZ"
+  },
+  {
+    "va": "0x14000b20a",
+    "offset": "0x9c0a",
+    "encoding": "utf-8",
+    "text": "?getloc@ios_base@std@@QEBA?AVlocale@2@XZ"
+  },
+  {
+    "va": "0x14000b236",
+    "offset": "0x9c36",
+    "encoding": "utf-8",
+    "text": "?_Getcat@?$ctype@D@std@@SA_KPEAPEBVfacet@locale@2@PEBV42@@Z"
+  },
+  {
+    "va": "0x14000b272",
+    "offset": "0x9c72",
+    "encoding": "utf-8",
+    "text": "MSVCP140.dll"
+  },
+  {
+    "va": "0x14000b282",
+    "offset": "0x9c82",
+    "encoding": "utf-8",
+    "text": "?_Xbad_alloc@std@@YAXXZ"
+  },
+  {
+    "va": "0x14000b29c",
+    "offset": "0x9c9c",
+    "encoding": "utf-8",
+    "text": "__CxxFrameHandler4"
+  },
+  {
+    "va": "0x14000b2b2",
+    "offset": "0x9cb2",
+    "encoding": "utf-8",
+    "text": "__std_exception_destroy"
+  },
+  {
+    "va": "0x14000b2cc",
+    "offset": "0x9ccc",
+    "encoding": "utf-8",
+    "text": "__std_exception_copy"
+  },
+  {
+    "va": "0x14000b2e4",
+    "offset": "0x9ce4",
+    "encoding": "utf-8",
+    "text": "__std_terminate"
+  },
+  {
+    "va": "0x14000b2f6",
+    "offset": "0x9cf6",
+    "encoding": "utf-8",
+    "text": "__C_specific_handler"
+  },
+  {
+    "va": "0x14000b30e",
+    "offset": "0x9d0e",
+    "encoding": "utf-8",
+    "text": "_CxxThrowException"
+  },
+  {
+    "va": "0x14000b324",
+    "offset": "0x9d24",
+    "encoding": "utf-8",
+    "text": "__current_exception"
+  },
+  {
+    "va": "0x14000b33a",
+    "offset": "0x9d3a",
+    "encoding": "utf-8",
+    "text": "__current_exception_context"
+  },
+  {
+    "va": "0x14000b356",
+    "offset": "0x9d56",
+    "encoding": "utf-8",
+    "text": "VCRUNTIME140_1.dll"
+  },
+  {
+    "va": "0x14000b36a",
+    "offset": "0x9d6a",
+    "encoding": "utf-8",
+    "text": "VCRUNTIME140.dll"
+  },
+  {
+    "va": "0x14000b37e",
+    "offset": "0x9d7e",
+    "encoding": "utf-8",
+    "text": "exit"
+  },
+  {
+    "va": "0x14000b386",
+    "offset": "0x9d86",
+    "encoding": "utf-8",
+    "text": "clock"
+  },
+  {
+    "va": "0x14000b38e",
+    "offset": "0x9d8e",
+    "encoding": "utf-8",
+    "text": "srand"
+  },
+  {
+    "va": "0x14000b396",
+    "offset": "0x9d96",
+    "encoding": "utf-8",
+    "text": "__acrt_iob_func"
+  },
+  {
+    "va": "0x14000b3a8",
+    "offset": "0x9da8",
+    "encoding": "utf-8",
+    "text": "fflush"
+  },
+  {
+    "va": "0x14000b3b2",
+    "offset": "0x9db2",
+    "encoding": "utf-8",
+    "text": "fclose"
+  },
+  {
+    "va": "0x14000b3bc",
+    "offset": "0x9dbc",
+    "encoding": "utf-8",
+    "text": "strncpy_s"
+  },
+  {
+    "va": "0x14000b3c8",
+    "offset": "0x9dc8",
+    "encoding": "utf-8",
+    "text": "rand"
+  },
+  {
+    "va": "0x14000b3d0",
+    "offset": "0x9dd0",
+    "encoding": "utf-8",
+    "text": "__stdio_common_vsprintf_s"
+  },
+  {
+    "va": "0x14000b3ec",
+    "offset": "0x9dec",
+    "encoding": "utf-8",
+    "text": "__stdio_common_vfprintf"
+  },
+  {
+    "va": "0x14000b406",
+    "offset": "0x9e06",
+    "encoding": "utf-8",
+    "text": "system"
+  },
+  {
+    "va": "0x14000b410",
+    "offset": "0x9e10",
+    "encoding": "utf-8",
+    "text": "_strnicmp"
+  },
+  {
+    "va": "0x14000b41c",
+    "offset": "0x9e1c",
+    "encoding": "utf-8",
+    "text": "fgets"
+  },
+  {
+    "va": "0x14000b424",
+    "offset": "0x9e24",
+    "encoding": "utf-8",
+    "text": "_errno"
+  },
+  {
+    "va": "0x14000b42e",
+    "offset": "0x9e2e",
+    "encoding": "utf-8",
+    "text": "strtol"
+  },
+  {
+    "va": "0x14000b438",
+    "offset": "0x9e38",
+    "encoding": "utf-8",
+    "text": "_time64"
+  },
+  {
+    "va": "0x14000b442",
+    "offset": "0x9e42",
+    "encoding": "utf-8",
+    "text": "_popen"
+  },
+  {
+    "va": "0x14000b44c",
+    "offset": "0x9e4c",
+    "encoding": "utf-8",
+    "text": "free"
+  },
+  {
+    "va": "0x14000b454",
+    "offset": "0x9e54",
+    "encoding": "utf-8",
+    "text": "malloc"
+  },
+  {
+    "va": "0x14000b45e",
+    "offset": "0x9e5e",
+    "encoding": "utf-8",
+    "text": "_callnewh"
+  },
+  {
+    "va": "0x14000b46a",
+    "offset": "0x9e6a",
+    "encoding": "utf-8",
+    "text": "_seh_filter_exe"
+  },
+  {
+    "va": "0x14000b47c",
+    "offset": "0x9e7c",
+    "encoding": "utf-8",
+    "text": "_set_app_type"
+  },
+  {
+    "va": "0x14000b48c",
+    "offset": "0x9e8c",
+    "encoding": "utf-8",
+    "text": "__setusermatherr"
+  },
+  {
+    "va": "0x14000b4a0",
+    "offset": "0x9ea0",
+    "encoding": "utf-8",
+    "text": "_configure_narrow_argv"
+  },
+  {
+    "va": "0x14000b4ba",
+    "offset": "0x9eba",
+    "encoding": "utf-8",
+    "text": "_initialize_narrow_environment"
+  },
+  {
+    "va": "0x14000b4dc",
+    "offset": "0x9edc",
+    "encoding": "utf-8",
+    "text": "_get_initial_narrow_environment"
+  },
+  {
+    "va": "0x14000b4fe",
+    "offset": "0x9efe",
+    "encoding": "utf-8",
+    "text": "_initterm"
+  },
+  {
+    "va": "0x14000b50a",
+    "offset": "0x9f0a",
+    "encoding": "utf-8",
+    "text": "_initterm_e"
+  },
+  {
+    "va": "0x14000b518",
+    "offset": "0x9f18",
+    "encoding": "utf-8",
+    "text": "_exit"
+  },
+  {
+    "va": "0x14000b520",
+    "offset": "0x9f20",
+    "encoding": "utf-8",
+    "text": "_set_fmode"
+  },
+  {
+    "va": "0x14000b52e",
+    "offset": "0x9f2e",
+    "encoding": "utf-8",
+    "text": "__p___argc"
+  },
+  {
+    "va": "0x14000b53c",
+    "offset": "0x9f3c",
+    "encoding": "utf-8",
+    "text": "__p___argv"
+  },
+  {
+    "va": "0x14000b54a",
+    "offset": "0x9f4a",
+    "encoding": "utf-8",
+    "text": "_cexit"
+  },
+  {
+    "va": "0x14000b554",
+    "offset": "0x9f54",
+    "encoding": "utf-8",
+    "text": "_c_exit"
+  },
+  {
+    "va": "0x14000b55e",
+    "offset": "0x9f5e",
+    "encoding": "utf-8",
+    "text": "_register_thread_local_exe_atexit_callback"
+  },
+  {
+    "va": "0x14000b58c",
+    "offset": "0x9f8c",
+    "encoding": "utf-8",
+    "text": "_configthreadlocale"
+  },
+  {
+    "va": "0x14000b5a2",
+    "offset": "0x9fa2",
+    "encoding": "utf-8",
+    "text": "_set_new_mode"
+  },
+  {
+    "va": "0x14000b5b2",
+    "offset": "0x9fb2",
+    "encoding": "utf-8",
+    "text": "__p__commode"
+  },
+  {
+    "va": "0x14000b5c2",
+    "offset": "0x9fc2",
+    "encoding": "utf-8",
+    "text": "_initialize_onexit_table"
+  },
+  {
+    "va": "0x14000b5de",
+    "offset": "0x9fde",
+    "encoding": "utf-8",
+    "text": "_register_onexit_function"
+  },
+  {
+    "va": "0x14000b5fa",
+    "offset": "0x9ffa",
+    "encoding": "utf-8",
+    "text": "_crt_atexit"
+  },
+  {
+    "va": "0x14000b608",
+    "offset": "0xa008",
+    "encoding": "utf-8",
+    "text": "terminate"
+  },
+  {
+    "va": "0x14000b612",
+    "offset": "0xa012",
+    "encoding": "utf-8",
+    "text": "api-ms-win-crt-runtime-l1-1-0.dll"
+  },
+  {
+    "va": "0x14000b634",
+    "offset": "0xa034",
+    "encoding": "utf-8",
+    "text": "api-ms-win-crt-time-l1-1-0.dll"
+  },
+  {
+    "va": "0x14000b654",
+    "offset": "0xa054",
+    "encoding": "utf-8",
+    "text": "api-ms-win-crt-utility-l1-1-0.dll"
+  },
+  {
+    "va": "0x14000b676",
+    "offset": "0xa076",
+    "encoding": "utf-8",
+    "text": "api-ms-win-crt-stdio-l1-1-0.dll"
+  },
+  {
+    "va": "0x14000b696",
+    "offset": "0xa096",
+    "encoding": "utf-8",
+    "text": "api-ms-win-crt-string-l1-1-0.dll"
+  },
+  {
+    "va": "0x14000b6b8",
+    "offset": "0xa0b8",
+    "encoding": "utf-8",
+    "text": "api-ms-win-crt-convert-l1-1-0.dll"
+  },
+  {
+    "va": "0x14000b6da",
+    "offset": "0xa0da",
+    "encoding": "utf-8",
+    "text": "api-ms-win-crt-heap-l1-1-0.dll"
+  },
+  {
+    "va": "0x14000b6fa",
+    "offset": "0xa0fa",
+    "encoding": "utf-8",
+    "text": "api-ms-win-crt-math-l1-1-0.dll"
+  },
+  {
+    "va": "0x14000b71a",
+    "offset": "0xa11a",
+    "encoding": "utf-8",
+    "text": "api-ms-win-crt-locale-l1-1-0.dll"
+  },
+  {
+    "va": "0x14000b73e",
+    "offset": "0xa13e",
+    "encoding": "utf-8",
+    "text": "QueryPerformanceCounter"
+  },
+  {
+    "va": "0x14000b758",
+    "offset": "0xa158",
+    "encoding": "utf-8",
+    "text": "GetCurrentProcessId"
+  },
+  {
+    "va": "0x14000b76e",
+    "offset": "0xa16e",
+    "encoding": "utf-8",
+    "text": "GetCurrentThreadId"
+  },
+  {
+    "va": "0x14000b784",
+    "offset": "0xa184",
+    "encoding": "utf-8",
+    "text": "GetSystemTimeAsFileTime"
+  },
+  {
+    "va": "0x14000b79e",
+    "offset": "0xa19e",
+    "encoding": "utf-8",
+    "text": "InitializeSListHead"
+  },
+  {
+    "va": "0x14000b7b4",
+    "offset": "0xa1b4",
+    "encoding": "utf-8",
+    "text": "SetUnhandledExceptionFilter"
+  },
+  {
+    "va": "0x14000b7d2",
+    "offset": "0xa1d2",
+    "encoding": "utf-8",
+    "text": "GetModuleHandleW"
+  },
+  {
+    "va": "0x14000b7e6",
+    "offset": "0xa1e6",
+    "encoding": "utf-8",
+    "text": "memcpy"
+  },
+  {
+    "va": "0x14000b7f0",
+    "offset": "0xa1f0",
+    "encoding": "utf-8",
+    "text": "memmove"
+  },
+  {
+    "va": "0x14000b7fa",
+    "offset": "0xa1fa",
+    "encoding": "utf-8",
+    "text": "memset"
+  },
+  {
+    "va": "0x14000b804",
+    "offset": "0xa204",
+    "encoding": "utf-8",
+    "text": "strcmp"
+  },
+  {
+    "va": "0x14000b80e",
+    "offset": "0xa20e",
+    "encoding": "utf-8",
+    "text": "strlen"
+  },
+  {
+    "va": "0x14000b818",
+    "offset": "0xa218",
+    "encoding": "utf-8",
+    "text": "wcscmp"
+  },
+  {
+    "va": "0x1400088b0",
+    "offset": "0x72b0",
+    "encoding": "utf-16le",
+    "text": "NeacLoader.exe"
+  },
+  {
+    "va": "0x14000c0d0",
+    "offset": "0xa4d0",
+    "encoding": "utf-8",
+    "text": ".?AVbad_alloc@std@@"
+  },
+  {
+    "va": "0x14000c0f8",
+    "offset": "0xa4f8",
+    "encoding": "utf-8",
+    "text": ".?AVbad_cast@std@@"
+  },
+  {
+    "va": "0x14000c120",
+    "offset": "0xa520",
+    "encoding": "utf-8",
+    "text": ".?AVexception@std@@"
+  },
+  {
+    "va": "0x14000c148",
+    "offset": "0xa548",
+    "encoding": "utf-8",
+    "text": ".?AVbad_array_new_length@std@@"
+  },
+  {
+    "va": "0x14000c178",
+    "offset": "0xa578",
+    "encoding": "utf-8",
+    "text": ".?AVtype_info@@"
+  },
+  {
+    "va": "0x14000e060",
+    "offset": "0xac60",
+    "encoding": "utf-8",
+    "text": "<?xml version='1.0' encoding='UTF-8' standalone='yes'?>"
+  },
+  {
+    "va": "0x14000e099",
+    "offset": "0xac99",
+    "encoding": "utf-8",
+    "text": "<assembly xmlns='urn:schemas-microsoft-com:asm.v1' manifestVersion='1.0'>"
+  },
+  {
+    "va": "0x14000e0e4",
+    "offset": "0xace4",
+    "encoding": "utf-8",
+    "text": "  <trustInfo xmlns=\"urn:schemas-microsoft-com:asm.v3\">"
+  },
+  {
+    "va": "0x14000e11c",
+    "offset": "0xad1c",
+    "encoding": "utf-8",
+    "text": "    <security>"
+  },
+  {
+    "va": "0x14000e12c",
+    "offset": "0xad2c",
+    "encoding": "utf-8",
+    "text": "      <requestedPrivileges>"
+  },
+  {
+    "va": "0x14000e149",
+    "offset": "0xad49",
+    "encoding": "utf-8",
+    "text": "        <requestedExecutionLevel level='requireAdministrator' uiAccess='false' />"
+  },
+  {
+    "va": "0x14000e19c",
+    "offset": "0xad9c",
+    "encoding": "utf-8",
+    "text": "      </requestedPrivileges>"
+  },
+  {
+    "va": "0x14000e1ba",
+    "offset": "0xadba",
+    "encoding": "utf-8",
+    "text": "    </security>"
+  },
+  {
+    "va": "0x14000e1cb",
+    "offset": "0xadcb",
+    "encoding": "utf-8",
+    "text": "  </trustInfo>"
+  },
+  {
+    "va": "0x14000e1db",
+    "offset": "0xaddb",
+    "encoding": "utf-8",
+    "text": "</assembly>"
+  },
+  {
+    "va": "0x14000f05c",
+    "offset": "0xae5c",
+    "encoding": "gb18030",
+    "text": "罓锠"
+  }
+]

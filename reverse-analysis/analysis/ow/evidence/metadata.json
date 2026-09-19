@@ -1,0 +1,546 @@
+{
+  "sha256": "f0d2941fff56cdeb5dd35a1158b2d9b91df2182311254697c781efe9966839b9",
+  "size": 45056,
+  "image_base": "0x140000000",
+  "entry_point": "0x140006630",
+  "imports": {
+    "0x140008058": "KERNEL32.DLL!GetConsoleMode",
+    "0x140008060": "KERNEL32.DLL!Process32NextW",
+    "0x140008068": "KERNEL32.DLL!FileTimeToSystemTime",
+    "0x140008070": "KERNEL32.DLL!Process32FirstW",
+    "0x140008078": "KERNEL32.DLL!CloseHandle",
+    "0x140008080": "KERNEL32.DLL!CreateThread",
+    "0x140008088": "KERNEL32.DLL!GetLocalTime",
+    "0x140008090": "KERNEL32.DLL!SetThreadExecutionState",
+    "0x140008098": "KERNEL32.DLL!GetConsoleWindow",
+    "0x1400080a0": "KERNEL32.DLL!lstrcmpiA",
+    "0x1400080a8": "KERNEL32.DLL!SystemTimeToTzSpecificLocalTime",
+    "0x1400080b0": "KERNEL32.DLL!SetConsoleOutputCP",
+    "0x1400080b8": "KERNEL32.DLL!GetProcessTimes",
+    "0x1400080c0": "KERNEL32.DLL!ReadFile",
+    "0x1400080c8": "KERNEL32.DLL!GetModuleFileNameA",
+    "0x1400080d0": "KERNEL32.DLL!GetFileSizeEx",
+    "0x1400080d8": "KERNEL32.DLL!WriteProcessMemory",
+    "0x1400080e0": "KERNEL32.DLL!HeapFree",
+    "0x1400080e8": "KERNEL32.DLL!VirtualFree",
+    "0x1400080f0": "KERNEL32.DLL!WriteFile",
+    "0x1400080f8": "KERNEL32.DLL!VirtualAlloc",
+    "0x140008100": "KERNEL32.DLL!CreateToolhelp32Snapshot",
+    "0x140008108": "KERNEL32.DLL!Wow64GetThreadContext",
+    "0x140008110": "KERNEL32.DLL!SetFilePointer",
+    "0x140008118": "KERNEL32.DLL!ResumeThread",
+    "0x140008120": "KERNEL32.DLL!GetModuleHandleA",
+    "0x140008128": "KERNEL32.DLL!CreateFileA",
+    "0x140008130": "KERNEL32.DLL!HeapAlloc",
+    "0x140008138": "KERNEL32.DLL!GetThreadContext",
+    "0x140008140": "KERNEL32.DLL!GetProcAddress",
+    "0x140008148": "KERNEL32.DLL!VirtualAllocEx",
+    "0x140008150": "KERNEL32.DLL!ReadProcessMemory",
+    "0x140008158": "KERNEL32.DLL!GetProcessHeap",
+    "0x140008160": "KERNEL32.DLL!CreateProcessA",
+    "0x140008168": "KERNEL32.DLL!SetThreadContext",
+    "0x140008170": "KERNEL32.DLL!OpenProcess",
+    "0x140008178": "KERNEL32.DLL!GetModuleHandleW",
+    "0x140008180": "KERNEL32.DLL!SetUnhandledExceptionFilter",
+    "0x140008188": "KERNEL32.DLL!InitializeSListHead",
+    "0x140008190": "KERNEL32.DLL!GetSystemTimeAsFileTime",
+    "0x140008198": "KERNEL32.DLL!GetCurrentThreadId",
+    "0x1400081a0": "KERNEL32.DLL!GetCurrentProcessId",
+    "0x1400081a8": "KERNEL32.DLL!QueryPerformanceCounter",
+    "0x1400081b0": "KERNEL32.DLL!ExitThread",
+    "0x1400081b8": "KERNEL32.DLL!WaitForSingleObject",
+    "0x1400081c0": "KERNEL32.DLL!Sleep",
+    "0x1400081c8": "KERNEL32.DLL!GetEnvironmentVariableA",
+    "0x1400081d0": "KERNEL32.DLL!TerminateProcess",
+    "0x1400081d8": "KERNEL32.DLL!SetConsoleMode",
+    "0x1400081e0": "KERNEL32.DLL!GetStdHandle",
+    "0x1400081e8": "KERNEL32.DLL!SetConsoleTitleA",
+    "0x1400081f0": "KERNEL32.DLL!Wow64SetThreadContext",
+    "0x1400081f8": "KERNEL32.DLL!SetConsoleTextAttribute",
+    "0x140008000": "ADVAPI32.dll!RegQueryValueExA",
+    "0x140008008": "ADVAPI32.dll!RegOpenKeyExA",
+    "0x140008010": "ADVAPI32.dll!RegCloseKey",
+    "0x1400083d0": "api-ms-win-crt-convert-l1-1-0.dll!strtol",
+    "0x1400083e0": "api-ms-win-crt-heap-l1-1-0.dll!_callnewh",
+    "0x1400083e8": "api-ms-win-crt-heap-l1-1-0.dll!_set_new_mode",
+    "0x1400083f0": "api-ms-win-crt-heap-l1-1-0.dll!malloc",
+    "0x1400083f8": "api-ms-win-crt-heap-l1-1-0.dll!free",
+    "0x140008408": "api-ms-win-crt-locale-l1-1-0.dll!_configthreadlocale",
+    "0x140008418": "api-ms-win-crt-math-l1-1-0.dll!__setusermatherr",
+    "0x140008428": "api-ms-win-crt-runtime-l1-1-0.dll!_set_app_type",
+    "0x140008430": "api-ms-win-crt-runtime-l1-1-0.dll!_configure_narrow_argv",
+    "0x140008438": "api-ms-win-crt-runtime-l1-1-0.dll!_initialize_narrow_environment",
+    "0x140008440": "api-ms-win-crt-runtime-l1-1-0.dll!_get_initial_narrow_environment",
+    "0x140008448": "api-ms-win-crt-runtime-l1-1-0.dll!_initterm",
+    "0x140008450": "api-ms-win-crt-runtime-l1-1-0.dll!_seh_filter_exe",
+    "0x140008458": "api-ms-win-crt-runtime-l1-1-0.dll!_exit",
+    "0x140008460": "api-ms-win-crt-runtime-l1-1-0.dll!_errno",
+    "0x140008468": "api-ms-win-crt-runtime-l1-1-0.dll!__p___argc",
+    "0x140008470": "api-ms-win-crt-runtime-l1-1-0.dll!__p___argv",
+    "0x140008478": "api-ms-win-crt-runtime-l1-1-0.dll!_cexit",
+    "0x140008480": "api-ms-win-crt-runtime-l1-1-0.dll!_c_exit",
+    "0x140008488": "api-ms-win-crt-runtime-l1-1-0.dll!_register_thread_local_exe_atexit_callback",
+    "0x140008490": "api-ms-win-crt-runtime-l1-1-0.dll!exit",
+    "0x140008498": "api-ms-win-crt-runtime-l1-1-0.dll!system",
+    "0x1400084a0": "api-ms-win-crt-runtime-l1-1-0.dll!_initterm_e",
+    "0x1400084a8": "api-ms-win-crt-runtime-l1-1-0.dll!_initialize_onexit_table",
+    "0x1400084b0": "api-ms-win-crt-runtime-l1-1-0.dll!_register_onexit_function",
+    "0x1400084b8": "api-ms-win-crt-runtime-l1-1-0.dll!_crt_atexit",
+    "0x1400084c0": "api-ms-win-crt-runtime-l1-1-0.dll!terminate",
+    "0x1400084d0": "api-ms-win-crt-stdio-l1-1-0.dll!__acrt_iob_func",
+    "0x1400084d8": "api-ms-win-crt-stdio-l1-1-0.dll!fflush",
+    "0x1400084e0": "api-ms-win-crt-stdio-l1-1-0.dll!fclose",
+    "0x1400084e8": "api-ms-win-crt-stdio-l1-1-0.dll!__stdio_common_vsprintf_s",
+    "0x1400084f0": "api-ms-win-crt-stdio-l1-1-0.dll!__stdio_common_vfprintf",
+    "0x1400084f8": "api-ms-win-crt-stdio-l1-1-0.dll!_popen",
+    "0x140008500": "api-ms-win-crt-stdio-l1-1-0.dll!__p__commode",
+    "0x140008508": "api-ms-win-crt-stdio-l1-1-0.dll!_set_fmode",
+    "0x140008510": "api-ms-win-crt-stdio-l1-1-0.dll!fgets",
+    "0x140008520": "api-ms-win-crt-string-l1-1-0.dll!strcmp",
+    "0x140008528": "api-ms-win-crt-string-l1-1-0.dll!strncpy_s",
+    "0x140008530": "api-ms-win-crt-string-l1-1-0.dll!strlen",
+    "0x140008538": "api-ms-win-crt-string-l1-1-0.dll!_strnicmp",
+    "0x140008540": "api-ms-win-crt-string-l1-1-0.dll!wcscmp",
+    "0x140008550": "api-ms-win-crt-time-l1-1-0.dll!clock",
+    "0x140008558": "api-ms-win-crt-time-l1-1-0.dll!_time64",
+    "0x140008568": "api-ms-win-crt-utility-l1-1-0.dll!rand",
+    "0x140008570": "api-ms-win-crt-utility-l1-1-0.dll!srand",
+    "0x140008020": "GDI32.dll!BitBlt",
+    "0x140008028": "GDI32.dll!CreateCompatibleDC",
+    "0x140008030": "GDI32.dll!DeleteDC",
+    "0x140008038": "GDI32.dll!SelectObject",
+    "0x140008040": "GDI32.dll!CreateDIBSection",
+    "0x140008048": "GDI32.dll!DeleteObject",
+    "0x140008208": "MSVCP140.dll!?_Xlength_error@std@@YAXPEBD@Z",
+    "0x140008210": "MSVCP140.dll!?id@?$ctype@D@std@@2V0locale@2@A",
+    "0x140008218": "MSVCP140.dll!?_Xout_of_range@std@@YAXPEBD@Z",
+    "0x140008220": "MSVCP140.dll!?_Id_cnt@id@locale@std@@0HA",
+    "0x140008228": "MSVCP140.dll!?_Xinvalid_argument@std@@YAXPEBD@Z",
+    "0x140008230": "MSVCP140.dll!?cin@std@@3V?$basic_istream@DU?$char_traits@D@std@@@1@A",
+    "0x140008238": "MSVCP140.dll!?_Getgloballocale@locale@std@@CAPEAV_Locimp@12@XZ",
+    "0x140008240": "MSVCP140.dll!??0_Lockit@std@@QEAA@H@Z",
+    "0x140008248": "MSVCP140.dll!?_Ipfx@?$basic_istream@DU?$char_traits@D@std@@@std@@QEAA_N_N@Z",
+    "0x140008250": "MSVCP140.dll!?sgetc@?$basic_streambuf@DU?$char_traits@D@std@@@std@@QEAAHXZ",
+    "0x140008258": "MSVCP140.dll!?snextc@?$basic_streambuf@DU?$char_traits@D@std@@@std@@QEAAHXZ",
+    "0x140008260": "MSVCP140.dll!?getloc@ios_base@std@@QEBA?AVlocale@2@XZ",
+    "0x140008268": "MSVCP140.dll!?_Getcat@?$ctype@D@std@@SA_KPEAPEBVfacet@locale@2@PEBV42@@Z",
+    "0x140008270": "MSVCP140.dll!?_Xbad_alloc@std@@YAXXZ",
+    "0x140008278": "MSVCP140.dll!?setstate@?$basic_ios@DU?$char_traits@D@std@@@std@@QEAAXH_N@Z",
+    "0x140008280": "MSVCP140.dll!??1_Lockit@std@@QEAA@XZ",
+    "0x140008290": "USER32.dll!GetWindowLongW",
+    "0x140008298": "USER32.dll!GetWindowThreadProcessId",
+    "0x1400082a0": "USER32.dll!AdjustWindowRectEx",
+    "0x1400082a8": "USER32.dll!PostMessageW",
+    "0x1400082b0": "USER32.dll!MapVirtualKeyW",
+    "0x1400082b8": "USER32.dll!GetMenu",
+    "0x1400082c0": "USER32.dll!GetDC",
+    "0x1400082c8": "USER32.dll!IsWindowVisible",
+    "0x1400082d0": "USER32.dll!SetWindowPos",
+    "0x1400082d8": "USER32.dll!keybd_event",
+    "0x1400082e0": "USER32.dll!GetDpiForWindow",
+    "0x1400082e8": "USER32.dll!SendMessageW",
+    "0x1400082f0": "USER32.dll!GetSystemMetrics",
+    "0x1400082f8": "USER32.dll!GetWindowLongPtrW",
+    "0x140008300": "USER32.dll!ShowWindow",
+    "0x140008308": "USER32.dll!IsWindow",
+    "0x140008310": "USER32.dll!GetAsyncKeyState",
+    "0x140008318": "USER32.dll!ClientToScreen",
+    "0x140008320": "USER32.dll!PrintWindow",
+    "0x140008328": "USER32.dll!SetThreadDpiAwarenessContext",
+    "0x140008330": "USER32.dll!GetClientRect",
+    "0x140008338": "USER32.dll!FindWindowA",
+    "0x140008340": "USER32.dll!IsIconic",
+    "0x140008348": "USER32.dll!ReleaseDC",
+    "0x140008350": "USER32.dll!mouse_event",
+    "0x140008358": "USER32.dll!GetForegroundWindow",
+    "0x140008368": "VCRUNTIME140.dll!__current_exception_context",
+    "0x140008370": "VCRUNTIME140.dll!_CxxThrowException",
+    "0x140008378": "VCRUNTIME140.dll!memset",
+    "0x140008380": "VCRUNTIME140.dll!memmove",
+    "0x140008388": "VCRUNTIME140.dll!memcpy",
+    "0x140008390": "VCRUNTIME140.dll!__C_specific_handler",
+    "0x140008398": "VCRUNTIME140.dll!__std_terminate",
+    "0x1400083a0": "VCRUNTIME140.dll!__std_exception_copy",
+    "0x1400083a8": "VCRUNTIME140.dll!__std_exception_destroy",
+    "0x1400083b0": "VCRUNTIME140.dll!__current_exception",
+    "0x1400083c0": "VCRUNTIME140_1.dll!__CxxFrameHandler4"
+  },
+  "functions": [
+    {
+      "start": "0x140001018",
+      "end": "0x140001068"
+    },
+    {
+      "start": "0x140001068",
+      "end": "0x1400010be"
+    },
+    {
+      "start": "0x1400010c0",
+      "end": "0x1400010f3"
+    },
+    {
+      "start": "0x140001108",
+      "end": "0x14000114b"
+    },
+    {
+      "start": "0x140001190",
+      "end": "0x1400011b0"
+    },
+    {
+      "start": "0x1400011b0",
+      "end": "0x1400011ed"
+    },
+    {
+      "start": "0x1400011f0",
+      "end": "0x14000122d"
+    },
+    {
+      "start": "0x140001230",
+      "end": "0x140001242"
+    },
+    {
+      "start": "0x140001268",
+      "end": "0x140001288"
+    },
+    {
+      "start": "0x140001288",
+      "end": "0x1400012c5"
+    },
+    {
+      "start": "0x1400012c8",
+      "end": "0x1400012f3"
+    },
+    {
+      "start": "0x1400012f4",
+      "end": "0x140001381"
+    },
+    {
+      "start": "0x140001384",
+      "end": "0x140001472"
+    },
+    {
+      "start": "0x140001474",
+      "end": "0x140001499"
+    },
+    {
+      "start": "0x14000149c",
+      "end": "0x1400014de"
+    },
+    {
+      "start": "0x1400014e0",
+      "end": "0x1400015ac"
+    },
+    {
+      "start": "0x1400015ac",
+      "end": "0x140001774"
+    },
+    {
+      "start": "0x140001774",
+      "end": "0x140001828"
+    },
+    {
+      "start": "0x140001828",
+      "end": "0x140001ddd"
+    },
+    {
+      "start": "0x140001de0",
+      "end": "0x140001ff2"
+    },
+    {
+      "start": "0x140001ff4",
+      "end": "0x1400021ac"
+    },
+    {
+      "start": "0x1400021ac",
+      "end": "0x140002319"
+    },
+    {
+      "start": "0x14000231c",
+      "end": "0x14000235e"
+    },
+    {
+      "start": "0x140002360",
+      "end": "0x140002391"
+    },
+    {
+      "start": "0x1400024c0",
+      "end": "0x1400026eb"
+    },
+    {
+      "start": "0x1400026ec",
+      "end": "0x14000274e"
+    },
+    {
+      "start": "0x140002750",
+      "end": "0x140002830"
+    },
+    {
+      "start": "0x140002830",
+      "end": "0x140002c27"
+    },
+    {
+      "start": "0x140002c28",
+      "end": "0x140002cc2"
+    },
+    {
+      "start": "0x140002cc4",
+      "end": "0x14000376f"
+    },
+    {
+      "start": "0x140003770",
+      "end": "0x14000394d"
+    },
+    {
+      "start": "0x140003950",
+      "end": "0x140003d3e"
+    },
+    {
+      "start": "0x140003d40",
+      "end": "0x140003eff"
+    },
+    {
+      "start": "0x140003f00",
+      "end": "0x1400044fb"
+    },
+    {
+      "start": "0x1400044fc",
+      "end": "0x14000461f"
+    },
+    {
+      "start": "0x140004620",
+      "end": "0x140004678"
+    },
+    {
+      "start": "0x140004678",
+      "end": "0x1400046d0"
+    },
+    {
+      "start": "0x1400046d0",
+      "end": "0x140004a0a"
+    },
+    {
+      "start": "0x140004a0c",
+      "end": "0x140004b6f"
+    },
+    {
+      "start": "0x140004b70",
+      "end": "0x140004bd5"
+    },
+    {
+      "start": "0x140004bd8",
+      "end": "0x140004c6a"
+    },
+    {
+      "start": "0x140004c6c",
+      "end": "0x140004d8e"
+    },
+    {
+      "start": "0x140004d90",
+      "end": "0x140004db4"
+    },
+    {
+      "start": "0x140004e10",
+      "end": "0x140004fbc"
+    },
+    {
+      "start": "0x140004fbc",
+      "end": "0x140004fe0"
+    },
+    {
+      "start": "0x140004fe0",
+      "end": "0x140004ffb"
+    },
+    {
+      "start": "0x140004ffc",
+      "end": "0x14000511b"
+    },
+    {
+      "start": "0x14000511c",
+      "end": "0x140005333"
+    },
+    {
+      "start": "0x1400053dc",
+      "end": "0x1400054ea"
+    },
+    {
+      "start": "0x1400054ec",
+      "end": "0x140005636"
+    },
+    {
+      "start": "0x140005638",
+      "end": "0x140005786"
+    },
+    {
+      "start": "0x140005788",
+      "end": "0x140005966"
+    },
+    {
+      "start": "0x140005968",
+      "end": "0x140005a58"
+    },
+    {
+      "start": "0x140005a58",
+      "end": "0x140005b0a"
+    },
+    {
+      "start": "0x140005b0c",
+      "end": "0x140005c8b"
+    },
+    {
+      "start": "0x140005c8c",
+      "end": "0x140005db9"
+    },
+    {
+      "start": "0x140005dbc",
+      "end": "0x140005f1a"
+    },
+    {
+      "start": "0x140005f1c",
+      "end": "0x140006149"
+    },
+    {
+      "start": "0x14000614c",
+      "end": "0x14000627b"
+    },
+    {
+      "start": "0x140006290",
+      "end": "0x1400062cd"
+    },
+    {
+      "start": "0x1400062f0",
+      "end": "0x14000630e"
+    },
+    {
+      "start": "0x140006320",
+      "end": "0x140006364"
+    },
+    {
+      "start": "0x140006390",
+      "end": "0x1400063bb"
+    },
+    {
+      "start": "0x1400063c0",
+      "end": "0x140006476"
+    },
+    {
+      "start": "0x140006480",
+      "end": "0x140006490"
+    },
+    {
+      "start": "0x140006490",
+      "end": "0x1400064a9"
+    },
+    {
+      "start": "0x1400064b0",
+      "end": "0x14000662f"
+    },
+    {
+      "start": "0x140006630",
+      "end": "0x140006642"
+    },
+    {
+      "start": "0x140006650",
+      "end": "0x140006697"
+    },
+    {
+      "start": "0x1400066a0",
+      "end": "0x1400066db"
+    },
+    {
+      "start": "0x1400066e0",
+      "end": "0x140006773"
+    },
+    {
+      "start": "0x140006780",
+      "end": "0x140006811"
+    },
+    {
+      "start": "0x140006820",
+      "end": "0x140006845"
+    },
+    {
+      "start": "0x140006850",
+      "end": "0x14000687b"
+    },
+    {
+      "start": "0x140006880",
+      "end": "0x1400068c0"
+    },
+    {
+      "start": "0x140006910",
+      "end": "0x140006930"
+    },
+    {
+      "start": "0x140006930",
+      "end": "0x1400069ef"
+    },
+    {
+      "start": "0x140006a50",
+      "end": "0x140006a6b"
+    },
+    {
+      "start": "0x140006ac0",
+      "end": "0x140006b15"
+    },
+    {
+      "start": "0x140006b30",
+      "end": "0x140006b8b"
+    },
+    {
+      "start": "0x140006b90",
+      "end": "0x140006bd2"
+    },
+    {
+      "start": "0x140006be0",
+      "end": "0x140006c22"
+    },
+    {
+      "start": "0x140006c30",
+      "end": "0x140006c3b"
+    },
+    {
+      "start": "0x140006c3b",
+      "end": "0x140006d73"
+    },
+    {
+      "start": "0x140006d73",
+      "end": "0x140006ed8"
+    },
+    {
+      "start": "0x140006fb0",
+      "end": "0x140006fcd"
+    },
+    {
+      "start": "0x140006fd0",
+      "end": "0x140007195"
+    },
+    {
+      "start": "0x1400071a0",
+      "end": "0x140007208"
+    },
+    {
+      "start": "0x140007240",
+      "end": "0x140007242"
+    },
+    {
+      "start": "0x140007260",
+      "end": "0x140007266"
+    },
+    {
+      "start": "0x14000734a",
+      "end": "0x140007385"
+    },
+    {
+      "start": "0x140007390",
+      "end": "0x1400073ae"
+    },
+    {
+      "start": "0x1400073b0",
+      "end": "0x1400073c8"
+    },
+    {
+      "start": "0x1400073d0",
+      "end": "0x140007431"
+    }
+  ]
+}

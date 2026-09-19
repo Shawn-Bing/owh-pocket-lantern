@@ -1,0 +1,58 @@
+[
+  {
+    "file": "overwatch-helper.exe",
+    "bytes": 726528,
+    "machine": "x64",
+    "subsystem": 2,
+    "imports": [
+      "USER32.dll",
+      "GDI32.dll",
+      "SHELL32.dll",
+      "ADVAPI32.dll",
+      "comdlg32.dll",
+      "WINHTTP.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-locale-l1-1-0.dll",
+      "api-ms-win-crt-time-l1-1-0.dll",
+      "api-ms-win-crt-multibyte-l1-1-0.dll",
+      "api-ms-win-crt-convert-l1-1-0.dll"
+    ],
+    "sha256": "7a55580b160ca78490c9c04b647bfb851643dad92e38a90cc49f530aaeba451a"
+  },
+  {
+    "file": "owh-demo.exe",
+    "bytes": 25088,
+    "machine": "x64",
+    "subsystem": 2,
+    "imports": [
+      "USER32.dll",
+      "GDI32.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "KERNEL32.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-environment-l1-1-0.dll"
+    ],
+    "sha256": "0bdfa6f375b55ecfe14d34c6e3b66f4de95f92ad522f2ad83d37c6c5c4b78a20"
+  },
+  {
+    "file": "owh-dashboard.exe",
+    "bytes": 7038464,
+    "machine": "x64",
+    "subsystem": 3,
+    "imports": [
+      "kernel32.dll"
+    ],
+    "sha256": "5926a386235fd13e2c4769ffa46cc3067106186e42e9cc0c0b2abbf696498e24"
+  }
+]

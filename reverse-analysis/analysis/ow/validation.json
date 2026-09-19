@@ -1,0 +1,135 @@
+{
+  "method": "Static parsing/disassembly only; no Windows sample execution",
+  "checks": [
+    {
+      "check": "Original sample SHA-256 unchanged",
+      "passed": true
+    },
+    {
+      "check": "Unpacked SHA-256",
+      "passed": true
+    },
+    {
+      "check": "Independently reproduced unpack matches initial unpack byte-for-byte",
+      "passed": true
+    },
+    {
+      "check": "Unpacked file length",
+      "passed": true
+    },
+    {
+      "check": "Startup recovery call",
+      "passed": true
+    },
+    {
+      "check": "Deathmatch recovery call",
+      "passed": true
+    },
+    {
+      "check": "Worker dispatch into deathmatch",
+      "passed": true
+    },
+    {
+      "check": "Recovery invokes loader termination",
+      "passed": true
+    },
+    {
+      "check": "Recovery deadline 120000 ms",
+      "passed": true
+    },
+    {
+      "check": "Matching refreshes deadline by 120000 ms",
+      "passed": true
+    },
+    {
+      "check": "Hero selection refreshes deadline by 120000 ms",
+      "passed": true
+    },
+    {
+      "check": "Gameplay branch refreshes deadline by 120000 ms",
+      "passed": true
+    },
+    {
+      "check": "Post-window warmup 15000 ms",
+      "passed": true
+    },
+    {
+      "check": "Watchdog subtracts 9000 ms",
+      "passed": true
+    },
+    {
+      "check": "Host mode F2 key",
+      "passed": true
+    },
+    {
+      "check": "Host mode 127000 ms",
+      "passed": true
+    },
+    {
+      "check": "Launcher/DPI float constant at RVA 0x93a0 = 25",
+      "passed": true
+    },
+    {
+      "check": "Launcher/DPI float constant at RVA 0x93a4 = 53",
+      "passed": true
+    },
+    {
+      "check": "Launcher/DPI float constant at RVA 0x93a8 = 73",
+      "passed": true
+    },
+    {
+      "check": "Launcher/DPI float constant at RVA 0x93ac = 96",
+      "passed": true
+    },
+    {
+      "check": "Launcher/DPI float constant at RVA 0x93b0 = 103",
+      "passed": true
+    },
+    {
+      "check": "Launcher/DPI float constant at RVA 0x93b4 = 108",
+      "passed": true
+    },
+    {
+      "check": "Launcher/DPI float constant at RVA 0x93b8 = 128",
+      "passed": true
+    },
+    {
+      "check": "Launcher/DPI float constant at RVA 0x93bc = 233",
+      "passed": true
+    },
+    {
+      "check": "Launcher/DPI float constant at RVA 0x93c0 = 300",
+      "passed": true
+    },
+    {
+      "check": "Launcher midpoint constant",
+      "passed": true
+    },
+    {
+      "check": "VMware branch calls firewall setup",
+      "passed": true
+    },
+    {
+      "check": "Python syntax valid: analyze_pe.py",
+      "passed": true
+    },
+    {
+      "check": "Python syntax valid: unpack_ow.py",
+      "passed": true
+    },
+    {
+      "check": "Evidence metadata binary hash matches",
+      "passed": true
+    },
+    {
+      "check": "Disassembly includes expected restart entry",
+      "passed": true
+    }
+  ],
+  "all_passed": true,
+  "limitations": [
+    "No Windows dynamic execution",
+    "No performance measurements",
+    "No validation against current Battle.net UI or room recovery"
+  ]
+}

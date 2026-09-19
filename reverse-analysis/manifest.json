@@ -1,0 +1,95 @@
+{
+  "source_sha256": "fdba49702efb71deacfdb47459ec713be69fe004bf8e04d5bd4150a8f9ed8296",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 2642,
+      "sha256": "b79a193f5e8de9d5347330a26043922fafdf6931b62a0e11923567087031fee6"
+    },
+    {
+      "path": "analysis/ow/evidence/disassembly.asm",
+      "bytes": 602315,
+      "sha256": "1d0954014c580aee519fdac9781bad583cea7e0926bbab70798eaab29d941f8e"
+    },
+    {
+      "path": "analysis/ow/evidence/metadata.json",
+      "bytes": 16100,
+      "sha256": "ffdc59f17ad7fa42674d002ac306465fb8887be2af80070ae32ef2888cf09cc0"
+    },
+    {
+      "path": "analysis/ow/evidence/pe-headers.txt",
+      "bytes": 9457,
+      "sha256": "1a8d5e0c932f922dcbda19d748c60ea857b7dc6a16980e6fe92481188986121b"
+    },
+    {
+      "path": "analysis/ow/evidence/references.json",
+      "bytes": 62454,
+      "sha256": "a0e6e07c926fdad8b22c9cffc8e50cf5cb4de20a8ae26bd13e6da3359d776c7d"
+    },
+    {
+      "path": "analysis/ow/evidence/restart-excerpts.asm",
+      "bytes": 60820,
+      "sha256": "7c7df53ca1136554beb804078f6fd6fd3f22b1cdca356fce22631a1af8e9bd67"
+    },
+    {
+      "path": "analysis/ow/evidence/strings.json",
+      "bytes": 40180,
+      "sha256": "a4df8a3333af19b8910619ab21ec41e19e39a8187522d76421d3eb10a699afa6"
+    },
+    {
+      "path": "analysis/ow/ow.section-restored.bin",
+      "bytes": 25088,
+      "sha256": "70079622ee5bf64688dd1be9f93d2ec010ec80ffd33a99c9f860ba6cdf94eec5"
+    },
+    {
+      "path": "analysis/ow/ow.unpacked.bin",
+      "bytes": 45056,
+      "sha256": "f0d2941fff56cdeb5dd35a1158b2d9b91df2182311254697c781efe9966839b9"
+    },
+    {
+      "path": "analysis/ow/section-restoration.json",
+      "bytes": 197,
+      "sha256": "372cf18e08b0696dc42a01b6e0434aa1adf485176930d31774a5501abc2d431b"
+    },
+    {
+      "path": "analysis/ow/unpack.log",
+      "bytes": 384,
+      "sha256": "957aea33844c1ceae93e0092d7e86ed86c58584a7d4199cc552d93e4754de381"
+    },
+    {
+      "path": "analysis/ow/validation.json",
+      "bytes": 3046,
+      "sha256": "46693fac5e9cd755fe18469132ab08af6c57f1221db7c76f3c20b74589240f29"
+    },
+    {
+      "path": "docs/helper-design.zh-CN.md",
+      "bytes": 7865,
+      "sha256": "8c9b0fe91ee2fc21842e98358bcb9daef8729fa82890b59c0ca7e8a063e25430"
+    },
+    {
+      "path": "docs/ow-reverse-analysis.zh-CN.md",
+      "bytes": 14588,
+      "sha256": "72417a72a963f637e535cc82a2b4732872e52828009081b1cbb6a8e04fe25e84"
+    },
+    {
+      "path": "docs/restart-pseudocode.txt",
+      "bytes": 4646,
+      "sha256": "ae1cf4615de64d27edf694ba3d7dcea8f5ccb2cf147cf38758fcbd0ac3a7de52"
+    },
+    {
+      "path": "requirements-analysis.txt",
+      "bytes": 34,
+      "sha256": "5be015350d2fefde2df7b5aa5805b7267e1c2274dc411ca045659946833cff55"
+    },
+    {
+      "path": "tools/analyze_pe.py",
+      "bytes": 5166,
+      "sha256": "a946e2c63e4709b9751bd61ee9e82ae10dff56b52babfb4463a8b634e6eaff9b"
+    },
+    {
+      "path": "tools/unpack_ow.py",
+      "bytes": 2513,
+      "sha256": "fbc4627b618e7fe094f7db6e3a6e4e8e9f905f19539029b944438be39d1dd02a"
+    }
+  ]
+}

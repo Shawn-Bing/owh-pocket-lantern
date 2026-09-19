@@ -1,0 +1,2492 @@
+[
+  {
+    "instruction": "0x14000103a",
+    "function": "0x140001018",
+    "target": "0x1400084d0",
+    "label": "api-ms-win-crt-stdio-l1-1-0.dll!__acrt_iob_func"
+  },
+  {
+    "instruction": "0x14000105b",
+    "function": "0x140001018",
+    "target": "0x1400084f0",
+    "label": "api-ms-win-crt-stdio-l1-1-0.dll!__stdio_common_vfprintf"
+  },
+  {
+    "instruction": "0x1400010a7",
+    "function": "0x140001068",
+    "target": "0x1400084e8",
+    "label": "api-ms-win-crt-stdio-l1-1-0.dll!__stdio_common_vsprintf_s"
+  },
+  {
+    "instruction": "0x1400010e4",
+    "function": "0x1400010c0",
+    "target": "0x1400083a0",
+    "label": "VCRUNTIME140.dll!__std_exception_copy"
+  },
+  {
+    "instruction": "0x1400010f9",
+    "function": null,
+    "target": "0x140008698",
+    "label": "\"Unknown exception\""
+  },
+  {
+    "instruction": "0x140001125",
+    "function": "0x140001108",
+    "target": "0x1400083a8",
+    "label": "VCRUNTIME140.dll!__std_exception_destroy"
+  },
+  {
+    "instruction": "0x14000115a",
+    "function": null,
+    "target": "0x1400083a8",
+    "label": "VCRUNTIME140.dll!__std_exception_destroy"
+  },
+  {
+    "instruction": "0x140001164",
+    "function": null,
+    "target": "0x1400086b0",
+    "label": "\"bad array new length\""
+  },
+  {
+    "instruction": "0x1400011d4",
+    "function": "0x1400011b0",
+    "target": "0x1400083a0",
+    "label": "VCRUNTIME140.dll!__std_exception_copy"
+  },
+  {
+    "instruction": "0x140001214",
+    "function": "0x1400011f0",
+    "target": "0x1400083a0",
+    "label": "VCRUNTIME140.dll!__std_exception_copy"
+  },
+  {
+    "instruction": "0x140001234",
+    "function": "0x140001230",
+    "target": "0x1400086c8",
+    "label": "\"string too long\""
+  },
+  {
+    "instruction": "0x14000123b",
+    "function": "0x140001230",
+    "target": "0x140008208",
+    "label": "MSVCP140.dll!?_Xlength_error@std@@YAXPEBD@Z"
+  },
+  {
+    "instruction": "0x140001244",
+    "function": null,
+    "target": "0x140008710",
+    "label": "\"bad cast\""
+  },
+  {
+    "instruction": "0x1400012ac",
+    "function": "0x140001288",
+    "target": "0x1400083a0",
+    "label": "VCRUNTIME140.dll!__std_exception_copy"
+  },
+  {
+    "instruction": "0x140001304",
+    "function": "0x1400012f4",
+    "target": "0x1400081c0",
+    "label": "KERNEL32.DLL!Sleep"
+  },
+  {
+    "instruction": "0x14000133e",
+    "function": "0x1400012f4",
+    "target": "0x140008528",
+    "label": "api-ms-win-crt-string-l1-1-0.dll!strncpy_s"
+  },
+  {
+    "instruction": "0x140001364",
+    "function": "0x1400012f4",
+    "target": "0x1400084d0",
+    "label": "api-ms-win-crt-stdio-l1-1-0.dll!__acrt_iob_func"
+  },
+  {
+    "instruction": "0x14000136d",
+    "function": "0x1400012f4",
+    "target": "0x1400084d8",
+    "label": "api-ms-win-crt-stdio-l1-1-0.dll!fflush"
+  },
+  {
+    "instruction": "0x1400013b1",
+    "function": "0x140001384",
+    "target": "0x1400081c0",
+    "label": "KERNEL32.DLL!Sleep"
+  },
+  {
+    "instruction": "0x1400013c8",
+    "function": "0x140001384",
+    "target": "0x140008088",
+    "label": "KERNEL32.DLL!GetLocalTime"
+  },
+  {
+    "instruction": "0x1400013fb",
+    "function": "0x140001384",
+    "target": "0x140008728",
+    "label": "\"%02d:%02d:%02d.%03d \""
+  },
+  {
+    "instruction": "0x14000141a",
+    "function": "0x140001384",
+    "target": "0x1400084d0",
+    "label": "api-ms-win-crt-stdio-l1-1-0.dll!__acrt_iob_func"
+  },
+  {
+    "instruction": "0x140001439",
+    "function": "0x140001384",
+    "target": "0x1400084f0",
+    "label": "api-ms-win-crt-stdio-l1-1-0.dll!__stdio_common_vfprintf"
+  },
+  {
+    "instruction": "0x1400014b7",
+    "function": "0x14000149c",
+    "target": "0x1400081e0",
+    "label": "KERNEL32.DLL!GetStdHandle"
+  },
+  {
+    "instruction": "0x1400014c3",
+    "function": "0x14000149c",
+    "target": "0x1400081f8",
+    "label": "KERNEL32.DLL!SetConsoleTextAttribute"
+  },
+  {
+    "instruction": "0x140001511",
+    "function": "0x1400014e0",
+    "target": "0x1400082e8",
+    "label": "USER32.dll!SendMessageW"
+  },
+  {
+    "instruction": "0x140001530",
+    "function": "0x1400014e0",
+    "target": "0x1400082a8",
+    "label": "USER32.dll!PostMessageW"
+  },
+  {
+    "instruction": "0x140001550",
+    "function": "0x1400014e0",
+    "target": "0x1400082a8",
+    "label": "USER32.dll!PostMessageW"
+  },
+  {
+    "instruction": "0x14000155b",
+    "function": "0x1400014e0",
+    "target": "0x1400081c0",
+    "label": "KERNEL32.DLL!Sleep"
+  },
+  {
+    "instruction": "0x140001573",
+    "function": "0x1400014e0",
+    "target": "0x1400082a8",
+    "label": "USER32.dll!PostMessageW"
+  },
+  {
+    "instruction": "0x14000157e",
+    "function": "0x1400014e0",
+    "target": "0x1400081c0",
+    "label": "KERNEL32.DLL!Sleep"
+  },
+  {
+    "instruction": "0x1400015a5",
+    "function": "0x1400014e0",
+    "target": "0x1400082a8",
+    "label": "USER32.dll!PostMessageW"
+  },
+  {
+    "instruction": "0x140001613",
+    "function": "0x1400015ac",
+    "target": "0x140008568",
+    "label": "api-ms-win-crt-utility-l1-1-0.dll!rand"
+  },
+  {
+    "instruction": "0x14000163a",
+    "function": "0x1400015ac",
+    "target": "0x140008568",
+    "label": "api-ms-win-crt-utility-l1-1-0.dll!rand"
+  },
+  {
+    "instruction": "0x14000168e",
+    "function": "0x1400015ac",
+    "target": "0x140008568",
+    "label": "api-ms-win-crt-utility-l1-1-0.dll!rand"
+  },
+  {
+    "instruction": "0x1400016ab",
+    "function": "0x1400015ac",
+    "target": "0x140008568",
+    "label": "api-ms-win-crt-utility-l1-1-0.dll!rand"
+  },
+  {
+    "instruction": "0x140001714",
+    "function": "0x1400015ac",
+    "target": "0x140008350",
+    "label": "USER32.dll!mouse_event"
+  },
+  {
+    "instruction": "0x140001738",
+    "function": "0x1400015ac",
+    "target": "0x140008350",
+    "label": "USER32.dll!mouse_event"
+  },
+  {
+    "instruction": "0x140001743",
+    "function": "0x1400015ac",
+    "target": "0x1400081c0",
+    "label": "KERNEL32.DLL!Sleep"
+  },
+  {
+    "instruction": "0x140001765",
+    "function": "0x1400015ac",
+    "target": "0x140008350",
+    "label": "USER32.dll!mouse_event"
+  },
+  {
+    "instruction": "0x14000178e",
+    "function": "0x140001774",
+    "target": "0x1400082b0",
+    "label": "USER32.dll!MapVirtualKeyW"
+  },
+  {
+    "instruction": "0x1400017a7",
+    "function": "0x140001774",
+    "target": "0x1400082e8",
+    "label": "USER32.dll!SendMessageW"
+  },
+  {
+    "instruction": "0x1400017c8",
+    "function": "0x140001774",
+    "target": "0x1400082a8",
+    "label": "USER32.dll!PostMessageW"
+  },
+  {
+    "instruction": "0x1400017d0",
+    "function": "0x140001774",
+    "target": "0x1400081c0",
+    "label": "KERNEL32.DLL!Sleep"
+  },
+  {
+    "instruction": "0x1400017ee",
+    "function": "0x140001774",
+    "target": "0x1400082a8",
+    "label": "USER32.dll!PostMessageW"
+  },
+  {
+    "instruction": "0x1400017ff",
+    "function": "0x140001774",
+    "target": "0x1400082d8",
+    "label": "USER32.dll!keybd_event"
+  },
+  {
+    "instruction": "0x140001807",
+    "function": "0x140001774",
+    "target": "0x1400081c0",
+    "label": "KERNEL32.DLL!Sleep"
+  },
+  {
+    "instruction": "0x140001819",
+    "function": "0x140001774",
+    "target": "0x1400082d8",
+    "label": "USER32.dll!keybd_event"
+  },
+  {
+    "instruction": "0x140001859",
+    "function": "0x140001828",
+    "target": "0x140008340",
+    "label": "USER32.dll!IsIconic"
+  },
+  {
+    "instruction": "0x14000188f",
+    "function": "0x140001828",
+    "target": "0x1400082d0",
+    "label": "USER32.dll!SetWindowPos"
+  },
+  {
+    "instruction": "0x14000189f",
+    "function": "0x140001828",
+    "target": "0x140008300",
+    "label": "USER32.dll!ShowWindow"
+  },
+  {
+    "instruction": "0x1400018a8",
+    "function": "0x140001828",
+    "target": "0x1400081c0",
+    "label": "KERNEL32.DLL!Sleep"
+  },
+  {
+    "instruction": "0x1400018b5",
+    "function": "0x140001828",
+    "target": "0x1400082e0",
+    "label": "USER32.dll!GetDpiForWindow"
+  },
+  {
+    "instruction": "0x1400018ed",
+    "function": "0x140001828",
+    "target": "0x140008328",
+    "label": "USER32.dll!SetThreadDpiAwarenessContext"
+  },
+  {
+    "instruction": "0x1400018f5",
+    "function": "0x140001828",
+    "target": "0x1400082f0",
+    "label": "USER32.dll!GetSystemMetrics"
+  },
+  {
+    "instruction": "0x1400018ff",
+    "function": "0x140001828",
+    "target": "0x1400082f0",
+    "label": "USER32.dll!GetSystemMetrics"
+  },
+  {
+    "instruction": "0x14000192f",
+    "function": "0x140001828",
+    "target": "0x140008330",
+    "label": "USER32.dll!GetClientRect"
+  },
+  {
+    "instruction": "0x140001952",
+    "function": "0x140001828",
+    "target": "0x140008318",
+    "label": "USER32.dll!ClientToScreen"
+  },
+  {
+    "instruction": "0x1400019d2",
+    "function": "0x140001828",
+    "target": "0x140008290",
+    "label": "USER32.dll!GetWindowLongW"
+  },
+  {
+    "instruction": "0x1400019e2",
+    "function": "0x140001828",
+    "target": "0x140008290",
+    "label": "USER32.dll!GetWindowLongW"
+  },
+  {
+    "instruction": "0x1400019ed",
+    "function": "0x140001828",
+    "target": "0x1400082b8",
+    "label": "USER32.dll!GetMenu"
+  },
+  {
+    "instruction": "0x140001a15",
+    "function": "0x140001828",
+    "target": "0x1400082a0",
+    "label": "USER32.dll!AdjustWindowRectEx"
+  },
+  {
+    "instruction": "0x140001a42",
+    "function": "0x140001828",
+    "target": "0x1400082d0",
+    "label": "USER32.dll!SetWindowPos"
+  },
+  {
+    "instruction": "0x140001a4f",
+    "function": "0x140001828",
+    "target": "0x140008768",
+    "label": "\"检测到窗口宽度超出屏幕宽度，设置窗口宽高：%d, %d\""
+  },
+  {
+    "instruction": "0x140001b8b",
+    "function": "0x140001828",
+    "target": "0x140008330",
+    "label": "USER32.dll!GetClientRect"
+  },
+  {
+    "instruction": "0x140001bc1",
+    "function": "0x140001828",
+    "target": "0x140008290",
+    "label": "USER32.dll!GetWindowLongW"
+  },
+  {
+    "instruction": "0x140001bd1",
+    "function": "0x140001828",
+    "target": "0x140008290",
+    "label": "USER32.dll!GetWindowLongW"
+  },
+  {
+    "instruction": "0x140001bdc",
+    "function": "0x140001828",
+    "target": "0x1400082b8",
+    "label": "USER32.dll!GetMenu"
+  },
+  {
+    "instruction": "0x140001bf5",
+    "function": "0x140001828",
+    "target": "0x1400082a0",
+    "label": "USER32.dll!AdjustWindowRectEx"
+  },
+  {
+    "instruction": "0x140001c20",
+    "function": "0x140001828",
+    "target": "0x1400082d0",
+    "label": "USER32.dll!SetWindowPos"
+  },
+  {
+    "instruction": "0x140001c29",
+    "function": "0x140001828",
+    "target": "0x1400087a0",
+    "label": "\"检测到窗口位置超出屏幕边界，设置窗口位置：%d, %d\""
+  },
+  {
+    "instruction": "0x140001c4b",
+    "function": "0x140001828",
+    "target": "0x140008318",
+    "label": "USER32.dll!ClientToScreen"
+  },
+  {
+    "instruction": "0x140001cb4",
+    "function": "0x140001828",
+    "target": "0x1400087e0",
+    "label": "\"窗口位置：%d, %d 宽高：%d, %d 黑边：%d, %d, %d, %d 缩放：%0.2f 屏幕：%d, %d\""
+  },
+  {
+    "instruction": "0x140001d13",
+    "function": "0x140001828",
+    "target": "0x140008748",
+    "label": "\"检测到全屏窗口，切到窗口模式。\""
+  },
+  {
+    "instruction": "0x140001d40",
+    "function": "0x140001828",
+    "target": "0x1400082a8",
+    "label": "USER32.dll!PostMessageW"
+  },
+  {
+    "instruction": "0x140001d57",
+    "function": "0x140001828",
+    "target": "0x1400082a8",
+    "label": "USER32.dll!PostMessageW"
+  },
+  {
+    "instruction": "0x140001d6f",
+    "function": "0x140001828",
+    "target": "0x1400082a8",
+    "label": "USER32.dll!PostMessageW"
+  },
+  {
+    "instruction": "0x140001d75",
+    "function": "0x140001828",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x140001d86",
+    "function": "0x140001828",
+    "target": "0x1400081c0",
+    "label": "KERNEL32.DLL!Sleep"
+  },
+  {
+    "instruction": "0x140001d98",
+    "function": "0x140001828",
+    "target": "0x1400082f8",
+    "label": "USER32.dll!GetWindowLongPtrW"
+  },
+  {
+    "instruction": "0x140001da6",
+    "function": "0x140001828",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x140001e1d",
+    "function": "0x140001de0",
+    "target": "0x140008048",
+    "label": "GDI32.dll!DeleteObject"
+  },
+  {
+    "instruction": "0x140001e3c",
+    "function": "0x140001de0",
+    "target": "0x1400082c0",
+    "label": "USER32.dll!GetDC"
+  },
+  {
+    "instruction": "0x140001e53",
+    "function": "0x140001de0",
+    "target": "0x140008028",
+    "label": "GDI32.dll!CreateCompatibleDC"
+  },
+  {
+    "instruction": "0x140001eb9",
+    "function": "0x140001de0",
+    "target": "0x140008040",
+    "label": "GDI32.dll!CreateDIBSection"
+  },
+  {
+    "instruction": "0x140001ee2",
+    "function": "0x140001de0",
+    "target": "0x140008038",
+    "label": "GDI32.dll!SelectObject"
+  },
+  {
+    "instruction": "0x140001f29",
+    "function": "0x140001de0",
+    "target": "0x140008020",
+    "label": "GDI32.dll!BitBlt"
+  },
+  {
+    "instruction": "0x140001f6a",
+    "function": "0x140001de0",
+    "target": "0x140008320",
+    "label": "USER32.dll!PrintWindow"
+  },
+  {
+    "instruction": "0x140001f78",
+    "function": "0x140001de0",
+    "target": "0x140008038",
+    "label": "GDI32.dll!SelectObject"
+  },
+  {
+    "instruction": "0x140001f81",
+    "function": "0x140001de0",
+    "target": "0x140008030",
+    "label": "GDI32.dll!DeleteDC"
+  },
+  {
+    "instruction": "0x140001f8d",
+    "function": "0x140001de0",
+    "target": "0x140008348",
+    "label": "USER32.dll!ReleaseDC"
+  },
+  {
+    "instruction": "0x140001fa8",
+    "function": "0x140001de0",
+    "target": "0x140008048",
+    "label": "GDI32.dll!DeleteObject"
+  },
+  {
+    "instruction": "0x1400021ce",
+    "function": "0x1400021ac",
+    "target": "0x140008850",
+    "label": "\"TankWindowClass\""
+  },
+  {
+    "instruction": "0x1400021d5",
+    "function": "0x1400021ac",
+    "target": "0x140008338",
+    "label": "USER32.dll!FindWindowA"
+  },
+  {
+    "instruction": "0x1400021ee",
+    "function": "0x1400021ac",
+    "target": "0x1400082c8",
+    "label": "USER32.dll!IsWindowVisible"
+  },
+  {
+    "instruction": "0x14000220e",
+    "function": "0x1400021ac",
+    "target": "0x140008298",
+    "label": "USER32.dll!GetWindowThreadProcessId"
+  },
+  {
+    "instruction": "0x14000221f",
+    "function": "0x1400021ac",
+    "target": "0x140008170",
+    "label": "KERNEL32.DLL!OpenProcess"
+  },
+  {
+    "instruction": "0x140002240",
+    "function": "0x1400021ac",
+    "target": "0x1400080b8",
+    "label": "KERNEL32.DLL!GetProcessTimes"
+  },
+  {
+    "instruction": "0x140002249",
+    "function": "0x1400021ac",
+    "target": "0x140008078",
+    "label": "KERNEL32.DLL!CloseHandle"
+  },
+  {
+    "instruction": "0x140002257",
+    "function": "0x1400021ac",
+    "target": "0x140008068",
+    "label": "KERNEL32.DLL!FileTimeToSystemTime"
+  },
+  {
+    "instruction": "0x140002267",
+    "function": "0x1400021ac",
+    "target": "0x1400080a8",
+    "label": "KERNEL32.DLL!SystemTimeToTzSpecificLocalTime"
+  },
+  {
+    "instruction": "0x140002298",
+    "function": "0x1400021ac",
+    "target": "0x140008830",
+    "label": "\"%d-%02d-%02d %02d:%02d:%02d\""
+  },
+  {
+    "instruction": "0x1400022c6",
+    "function": "0x1400021ac",
+    "target": "0x140008860",
+    "label": "\"PID：%d HWND：0x%08llX 启动时间：%s\""
+  },
+  {
+    "instruction": "0x1400022e1",
+    "function": "0x1400021ac",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x140002370",
+    "function": "0x140002360",
+    "target": "0x140008048",
+    "label": "GDI32.dll!DeleteObject"
+  },
+  {
+    "instruction": "0x1400026f8",
+    "function": "0x1400026ec",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x140002704",
+    "function": "0x1400026ec",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x140002713",
+    "function": "0x1400026ec",
+    "target": "0x1400081c0",
+    "label": "KERNEL32.DLL!Sleep"
+  },
+  {
+    "instruction": "0x140002722",
+    "function": "0x1400026ec",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x140002747",
+    "function": "0x1400026ec",
+    "target": "0x1400081b0",
+    "label": "KERNEL32.DLL!ExitThread"
+  },
+  {
+    "instruction": "0x14000276f",
+    "function": "0x140002750",
+    "target": "0x140008888",
+    "label": "\"taskkill /T /F /IM NeacLoader.exe\""
+  },
+  {
+    "instruction": "0x140002776",
+    "function": "0x140002750",
+    "target": "0x140008498",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!system"
+  },
+  {
+    "instruction": "0x140002781",
+    "function": "0x140002750",
+    "target": "0x1400081c0",
+    "label": "KERNEL32.DLL!Sleep"
+  },
+  {
+    "instruction": "0x14000278c",
+    "function": "0x140002750",
+    "target": "0x140008100",
+    "label": "KERNEL32.DLL!CreateToolhelp32Snapshot"
+  },
+  {
+    "instruction": "0x1400027ab",
+    "function": "0x140002750",
+    "target": "0x140008070",
+    "label": "KERNEL32.DLL!Process32FirstW"
+  },
+  {
+    "instruction": "0x1400027b3",
+    "function": "0x140002750",
+    "target": "0x1400088b0",
+    "label": "\"NeacLoader.exe\""
+  },
+  {
+    "instruction": "0x1400027d2",
+    "function": "0x140002750",
+    "target": "0x140008170",
+    "label": "KERNEL32.DLL!OpenProcess"
+  },
+  {
+    "instruction": "0x1400027e5",
+    "function": "0x140002750",
+    "target": "0x1400081d0",
+    "label": "KERNEL32.DLL!TerminateProcess"
+  },
+  {
+    "instruction": "0x1400027ee",
+    "function": "0x140002750",
+    "target": "0x140008078",
+    "label": "KERNEL32.DLL!CloseHandle"
+  },
+  {
+    "instruction": "0x1400027fc",
+    "function": "0x140002750",
+    "target": "0x140008060",
+    "label": "KERNEL32.DLL!Process32NextW"
+  },
+  {
+    "instruction": "0x140002809",
+    "function": "0x140002750",
+    "target": "0x140008078",
+    "label": "KERNEL32.DLL!CloseHandle"
+  },
+  {
+    "instruction": "0x14000283d",
+    "function": "0x140002830",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x140002855",
+    "function": "0x140002830",
+    "target": "0x140008308",
+    "label": "USER32.dll!IsWindow"
+  },
+  {
+    "instruction": "0x14000285f",
+    "function": "0x140002830",
+    "target": "0x1400088d0",
+    "label": "\"关闭游戏窗口。\""
+  },
+  {
+    "instruction": "0x140002870",
+    "function": "0x140002830",
+    "target": "0x1400088e0",
+    "label": "\"战网错误\""
+  },
+  {
+    "instruction": "0x140002877",
+    "function": "0x140002830",
+    "target": "0x1400088f0",
+    "label": "\"Qt5151QWindowIcon\""
+  },
+  {
+    "instruction": "0x14000287e",
+    "function": "0x140002830",
+    "target": "0x140008338",
+    "label": "USER32.dll!FindWindowA"
+  },
+  {
+    "instruction": "0x1400028c2",
+    "function": "0x140002830",
+    "target": "0x140008908",
+    "label": "\"重新连接\""
+  },
+  {
+    "instruction": "0x1400028ce",
+    "function": "0x140002830",
+    "target": "0x140008914",
+    "label": "\"战网\""
+  },
+  {
+    "instruction": "0x1400028d5",
+    "function": "0x140002830",
+    "target": "0x140008920",
+    "label": "\"Chrome_WidgetWin_0\""
+  },
+  {
+    "instruction": "0x1400028dc",
+    "function": "0x140002830",
+    "target": "0x140008338",
+    "label": "USER32.dll!FindWindowA"
+  },
+  {
+    "instruction": "0x1400028ee",
+    "function": "0x140002830",
+    "target": "0x140008938",
+    "label": "\"战网窗口不存在！\""
+  },
+  {
+    "instruction": "0x1400028fa",
+    "function": "0x140002830",
+    "target": "0x14000894c",
+    "label": "\"pause\""
+  },
+  {
+    "instruction": "0x140002901",
+    "function": "0x140002830",
+    "target": "0x140008498",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!system"
+  },
+  {
+    "instruction": "0x140002909",
+    "function": "0x140002830",
+    "target": "0x140008490",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!exit"
+  },
+  {
+    "instruction": "0x14000291f",
+    "function": "0x140002830",
+    "target": "0x140008958",
+    "label": "\"等待启动游戏\""
+  },
+  {
+    "instruction": "0x140002afb",
+    "function": "0x140002830",
+    "target": "0x140008968",
+    "label": "\"关闭隐身提示\""
+  },
+  {
+    "instruction": "0x140002bcd",
+    "function": "0x140002830",
+    "target": "0x140008850",
+    "label": "\"TankWindowClass\""
+  },
+  {
+    "instruction": "0x140002bd4",
+    "function": "0x140002830",
+    "target": "0x140008338",
+    "label": "USER32.dll!FindWindowA"
+  },
+  {
+    "instruction": "0x140002bef",
+    "function": "0x140002830",
+    "target": "0x140008048",
+    "label": "GDI32.dll!DeleteObject"
+  },
+  {
+    "instruction": "0x140002c10",
+    "function": "0x140002830",
+    "target": "0x1400081c0",
+    "label": "KERNEL32.DLL!Sleep"
+  },
+  {
+    "instruction": "0x140002d01",
+    "function": "0x140002cc4",
+    "target": "0x140008308",
+    "label": "USER32.dll!IsWindow"
+  },
+  {
+    "instruction": "0x140002d0b",
+    "function": "0x140002cc4",
+    "target": "0x140008988",
+    "label": "\"游戏窗口没了，战网重上游戏。\""
+  },
+  {
+    "instruction": "0x140002d14",
+    "function": "0x140002cc4",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x140002d22",
+    "function": "0x140002cc4",
+    "target": "0x1400089a8",
+    "label": "\"未匹配时间超过2分钟，战网重上游戏。\""
+  },
+  {
+    "instruction": "0x140002db1",
+    "function": "0x140002cc4",
+    "target": "0x1400089d0",
+    "label": "\"确认界面\""
+  },
+  {
+    "instruction": "0x140002dc1",
+    "function": "0x140002cc4",
+    "target": "0x1400089e0",
+    "label": "\"确认离开\""
+  },
+  {
+    "instruction": "0x140002de8",
+    "function": "0x140002cc4",
+    "target": "0x1400089f0",
+    "label": "\"顶部黑边\""
+  },
+  {
+    "instruction": "0x140002e46",
+    "function": "0x140002cc4",
+    "target": "0x140008aa0",
+    "label": "\"黑屏界面\""
+  },
+  {
+    "instruction": "0x140002e6e",
+    "function": "0x140002cc4",
+    "target": "0x140008a00",
+    "label": "\"顶部菜单\""
+  },
+  {
+    "instruction": "0x140002e7e",
+    "function": "0x140002cc4",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x140002ec4",
+    "function": "0x140002cc4",
+    "target": "0x140008a10",
+    "label": "\"总览界面\""
+  },
+  {
+    "instruction": "0x140002f1a",
+    "function": "0x140002cc4",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x140002f26",
+    "function": "0x140002cc4",
+    "target": "0x140008a20",
+    "label": "\"再次排队\""
+  },
+  {
+    "instruction": "0x140002f4c",
+    "function": "0x140002cc4",
+    "target": "0x140008978",
+    "label": "\"点赞玩家\""
+  },
+  {
+    "instruction": "0x140002f89",
+    "function": "0x140002cc4",
+    "target": "0x1400081c0",
+    "label": "KERNEL32.DLL!Sleep"
+  },
+  {
+    "instruction": "0x140002fa0",
+    "function": "0x140002cc4",
+    "target": "0x1400081c0",
+    "label": "KERNEL32.DLL!Sleep"
+  },
+  {
+    "instruction": "0x140002fa9",
+    "function": "0x140002cc4",
+    "target": "0x1400081c0",
+    "label": "KERNEL32.DLL!Sleep"
+  },
+  {
+    "instruction": "0x140002fef",
+    "function": "0x140002cc4",
+    "target": "0x140008a30",
+    "label": "\"点击继续\""
+  },
+  {
+    "instruction": "0x1400030c5",
+    "function": "0x140002cc4",
+    "target": "0x140008a40",
+    "label": "\"选项菜单\""
+  },
+  {
+    "instruction": "0x1400030d5",
+    "function": "0x140002cc4",
+    "target": "0x140008a50",
+    "label": "\"点击离开\""
+  },
+  {
+    "instruction": "0x140003131",
+    "function": "0x140002cc4",
+    "target": "0x140008a60",
+    "label": "\"大厅界面\""
+  },
+  {
+    "instruction": "0x140003186",
+    "function": "0x140002cc4",
+    "target": "0x140008a90",
+    "label": "\"正在匹配\""
+  },
+  {
+    "instruction": "0x140003196",
+    "function": "0x140002cc4",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x1400031a7",
+    "function": "0x140002cc4",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x1400031bd",
+    "function": "0x140002cc4",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x1400031cf",
+    "function": "0x140002cc4",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x1400031ee",
+    "function": "0x140002cc4",
+    "target": "0x140008a70",
+    "label": "\"点击街机\""
+  },
+  {
+    "instruction": "0x140003268",
+    "function": "0x140002cc4",
+    "target": "0x140008a80",
+    "label": "\"点击死斗\""
+  },
+  {
+    "instruction": "0x1400032eb",
+    "function": "0x140002cc4",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x14000330d",
+    "function": "0x140002cc4",
+    "target": "0x140008ab0",
+    "label": "\"游戏时间：%d 秒 %d 次\""
+  },
+  {
+    "instruction": "0x140003320",
+    "function": "0x140002cc4",
+    "target": "0x140008ac8",
+    "label": "\"比赛结束\""
+  },
+  {
+    "instruction": "0x140003330",
+    "function": "0x140002cc4",
+    "target": "0x140008ad8",
+    "label": "\"按键ESC\""
+  },
+  {
+    "instruction": "0x140003386",
+    "function": "0x140002cc4",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x140003397",
+    "function": "0x140002cc4",
+    "target": "0x140008ae0",
+    "label": "\"选择英雄\""
+  },
+  {
+    "instruction": "0x140003407",
+    "function": "0x140002cc4",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x140003426",
+    "function": "0x140002cc4",
+    "target": "0x140008af0",
+    "label": "\"排队时间：%d 秒\""
+  },
+  {
+    "instruction": "0x140003439",
+    "function": "0x140002cc4",
+    "target": "0x140008ae0",
+    "label": "\"选择英雄\""
+  },
+  {
+    "instruction": "0x140003453",
+    "function": "0x140002cc4",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x140003496",
+    "function": "0x140002cc4",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x1400034a7",
+    "function": "0x140002cc4",
+    "target": "0x140008b00",
+    "label": "\"随机按键\""
+  },
+  {
+    "instruction": "0x1400034b7",
+    "function": "0x140002cc4",
+    "target": "0x140008568",
+    "label": "api-ms-win-crt-utility-l1-1-0.dll!rand"
+  },
+  {
+    "instruction": "0x1400034ce",
+    "function": "0x140002cc4",
+    "target": "0x140008568",
+    "label": "api-ms-win-crt-utility-l1-1-0.dll!rand"
+  },
+  {
+    "instruction": "0x140003519",
+    "function": "0x140002cc4",
+    "target": "0x140008b10",
+    "label": "\"没有血条\""
+  },
+  {
+    "instruction": "0x140003529",
+    "function": "0x140002cc4",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x140003549",
+    "function": "0x140002cc4",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x1400036b8",
+    "function": "0x140002cc4",
+    "target": "0x140008b1c",
+    "label": "\"秒重上\""
+  },
+  {
+    "instruction": "0x140003788",
+    "function": "0x140003770",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x140003794",
+    "function": "0x140003770",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x14000379c",
+    "function": "0x140003770",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x1400037b3",
+    "function": "0x140003770",
+    "target": "0x140008328",
+    "label": "USER32.dll!SetThreadDpiAwarenessContext"
+  },
+  {
+    "instruction": "0x1400037bb",
+    "function": "0x140003770",
+    "target": "0x140008558",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!_time64"
+  },
+  {
+    "instruction": "0x1400037c4",
+    "function": "0x140003770",
+    "target": "0x140008570",
+    "label": "api-ms-win-crt-utility-l1-1-0.dll!srand"
+  },
+  {
+    "instruction": "0x140003872",
+    "function": "0x140003770",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x140003883",
+    "function": "0x140003770",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x140003896",
+    "function": "0x140003770",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x1400038a4",
+    "function": "0x140003770",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x1400038ac",
+    "function": "0x140003770",
+    "target": "0x140008b28",
+    "label": "\"重开次数：%d 间隔时间：%.2f\""
+  },
+  {
+    "instruction": "0x1400038cf",
+    "function": "0x140003770",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x1400038d7",
+    "function": "0x140003770",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x1400038fd",
+    "function": "0x140003770",
+    "target": "0x140008b48",
+    "label": "\"%d 秒 次数：%d\""
+  },
+  {
+    "instruction": "0x140003922",
+    "function": "0x140003770",
+    "target": "0x1400081c0",
+    "label": "KERNEL32.DLL!Sleep"
+  },
+  {
+    "instruction": "0x1400039c7",
+    "function": "0x140003950",
+    "target": "0x140008bb0",
+    "label": "\"reg query \\\"HKLM\\\\SYSTEM\\\\CurrentControlSet\\\\Services\\\\SharedAccess\\\\Parameters\\\\FirewallPolicy\\\\FirewallRules\\\" /s | findstr /i \\\"Name=\""
+  },
+  {
+    "instruction": "0x140003a39",
+    "function": "0x140003950",
+    "target": "0x1400084f8",
+    "label": "api-ms-win-crt-stdio-l1-1-0.dll!_popen"
+  },
+  {
+    "instruction": "0x140003a87",
+    "function": "0x140003950",
+    "target": "0x140008538",
+    "label": "api-ms-win-crt-string-l1-1-0.dll!_strnicmp"
+  },
+  {
+    "instruction": "0x140003aae",
+    "function": "0x140003950",
+    "target": "0x140008510",
+    "label": "api-ms-win-crt-stdio-l1-1-0.dll!fgets"
+  },
+  {
+    "instruction": "0x140003ac6",
+    "function": "0x140003950",
+    "target": "0x1400084e0",
+    "label": "api-ms-win-crt-stdio-l1-1-0.dll!fclose"
+  },
+  {
+    "instruction": "0x140003b15",
+    "function": "0x140003950",
+    "target": "0x140008c38",
+    "label": "\"netsh advfirewall firewall delete rule name=\\\"\""
+  },
+  {
+    "instruction": "0x140003b7b",
+    "function": "0x140003950",
+    "target": "0x140008498",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!system"
+  },
+  {
+    "instruction": "0x140003bbe",
+    "function": "0x140003950",
+    "target": "0x140008c90",
+    "label": "\"netsh advfirewall firewall add rule name=\\\"\""
+  },
+  {
+    "instruction": "0x140003bd5",
+    "function": "0x140003950",
+    "target": "0x140008c80",
+    "label": "\"\\\" program=\\\"\""
+  },
+  {
+    "instruction": "0x140003c5f",
+    "function": "0x140003950",
+    "target": "0x140008c68",
+    "label": "\"\\\" dir=out action=block\""
+  },
+  {
+    "instruction": "0x140003ccd",
+    "function": "0x140003950",
+    "target": "0x140008498",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!system"
+  },
+  {
+    "instruction": "0x140003cd3",
+    "function": "0x140003950",
+    "target": "0x140008cc0",
+    "label": "\"netsh advfirewall set allprofiles state on\""
+  },
+  {
+    "instruction": "0x140003cda",
+    "function": "0x140003950",
+    "target": "0x140008498",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!system"
+  },
+  {
+    "instruction": "0x140003cec",
+    "function": "0x140003950",
+    "target": "0x140008cf0",
+    "label": "\"添加规则：%s\""
+  },
+  {
+    "instruction": "0x140003d60",
+    "function": "0x140003d40",
+    "target": "0x140008d00",
+    "label": "\"667546138\""
+  },
+  {
+    "instruction": "0x140003d71",
+    "function": "0x140003d40",
+    "target": "0x140008d10",
+    "label": "\"SOFTWARE\\\\WOW6432Node\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Uninstall\\\\Overwatch\""
+  },
+  {
+    "instruction": "0x140003d82",
+    "function": "0x140003d40",
+    "target": "0x140008d60",
+    "label": "\"InstallLocation\""
+  },
+  {
+    "instruction": "0x140003dd5",
+    "function": "0x140003d40",
+    "target": "0x140008008",
+    "label": "ADVAPI32.dll!RegOpenKeyExA"
+  },
+  {
+    "instruction": "0x140003e10",
+    "function": "0x140003d40",
+    "target": "0x140008000",
+    "label": "ADVAPI32.dll!RegQueryValueExA"
+  },
+  {
+    "instruction": "0x140003e4f",
+    "function": "0x140003d40",
+    "target": "0x140008000",
+    "label": "ADVAPI32.dll!RegQueryValueExA"
+  },
+  {
+    "instruction": "0x140003e71",
+    "function": "0x140003d40",
+    "target": "0x140008010",
+    "label": "ADVAPI32.dll!RegCloseKey"
+  },
+  {
+    "instruction": "0x140003e7d",
+    "function": "0x140003d40",
+    "target": "0x140008d70",
+    "label": "\"\\\\_retail_\\\\OWNeacClient.exe\""
+  },
+  {
+    "instruction": "0x140003ea8",
+    "function": "0x140003d40",
+    "target": "0x140008010",
+    "label": "ADVAPI32.dll!RegCloseKey"
+  },
+  {
+    "instruction": "0x140003eae",
+    "function": "0x140003d40",
+    "target": "0x140008d90",
+    "label": "\"无法获取安装路径。\""
+  },
+  {
+    "instruction": "0x140003f58",
+    "function": "0x140003f00",
+    "target": "0x140008da8",
+    "label": "\"COMSPEC\""
+  },
+  {
+    "instruction": "0x140003f5f",
+    "function": "0x140003f00",
+    "target": "0x1400081c8",
+    "label": "KERNEL32.DLL!GetEnvironmentVariableA"
+  },
+  {
+    "instruction": "0x140003f6c",
+    "function": "0x140003f00",
+    "target": "0x1400080a0",
+    "label": "KERNEL32.DLL!lstrcmpiA"
+  },
+  {
+    "instruction": "0x140003fb6",
+    "function": "0x140003f00",
+    "target": "0x1400081c0",
+    "label": "KERNEL32.DLL!Sleep"
+  },
+  {
+    "instruction": "0x140003fca",
+    "function": "0x140003f00",
+    "target": "0x1400081e0",
+    "label": "KERNEL32.DLL!GetStdHandle"
+  },
+  {
+    "instruction": "0x140003fda",
+    "function": "0x140003f00",
+    "target": "0x140008058",
+    "label": "KERNEL32.DLL!GetConsoleMode"
+  },
+  {
+    "instruction": "0x140003fe9",
+    "function": "0x140003f00",
+    "target": "0x1400081d8",
+    "label": "KERNEL32.DLL!SetConsoleMode"
+  },
+  {
+    "instruction": "0x140003ff4",
+    "function": "0x140003f00",
+    "target": "0x1400080b0",
+    "label": "KERNEL32.DLL!SetConsoleOutputCP"
+  },
+  {
+    "instruction": "0x140004001",
+    "function": "0x140003f00",
+    "target": "0x1400081e8",
+    "label": "KERNEL32.DLL!SetConsoleTitleA"
+  },
+  {
+    "instruction": "0x14000400c",
+    "function": "0x140003f00",
+    "target": "0x140008090",
+    "label": "KERNEL32.DLL!SetThreadExecutionState"
+  },
+  {
+    "instruction": "0x140004024",
+    "function": "0x140003f00",
+    "target": "0x140008db0",
+    "label": "\"SOFTWARE\\\\VMware, Inc.\\\\VMware Tools\""
+  },
+  {
+    "instruction": "0x140004032",
+    "function": "0x140003f00",
+    "target": "0x140008008",
+    "label": "ADVAPI32.dll!RegOpenKeyExA"
+  },
+  {
+    "instruction": "0x140004040",
+    "function": "0x140003f00",
+    "target": "0x140008010",
+    "label": "ADVAPI32.dll!RegCloseKey"
+  },
+  {
+    "instruction": "0x14000404b",
+    "function": "0x140003f00",
+    "target": "0x140008dd8",
+    "label": "\"======================================\""
+  },
+  {
+    "instruction": "0x140004057",
+    "function": "0x140003f00",
+    "target": "0x140008e00",
+    "label": "\"自由死斗 (宽高比,颜色,赞赏键需默认。HDR,显卡/颜色滤镜关闭，保留战网窗口可自动重上。)\""
+  },
+  {
+    "instruction": "0x140004063",
+    "function": "0x140003f00",
+    "target": "0x140008e58",
+    "label": "\"托比昂赢 (战令房托比昂赢的那边开启。帧率：不要低于60。)\""
+  },
+  {
+    "instruction": "0x14000406f",
+    "function": "0x140003f00",
+    "target": "0x140008e90",
+    "label": "\"托比昂输 (战令房托比昂输的那边开启，路霸、女王也通用。)\""
+  },
+  {
+    "instruction": "0x14000407b",
+    "function": "0x140003f00",
+    "target": "0x140008ed0",
+    "label": "\"房主重开 (需先设置热键 重新开始自定游戏 为F2。黑屏结束127秒后重开。)\""
+  },
+  {
+    "instruction": "0x140004087",
+    "function": "0x140003f00",
+    "target": "0x140008f18",
+    "label": "\"自由死斗\""
+  },
+  {
+    "instruction": "0x140004093",
+    "function": "0x140003f00",
+    "target": "0x140008f28",
+    "label": "\"托比昂赢\""
+  },
+  {
+    "instruction": "0x14000409f",
+    "function": "0x140003f00",
+    "target": "0x140008f38",
+    "label": "\"托比昂输\""
+  },
+  {
+    "instruction": "0x1400040ab",
+    "function": "0x140003f00",
+    "target": "0x140008f48",
+    "label": "\"房主重开\""
+  },
+  {
+    "instruction": "0x1400040b7",
+    "function": "0x140003f00",
+    "target": "0x140008f60",
+    "label": "\"用前须知：这是免费的使用造成的一切后果自负！更新Q群：667546138 更新日期：6月17日 17点30分\""
+  },
+  {
+    "instruction": "0x1400040d9",
+    "function": "0x140003f00",
+    "target": "0x140008fc0",
+    "label": "\"(后台版：需要开窗口化，可最小化玩电脑)\""
+  },
+  {
+    "instruction": "0x140004108",
+    "function": "0x140003f00",
+    "target": "0x140008fe8",
+    "label": "\"%d = %s\""
+  },
+  {
+    "instruction": "0x14000412c",
+    "function": "0x140003f00",
+    "target": "0x140008ff0",
+    "label": "\"(前台版：与宏效果一样，不可以操作电脑)\""
+  },
+  {
+    "instruction": "0x140004154",
+    "function": "0x140003f00",
+    "target": "0x140008fe8",
+    "label": "\"%d = %s\""
+  },
+  {
+    "instruction": "0x140004195",
+    "function": "0x140003f00",
+    "target": "0x140009018",
+    "label": "\"请输入脚本编号 (1-8)：\""
+  },
+  {
+    "instruction": "0x1400041aa",
+    "function": "0x140003f00",
+    "target": "0x140008230",
+    "label": "MSVCP140.dll!?cin@std@@3V?$basic_istream@DU?$char_traits@D@std@@@1@A"
+  },
+  {
+    "instruction": "0x1400041b6",
+    "function": "0x140003f00",
+    "target": "0x140008460",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!_errno"
+  },
+  {
+    "instruction": "0x1400041da",
+    "function": "0x140003f00",
+    "target": "0x1400083d0",
+    "label": "api-ms-win-crt-convert-l1-1-0.dll!strtol"
+  },
+  {
+    "instruction": "0x140004206",
+    "function": "0x140003f00",
+    "target": "0x140008498",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!system"
+  },
+  {
+    "instruction": "0x14000422a",
+    "function": "0x140003f00",
+    "target": "0x140008b98",
+    "label": "\"等待开启\""
+  },
+  {
+    "instruction": "0x140004235",
+    "function": "0x140003f00",
+    "target": "0x140008b68",
+    "label": "\"正在运行\""
+  },
+  {
+    "instruction": "0x140004265",
+    "function": "0x140003f00",
+    "target": "0x140009038",
+    "label": "\"选择：%s %s\""
+  },
+  {
+    "instruction": "0x14000427f",
+    "function": "0x140003f00",
+    "target": "0x140009048",
+    "label": "\"开关热键：F3需在(游戏内或当前窗口内)。\""
+  },
+  {
+    "instruction": "0x1400042f0",
+    "function": "0x140003f00",
+    "target": "0x140009070",
+    "label": "\"已切换取色方案！\""
+  },
+  {
+    "instruction": "0x1400042ff",
+    "function": "0x140003f00",
+    "target": "0x140008098",
+    "label": "KERNEL32.DLL!GetConsoleWindow"
+  },
+  {
+    "instruction": "0x14000430b",
+    "function": "0x140003f00",
+    "target": "0x140008358",
+    "label": "USER32.dll!GetForegroundWindow"
+  },
+  {
+    "instruction": "0x14000432d",
+    "function": "0x140003f00",
+    "target": "0x140008310",
+    "label": "USER32.dll!GetAsyncKeyState"
+  },
+  {
+    "instruction": "0x14000434f",
+    "function": "0x140003f00",
+    "target": "0x140008850",
+    "label": "\"TankWindowClass\""
+  },
+  {
+    "instruction": "0x140004356",
+    "function": "0x140003f00",
+    "target": "0x140008338",
+    "label": "USER32.dll!FindWindowA"
+  },
+  {
+    "instruction": "0x14000436a",
+    "function": "0x140003f00",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x140004397",
+    "function": "0x140003f00",
+    "target": "0x140008080",
+    "label": "KERNEL32.DLL!CreateThread"
+  },
+  {
+    "instruction": "0x1400043a9",
+    "function": "0x140003f00",
+    "target": "0x140008b58",
+    "label": "\"线程启动\""
+  },
+  {
+    "instruction": "0x1400043ba",
+    "function": "0x140003f00",
+    "target": "0x140008b68",
+    "label": "\"正在运行\""
+  },
+  {
+    "instruction": "0x1400043c6",
+    "function": "0x140003f00",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x1400043e1",
+    "function": "0x140003f00",
+    "target": "0x140009088",
+    "label": "\"守望先锋\""
+  },
+  {
+    "instruction": "0x1400043e8",
+    "function": "0x140003f00",
+    "target": "0x140009094",
+    "label": "\"#32770\""
+  },
+  {
+    "instruction": "0x1400043ef",
+    "function": "0x140003f00",
+    "target": "0x140008338",
+    "label": "USER32.dll!FindWindowA"
+  },
+  {
+    "instruction": "0x1400043fa",
+    "function": "0x140003f00",
+    "target": "0x1400090a0",
+    "label": "\"出现异常报错。\""
+  },
+  {
+    "instruction": "0x14000440b",
+    "function": "0x140003f00",
+    "target": "0x140008550",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!clock"
+  },
+  {
+    "instruction": "0x140004437",
+    "function": "0x140003f00",
+    "target": "0x140008850",
+    "label": "\"TankWindowClass\""
+  },
+  {
+    "instruction": "0x14000443e",
+    "function": "0x140003f00",
+    "target": "0x140008338",
+    "label": "USER32.dll!FindWindowA"
+  },
+  {
+    "instruction": "0x140004450",
+    "function": "0x140003f00",
+    "target": "0x1400082c8",
+    "label": "USER32.dll!IsWindowVisible"
+  },
+  {
+    "instruction": "0x14000445a",
+    "function": "0x140003f00",
+    "target": "0x1400090b0",
+    "label": "\"窗口无响应。\""
+  },
+  {
+    "instruction": "0x140004476",
+    "function": "0x140003f00",
+    "target": "0x140008b78",
+    "label": "\"正在停止\""
+  },
+  {
+    "instruction": "0x140004493",
+    "function": "0x140003f00",
+    "target": "0x1400081b8",
+    "label": "KERNEL32.DLL!WaitForSingleObject"
+  },
+  {
+    "instruction": "0x1400044a0",
+    "function": "0x140003f00",
+    "target": "0x140008078",
+    "label": "KERNEL32.DLL!CloseHandle"
+  },
+  {
+    "instruction": "0x1400044ad",
+    "function": "0x140003f00",
+    "target": "0x140008b88",
+    "label": "\"线程停止\""
+  },
+  {
+    "instruction": "0x1400044bc",
+    "function": "0x140003f00",
+    "target": "0x140008b98",
+    "label": "\"等待开启\""
+  },
+  {
+    "instruction": "0x1400044d4",
+    "function": "0x140003f00",
+    "target": "0x1400081c0",
+    "label": "KERNEL32.DLL!Sleep"
+  },
+  {
+    "instruction": "0x1400044df",
+    "function": "0x140003f00",
+    "target": "0x1400086f0",
+    "label": "\"stoi argument out of range\""
+  },
+  {
+    "instruction": "0x1400044e6",
+    "function": "0x140003f00",
+    "target": "0x140008218",
+    "label": "MSVCP140.dll!?_Xout_of_range@std@@YAXPEBD@Z"
+  },
+  {
+    "instruction": "0x1400044ed",
+    "function": "0x140003f00",
+    "target": "0x1400086d8",
+    "label": "\"invalid stoi argument\""
+  },
+  {
+    "instruction": "0x1400044f4",
+    "function": "0x140003f00",
+    "target": "0x140008228",
+    "label": "MSVCP140.dll!?_Xinvalid_argument@std@@YAXPEBD@Z"
+  },
+  {
+    "instruction": "0x14000451e",
+    "function": "0x1400044fc",
+    "target": "0x140008240",
+    "label": "MSVCP140.dll!??0_Lockit@std@@QEAA@H@Z"
+  },
+  {
+    "instruction": "0x140004531",
+    "function": "0x1400044fc",
+    "target": "0x140008210",
+    "label": "MSVCP140.dll!?id@?$ctype@D@std@@2V0locale@2@A"
+  },
+  {
+    "instruction": "0x140004545",
+    "function": "0x1400044fc",
+    "target": "0x140008240",
+    "label": "MSVCP140.dll!??0_Lockit@std@@QEAA@H@Z"
+  },
+  {
+    "instruction": "0x140004551",
+    "function": "0x1400044fc",
+    "target": "0x140008220",
+    "label": "MSVCP140.dll!?_Id_cnt@id@locale@std@@0HA"
+  },
+  {
+    "instruction": "0x140004565",
+    "function": "0x1400044fc",
+    "target": "0x140008280",
+    "label": "MSVCP140.dll!??1_Lockit@std@@QEAA@XZ"
+  },
+  {
+    "instruction": "0x140004597",
+    "function": "0x1400044fc",
+    "target": "0x140008238",
+    "label": "MSVCP140.dll!?_Getgloballocale@locale@std@@CAPEAV_Locimp@12@XZ"
+  },
+  {
+    "instruction": "0x1400045c2",
+    "function": "0x1400044fc",
+    "target": "0x140008268",
+    "label": "MSVCP140.dll!?_Getcat@?$ctype@D@std@@SA_KPEAPEBVfacet@locale@2@PEBV42@@Z"
+  },
+  {
+    "instruction": "0x1400045fa",
+    "function": "0x1400044fc",
+    "target": "0x140008280",
+    "label": "MSVCP140.dll!??1_Lockit@std@@QEAA@XZ"
+  },
+  {
+    "instruction": "0x140004662",
+    "function": "0x140004620",
+    "target": "0x1400084e8",
+    "label": "api-ms-win-crt-stdio-l1-1-0.dll!__stdio_common_vsprintf_s"
+  },
+  {
+    "instruction": "0x1400046ba",
+    "function": "0x140004678",
+    "target": "0x1400084e8",
+    "label": "api-ms-win-crt-stdio-l1-1-0.dll!__stdio_common_vsprintf_s"
+  },
+  {
+    "instruction": "0x140004722",
+    "function": "0x1400046d0",
+    "target": "0x140008248",
+    "label": "MSVCP140.dll!?_Ipfx@?$basic_istream@DU?$char_traits@D@std@@@std@@QEAA_N_N@Z"
+  },
+  {
+    "instruction": "0x140004743",
+    "function": "0x1400046d0",
+    "target": "0x140008260",
+    "label": "MSVCP140.dll!?getloc@ios_base@std@@QEBA?AVlocale@2@XZ"
+  },
+  {
+    "instruction": "0x1400047c8",
+    "function": "0x1400046d0",
+    "target": "0x140008250",
+    "label": "MSVCP140.dll!?sgetc@?$basic_streambuf@DU?$char_traits@D@std@@@std@@QEAAHXZ"
+  },
+  {
+    "instruction": "0x14000497d",
+    "function": "0x1400046d0",
+    "target": "0x140008258",
+    "label": "MSVCP140.dll!?snextc@?$basic_streambuf@DU?$char_traits@D@std@@@std@@QEAAHXZ"
+  },
+  {
+    "instruction": "0x1400049c5",
+    "function": "0x1400046d0",
+    "target": "0x140008278",
+    "label": "MSVCP140.dll!?setstate@?$basic_ios@DU?$char_traits@D@std@@@std@@QEAAXH_N@Z"
+  },
+  {
+    "instruction": "0x140004de6",
+    "function": null,
+    "target": "0x1400090e0",
+    "label": "\"00010203040506070809101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384858687888990919293949596979899WSADVEQ爊tdll\""
+  },
+  {
+    "instruction": "0x140005171",
+    "function": "0x14000511c",
+    "target": "0x140008120",
+    "label": "KERNEL32.DLL!GetModuleHandleA"
+  },
+  {
+    "instruction": "0x140005183",
+    "function": "0x14000511c",
+    "target": "0x1400091b8",
+    "label": "\"RtlGetVersion\""
+  },
+  {
+    "instruction": "0x14000518d",
+    "function": "0x14000511c",
+    "target": "0x140008140",
+    "label": "KERNEL32.DLL!GetProcAddress"
+  },
+  {
+    "instruction": "0x1400051bd",
+    "function": "0x14000511c",
+    "target": "0x1400091c8",
+    "label": "\"NtManageHotPatch\""
+  },
+  {
+    "instruction": "0x1400051c7",
+    "function": "0x14000511c",
+    "target": "0x140008140",
+    "label": "KERNEL32.DLL!GetProcAddress"
+  },
+  {
+    "instruction": "0x1400051f9",
+    "function": "0x14000511c",
+    "target": "0x1400080d8",
+    "label": "KERNEL32.DLL!WriteProcessMemory"
+  },
+  {
+    "instruction": "0x1400051ff",
+    "function": "0x14000511c",
+    "target": "0x1400091e0",
+    "label": "\"ZwQueryVirtualMemory\""
+  },
+  {
+    "instruction": "0x140005209",
+    "function": "0x14000511c",
+    "target": "0x140008140",
+    "label": "KERNEL32.DLL!GetProcAddress"
+  },
+  {
+    "instruction": "0x14000522b",
+    "function": "0x14000511c",
+    "target": "0x140008148",
+    "label": "KERNEL32.DLL!VirtualAllocEx"
+  },
+  {
+    "instruction": "0x14000529d",
+    "function": "0x14000511c",
+    "target": "0x140008150",
+    "label": "KERNEL32.DLL!ReadProcessMemory"
+  },
+  {
+    "instruction": "0x1400052bc",
+    "function": "0x14000511c",
+    "target": "0x1400080d8",
+    "label": "KERNEL32.DLL!WriteProcessMemory"
+  },
+  {
+    "instruction": "0x1400052da",
+    "function": "0x14000511c",
+    "target": "0x1400080d8",
+    "label": "KERNEL32.DLL!WriteProcessMemory"
+  },
+  {
+    "instruction": "0x140005306",
+    "function": "0x14000511c",
+    "target": "0x1400080d8",
+    "label": "KERNEL32.DLL!WriteProcessMemory"
+  },
+  {
+    "instruction": "0x140005557",
+    "function": "0x1400054ec",
+    "target": "0x1400080f8",
+    "label": "KERNEL32.DLL!VirtualAlloc"
+  },
+  {
+    "instruction": "0x140005602",
+    "function": "0x1400054ec",
+    "target": "0x1400080e8",
+    "label": "KERNEL32.DLL!VirtualFree"
+  },
+  {
+    "instruction": "0x14000568d",
+    "function": "0x140005638",
+    "target": "0x140008128",
+    "label": "KERNEL32.DLL!CreateFileA"
+  },
+  {
+    "instruction": "0x1400056b1",
+    "function": "0x140005638",
+    "target": "0x1400080d0",
+    "label": "KERNEL32.DLL!GetFileSizeEx"
+  },
+  {
+    "instruction": "0x1400056d9",
+    "function": "0x140005638",
+    "target": "0x140008158",
+    "label": "KERNEL32.DLL!GetProcessHeap"
+  },
+  {
+    "instruction": "0x1400056e7",
+    "function": "0x140005638",
+    "target": "0x140008130",
+    "label": "KERNEL32.DLL!HeapAlloc"
+  },
+  {
+    "instruction": "0x140005714",
+    "function": "0x140005638",
+    "target": "0x1400080c0",
+    "label": "KERNEL32.DLL!ReadFile"
+  },
+  {
+    "instruction": "0x14000571f",
+    "function": "0x140005638",
+    "target": "0x140008078",
+    "label": "KERNEL32.DLL!CloseHandle"
+  },
+  {
+    "instruction": "0x140005739",
+    "function": "0x140005638",
+    "target": "0x140008158",
+    "label": "KERNEL32.DLL!GetProcessHeap"
+  },
+  {
+    "instruction": "0x140005747",
+    "function": "0x140005638",
+    "target": "0x1400080e0",
+    "label": "KERNEL32.DLL!HeapFree"
+  },
+  {
+    "instruction": "0x140005760",
+    "function": "0x140005638",
+    "target": "0x140008078",
+    "label": "KERNEL32.DLL!CloseHandle"
+  },
+  {
+    "instruction": "0x1400059dd",
+    "function": "0x140005968",
+    "target": "0x1400091f8",
+    "label": "\"\\\"%s\\\" \\\"%s\\\"\""
+  },
+  {
+    "instruction": "0x140005a25",
+    "function": "0x140005968",
+    "target": "0x140008160",
+    "label": "KERNEL32.DLL!CreateProcessA"
+  },
+  {
+    "instruction": "0x140005a9d",
+    "function": "0x140005a58",
+    "target": "0x140008108",
+    "label": "KERNEL32.DLL!Wow64GetThreadContext"
+  },
+  {
+    "instruction": "0x140005adb",
+    "function": "0x140005a58",
+    "target": "0x140008138",
+    "label": "KERNEL32.DLL!GetThreadContext"
+  },
+  {
+    "instruction": "0x140005baa",
+    "function": "0x140005b0c",
+    "target": "0x140008108",
+    "label": "KERNEL32.DLL!Wow64GetThreadContext"
+  },
+  {
+    "instruction": "0x140005bc4",
+    "function": "0x140005b0c",
+    "target": "0x1400081f0",
+    "label": "KERNEL32.DLL!Wow64SetThreadContext"
+  },
+  {
+    "instruction": "0x140005bf3",
+    "function": "0x140005b0c",
+    "target": "0x140008138",
+    "label": "KERNEL32.DLL!GetThreadContext"
+  },
+  {
+    "instruction": "0x140005c0f",
+    "function": "0x140005b0c",
+    "target": "0x140008168",
+    "label": "KERNEL32.DLL!SetThreadContext"
+  },
+  {
+    "instruction": "0x140005c5a",
+    "function": "0x140005b0c",
+    "target": "0x1400080d8",
+    "label": "KERNEL32.DLL!WriteProcessMemory"
+  },
+  {
+    "instruction": "0x140005cd1",
+    "function": "0x140005c8c",
+    "target": "0x140008148",
+    "label": "KERNEL32.DLL!VirtualAllocEx"
+  },
+  {
+    "instruction": "0x140005d62",
+    "function": "0x140005c8c",
+    "target": "0x1400080d8",
+    "label": "KERNEL32.DLL!WriteProcessMemory"
+  },
+  {
+    "instruction": "0x140005d95",
+    "function": "0x140005c8c",
+    "target": "0x140008118",
+    "label": "KERNEL32.DLL!ResumeThread"
+  },
+  {
+    "instruction": "0x140005eaf",
+    "function": "0x140005dbc",
+    "target": "0x140008158",
+    "label": "KERNEL32.DLL!GetProcessHeap"
+  },
+  {
+    "instruction": "0x140005ebe",
+    "function": "0x140005dbc",
+    "target": "0x1400080e0",
+    "label": "KERNEL32.DLL!HeapFree"
+  },
+  {
+    "instruction": "0x140005f6b",
+    "function": "0x140005f1c",
+    "target": "0x1400080c8",
+    "label": "KERNEL32.DLL!GetModuleFileNameA"
+  },
+  {
+    "instruction": "0x140005fd4",
+    "function": "0x140005f1c",
+    "target": "0x140008158",
+    "label": "KERNEL32.DLL!GetProcessHeap"
+  },
+  {
+    "instruction": "0x140005fe2",
+    "function": "0x140005f1c",
+    "target": "0x1400080e0",
+    "label": "KERNEL32.DLL!HeapFree"
+  },
+  {
+    "instruction": "0x1400060c1",
+    "function": "0x140005f1c",
+    "target": "0x140008170",
+    "label": "KERNEL32.DLL!OpenProcess"
+  },
+  {
+    "instruction": "0x1400060d4",
+    "function": "0x140005f1c",
+    "target": "0x1400081d0",
+    "label": "KERNEL32.DLL!TerminateProcess"
+  },
+  {
+    "instruction": "0x1400060dd",
+    "function": "0x140005f1c",
+    "target": "0x140008078",
+    "label": "KERNEL32.DLL!CloseHandle"
+  },
+  {
+    "instruction": "0x1400060ee",
+    "function": "0x140005f1c",
+    "target": "0x1400080e8",
+    "label": "KERNEL32.DLL!VirtualFree"
+  },
+  {
+    "instruction": "0x1400060f9",
+    "function": "0x140005f1c",
+    "target": "0x140008078",
+    "label": "KERNEL32.DLL!CloseHandle"
+  },
+  {
+    "instruction": "0x140006104",
+    "function": "0x140005f1c",
+    "target": "0x140008078",
+    "label": "KERNEL32.DLL!CloseHandle"
+  },
+  {
+    "instruction": "0x14000611a",
+    "function": "0x140005f1c",
+    "target": "0x1400080e8",
+    "label": "KERNEL32.DLL!VirtualFree"
+  },
+  {
+    "instruction": "0x140006193",
+    "function": "0x14000614c",
+    "target": "0x140008128",
+    "label": "KERNEL32.DLL!CreateFileA"
+  },
+  {
+    "instruction": "0x1400061aa",
+    "function": "0x14000614c",
+    "target": "0x140008558",
+    "label": "api-ms-win-crt-time-l1-1-0.dll!_time64"
+  },
+  {
+    "instruction": "0x1400061c9",
+    "function": "0x14000614c",
+    "target": "0x140008110",
+    "label": "KERNEL32.DLL!SetFilePointer"
+  },
+  {
+    "instruction": "0x1400061f1",
+    "function": "0x14000614c",
+    "target": "0x1400080c0",
+    "label": "KERNEL32.DLL!ReadFile"
+  },
+  {
+    "instruction": "0x140006212",
+    "function": "0x14000614c",
+    "target": "0x140008110",
+    "label": "KERNEL32.DLL!SetFilePointer"
+  },
+  {
+    "instruction": "0x14000623a",
+    "function": "0x14000614c",
+    "target": "0x1400080f0",
+    "label": "KERNEL32.DLL!WriteFile"
+  },
+  {
+    "instruction": "0x140006253",
+    "function": "0x14000614c",
+    "target": "0x140008078",
+    "label": "KERNEL32.DLL!CloseHandle"
+  },
+  {
+    "instruction": "0x14000627b",
+    "function": null,
+    "target": "0x140008280",
+    "label": "MSVCP140.dll!??1_Lockit@std@@QEAA@XZ"
+  },
+  {
+    "instruction": "0x14000629e",
+    "function": "0x140006290",
+    "target": "0x1400083f0",
+    "label": "api-ms-win-crt-heap-l1-1-0.dll!malloc"
+  },
+  {
+    "instruction": "0x1400062cd",
+    "function": null,
+    "target": "0x140008270",
+    "label": "MSVCP140.dll!?_Xbad_alloc@std@@YAXXZ"
+  },
+  {
+    "instruction": "0x1400068e0",
+    "function": null,
+    "target": "0x140008670",
+    "label": "\"bad allocation\""
+  },
+  {
+    "instruction": "0x14000696a",
+    "function": "0x140006930",
+    "target": "0x140008190",
+    "label": "KERNEL32.DLL!GetSystemTimeAsFileTime"
+  },
+  {
+    "instruction": "0x14000697a",
+    "function": "0x140006930",
+    "target": "0x140008198",
+    "label": "KERNEL32.DLL!GetCurrentThreadId"
+  },
+  {
+    "instruction": "0x140006987",
+    "function": "0x140006930",
+    "target": "0x1400081a0",
+    "label": "KERNEL32.DLL!GetCurrentProcessId"
+  },
+  {
+    "instruction": "0x140006999",
+    "function": "0x140006930",
+    "target": "0x1400081a8",
+    "label": "KERNEL32.DLL!QueryPerformanceCounter"
+  },
+  {
+    "instruction": "0x140006a27",
+    "function": null,
+    "target": "0x140008188",
+    "label": "KERNEL32.DLL!InitializeSListHead"
+  },
+  {
+    "instruction": "0x140006ac6",
+    "function": "0x140006ac0",
+    "target": "0x140008178",
+    "label": "KERNEL32.DLL!GetModuleHandleW"
+  },
+  {
+    "instruction": "0x140006b27",
+    "function": null,
+    "target": "0x140008180",
+    "label": "KERNEL32.DLL!SetUnhandledExceptionFilter"
+  },
+  {
+    "instruction": "0x140006ef0",
+    "function": null,
+    "target": "0x1400083c0",
+    "label": "VCRUNTIME140_1.dll!__CxxFrameHandler4"
+  },
+  {
+    "instruction": "0x140006ef6",
+    "function": null,
+    "target": "0x140008398",
+    "label": "VCRUNTIME140.dll!__std_terminate"
+  },
+  {
+    "instruction": "0x140006efc",
+    "function": null,
+    "target": "0x140008390",
+    "label": "VCRUNTIME140.dll!__C_specific_handler"
+  },
+  {
+    "instruction": "0x140006f02",
+    "function": null,
+    "target": "0x140008370",
+    "label": "VCRUNTIME140.dll!_CxxThrowException"
+  },
+  {
+    "instruction": "0x140006f08",
+    "function": null,
+    "target": "0x1400083b0",
+    "label": "VCRUNTIME140.dll!__current_exception"
+  },
+  {
+    "instruction": "0x140006f0e",
+    "function": null,
+    "target": "0x140008368",
+    "label": "VCRUNTIME140.dll!__current_exception_context"
+  },
+  {
+    "instruction": "0x140006f14",
+    "function": null,
+    "target": "0x140008490",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!exit"
+  },
+  {
+    "instruction": "0x140006f1a",
+    "function": null,
+    "target": "0x1400083f8",
+    "label": "api-ms-win-crt-heap-l1-1-0.dll!free"
+  },
+  {
+    "instruction": "0x140006f20",
+    "function": null,
+    "target": "0x1400083f0",
+    "label": "api-ms-win-crt-heap-l1-1-0.dll!malloc"
+  },
+  {
+    "instruction": "0x140006f26",
+    "function": null,
+    "target": "0x1400083e0",
+    "label": "api-ms-win-crt-heap-l1-1-0.dll!_callnewh"
+  },
+  {
+    "instruction": "0x140006f2c",
+    "function": null,
+    "target": "0x140008450",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!_seh_filter_exe"
+  },
+  {
+    "instruction": "0x140006f32",
+    "function": null,
+    "target": "0x140008428",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!_set_app_type"
+  },
+  {
+    "instruction": "0x140006f38",
+    "function": null,
+    "target": "0x140008418",
+    "label": "api-ms-win-crt-math-l1-1-0.dll!__setusermatherr"
+  },
+  {
+    "instruction": "0x140006f3e",
+    "function": null,
+    "target": "0x140008430",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!_configure_narrow_argv"
+  },
+  {
+    "instruction": "0x140006f44",
+    "function": null,
+    "target": "0x140008438",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!_initialize_narrow_environment"
+  },
+  {
+    "instruction": "0x140006f4a",
+    "function": null,
+    "target": "0x140008440",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!_get_initial_narrow_environment"
+  },
+  {
+    "instruction": "0x140006f50",
+    "function": null,
+    "target": "0x140008448",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!_initterm"
+  },
+  {
+    "instruction": "0x140006f56",
+    "function": null,
+    "target": "0x1400084a0",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!_initterm_e"
+  },
+  {
+    "instruction": "0x140006f5c",
+    "function": null,
+    "target": "0x140008458",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!_exit"
+  },
+  {
+    "instruction": "0x140006f62",
+    "function": null,
+    "target": "0x140008508",
+    "label": "api-ms-win-crt-stdio-l1-1-0.dll!_set_fmode"
+  },
+  {
+    "instruction": "0x140006f68",
+    "function": null,
+    "target": "0x140008468",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!__p___argc"
+  },
+  {
+    "instruction": "0x140006f6e",
+    "function": null,
+    "target": "0x140008470",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!__p___argv"
+  },
+  {
+    "instruction": "0x140006f74",
+    "function": null,
+    "target": "0x140008478",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!_cexit"
+  },
+  {
+    "instruction": "0x140006f7a",
+    "function": null,
+    "target": "0x140008480",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!_c_exit"
+  },
+  {
+    "instruction": "0x140006f80",
+    "function": null,
+    "target": "0x140008488",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!_register_thread_local_exe_atexit_callback"
+  },
+  {
+    "instruction": "0x140006f86",
+    "function": null,
+    "target": "0x140008408",
+    "label": "api-ms-win-crt-locale-l1-1-0.dll!_configthreadlocale"
+  },
+  {
+    "instruction": "0x140006f8c",
+    "function": null,
+    "target": "0x1400083e8",
+    "label": "api-ms-win-crt-heap-l1-1-0.dll!_set_new_mode"
+  },
+  {
+    "instruction": "0x140006f92",
+    "function": null,
+    "target": "0x140008500",
+    "label": "api-ms-win-crt-stdio-l1-1-0.dll!__p__commode"
+  },
+  {
+    "instruction": "0x140006f98",
+    "function": null,
+    "target": "0x1400084a8",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!_initialize_onexit_table"
+  },
+  {
+    "instruction": "0x140006f9e",
+    "function": null,
+    "target": "0x1400084b0",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!_register_onexit_function"
+  },
+  {
+    "instruction": "0x140006fa4",
+    "function": null,
+    "target": "0x1400084b8",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!_crt_atexit"
+  },
+  {
+    "instruction": "0x140006faa",
+    "function": null,
+    "target": "0x1400084c0",
+    "label": "api-ms-win-crt-runtime-l1-1-0.dll!terminate"
+  },
+  {
+    "instruction": "0x140007208",
+    "function": null,
+    "target": "0x140008388",
+    "label": "VCRUNTIME140.dll!memcpy"
+  },
+  {
+    "instruction": "0x14000720e",
+    "function": null,
+    "target": "0x140008380",
+    "label": "VCRUNTIME140.dll!memmove"
+  },
+  {
+    "instruction": "0x140007214",
+    "function": null,
+    "target": "0x140008378",
+    "label": "VCRUNTIME140.dll!memset"
+  },
+  {
+    "instruction": "0x14000721a",
+    "function": null,
+    "target": "0x140008520",
+    "label": "api-ms-win-crt-string-l1-1-0.dll!strcmp"
+  },
+  {
+    "instruction": "0x140007220",
+    "function": null,
+    "target": "0x140008530",
+    "label": "api-ms-win-crt-string-l1-1-0.dll!strlen"
+  },
+  {
+    "instruction": "0x140007226",
+    "function": null,
+    "target": "0x140008540",
+    "label": "api-ms-win-crt-string-l1-1-0.dll!wcscmp"
+  },
+  {
+    "instruction": "0x140007313",
+    "function": null,
+    "target": "0x140008280",
+    "label": "MSVCP140.dll!??1_Lockit@std@@QEAA@XZ"
+  },
+  {
+    "instruction": "0x14000736d",
+    "function": "0x14000734a",
+    "target": "0x140008278",
+    "label": "MSVCP140.dll!?setstate@?$basic_ios@DU?$char_traits@D@std@@@std@@QEAAXH_N@Z"
+  },
+  {
+    "instruction": "0x140007419",
+    "function": "0x1400073d0",
+    "target": "0x1400083f8",
+    "label": "api-ms-win-crt-heap-l1-1-0.dll!free"
+  }
+]

@@ -1,0 +1,576 @@
+#pragma once
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0A00
+#endif
+#include <windows.h>
+#include "core/core.hpp"
+#include <atomic>
+#include <commdlg.h>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <mutex>
+#include <shellapi.h>
+#include <sstream>
+#include <tlhelp32.h>
+#include <windowsx.h>
+#include <winhttp.h>
+
+namespace owh {
+inline std::string utf8(const std::wstring &s) {
+  if (s.empty())
+    return {};
+  int n = WideCharToMultiByte(CP_UTF8, 0, s.data(), int(s.size()), nullptr, 0, nullptr, nullptr);
+  std::string r(n, 0);
+  WideCharToMultiByte(CP_UTF8, 0, s.data(), int(s.size()), r.data(), n, nullptr, nullptr);
+  return r;
+}
+inline std::wstring wide(const std::string &s) {
+  if (s.empty())
+    return {};
+  int n = MultiByteToWideChar(CP_UTF8, 0, s.data(), int(s.size()), nullptr, 0);
+  std::wstring r(n, 0);
+  MultiByteToWideChar(CP_UTF8, 0, s.data(), int(s.size()), r.data(), n);
+  return r;
+}
+struct Handle {
+  HANDLE h{};
+  explicit Handle(HANDLE v = nullptr) : h(v) {}
+  ~Handle() {
+    if (h && h != INVALID_HANDLE_VALUE)
+      CloseHandle(h);
+  }
+  Handle(const Handle &) = delete;
+  Handle &operator=(const Handle &) = delete;
+};
+inline std::wstring exeDirectory() {
+  wchar_t b[32768]{};
+  GetModuleFileNameW(nullptr, b, 32768);
+  return std::filesystem::path(b).parent_path().wstring();
+}
+inline std::wstring dataDirectory(bool demo) {
+  wchar_t b[32768]{};
+  GetEnvironmentVariableW(L"LOCALAPPDATA", b, 32768);
+  auto p = std::filesystem::path(b) / (demo ? L"OverwatchHelperDemo" : L"OverwatchHelper");
+  std::filesystem::create_directories(p);
+  return p.wstring();
+}
+inline std::wstring readIni(const std::wstring &p, const wchar_t *section, const wchar_t *key,
+                            const wchar_t *def = L"") {
+  std::vector<wchar_t> b(16384);
+  GetPrivateProfileStringW(section, key, def, b.data(), DWORD(b.size()), p.c_str());
+  return b.data();
+}
+inline void writeIni(const std::wstring &p, const wchar_t *section, const wchar_t *key,
+                     const std::wstring &v) {
+  if (!std::filesystem::exists(p)) {
+    Handle h(CreateFileW(p.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL,
+                         nullptr));
+    WORD bom = 0xfeff;
+    DWORD n;
+    if (h.h != INVALID_HANDLE_VALUE)
+      WriteFile(h.h, &bom, 2, &n, nullptr);
+  }
+  if (!WritePrivateProfileStringW(section, key, v.c_str(), p.c_str()))
+    throw std::runtime_error("Cannot save configuration");
+}
+inline int number(const std::wstring &s, int def = 0) {
+  try {
+    return std::stoi(s);
+  } catch (...) {
+    return def;
+  }
+}
+inline std::wstring discoverLauncher() {
+  for (auto root : {HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER})
+    for (auto view : {KEY_WOW64_32KEY, KEY_WOW64_64KEY}) {
+      HKEY key{};
+      if (RegOpenKeyExW(root,
+                        L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninsta"
+                        L"ll\\Battle.net",
+                        0, KEY_READ | view, &key) != ERROR_SUCCESS)
+        continue;
+      wchar_t path[32768]{};
+      DWORD n = sizeof(path), type{};
+      auto ok = RegQueryValueExW(key, L"InstallLocation", nullptr, &type,
+                                 reinterpret_cast<BYTE *>(path), &n);
+      RegCloseKey(key);
+      if (ok == ERROR_SUCCESS && (type == REG_SZ || type == REG_EXPAND_SZ)) {
+        auto p = std::filesystem::path(path) / L"Battle.net.exe";
+        if (std::filesystem::exists(p))
+          return p.wstring();
+      }
+    }
+  for (const auto *env : {L"ProgramFiles(x86)", L"ProgramFiles"}) {
+    wchar_t b[32768]{};
+    GetEnvironmentVariableW(env, b, 32768);
+    auto p = std::filesystem::path(b) / L"Battle.net" / L"Battle.net.exe";
+    if (std::filesystem::exists(p))
+      return p.wstring();
+  }
+  return {};
+}
+struct Config {
+  std::wstring gameExe{L"Overwatch.exe"}, gameClass{L"TankWindowClass"}, launcherPath, launcherArgs;
+  std::wstring server, token, machine;
+  bool dryRun{true}, holdShift{true}, autoRecover{true}, demo{};
+  double threshold{.90};
+  std::vector<Step> steps;
+};
+inline Config loadConfig(const std::wstring &dir, bool demo) {
+  Config c;
+  c.demo = demo;
+  auto p = dir + L"\\settings.ini";
+  c.gameExe = readIni(p, L"agent", L"game_exe", demo ? L"owh-demo.exe" : L"Overwatch.exe");
+  c.gameClass = demo ? L"OWH-DemoGame" : L"TankWindowClass";
+  c.launcherPath = readIni(p, L"agent", L"launcher_path");
+  if (c.launcherPath.empty())
+    c.launcherPath = demo ? exeDirectory() + L"\\owh-demo.exe" : discoverLauncher();
+  c.launcherArgs = readIni(p, L"agent", L"launcher_args");
+  c.server = readIni(p, L"agent", L"server");
+  c.token = readIni(p, L"agent", L"token");
+  wchar_t host[256]{};
+  DWORD size = 256;
+  GetComputerNameW(host, &size);
+  c.machine = readIni(p, L"agent", L"machine", host);
+  c.dryRun = number(readIni(p, L"agent", L"dry_run", L"1")) != 0;
+  c.holdShift = number(readIni(p, L"agent", L"hold_shift", L"1")) != 0;
+  c.autoRecover = number(readIni(p, L"agent", L"auto_recover", L"1")) != 0;
+  int count = std::clamp(number(readIni(p, L"workflow", L"count")), 0, 32);
+  for (int i = 0; i < count; ++i) {
+    Step s;
+    auto sec = L"step" + std::to_wstring(i);
+    s.label = readIni(p, sec.c_str(), L"name");
+    s.text = readIni(p, sec.c_str(), L"text");
+    s.launcher = number(readIni(p, sec.c_str(), L"launcher")) != 0;
+    int action = number(readIni(p, sec.c_str(), L"action"), -1);
+    if (action < 0 || action > 6)
+      continue;
+    s.action = Action(action);
+    std::wistringstream v(readIni(p, sec.c_str(), L"geometry"));
+    v >> s.roi.x >> s.roi.y >> s.roi.w >> s.roi.h >> s.click.x >> s.click.y >> s.aspect;
+    auto hex = readIni(p, sec.c_str(), L"template");
+    if (!v || !valid(s.roi) || !std::isfinite(s.aspect) || !std::isfinite(s.click.x) ||
+        !std::isfinite(s.click.y) || s.aspect < .5 || s.aspect > 4 || s.click.x < 0 ||
+        s.click.x > 1 || s.click.y < 0 || s.click.y > 1 || hex.size() != TemplateW * TemplateH * 2)
+      continue;
+    auto digit = [](wchar_t x) {
+      if (x >= '0' && x <= '9')
+        return x - '0';
+      if (x >= 'a' && x <= 'f')
+        return x - 'a' + 10;
+      return -1;
+    };
+    bool ok = true;
+    for (std::size_t j = 0; j < hex.size(); j += 2) {
+      int hi = digit(hex[j]), lo = digit(hex[j + 1]);
+      if (hi < 0 || lo < 0) {
+        ok = false;
+        break;
+      }
+      s.image.push_back(std::uint8_t(hi * 16 + lo));
+    }
+    if (ok && contrast(s.image) >= 8 && !(s.launcher && s.action == Action::Ready) &&
+        !(!s.launcher && s.action == Action::Launch) && s.label.size() <= 128 &&
+        s.text.size() <= 128)
+      c.steps.push_back(std::move(s));
+  }
+  return c;
+}
+inline void saveConfig(const std::wstring &dir, const Config &c) {
+  auto p = dir + L"\\settings.ini";
+  for (auto kv : std::vector<std::pair<std::wstring, std::wstring>>{
+           {L"game_exe", c.gameExe},
+           {L"launcher_path", c.launcherPath},
+           {L"launcher_args", c.launcherArgs},
+           {L"server", c.server},
+           {L"token", c.token},
+           {L"machine", c.machine},
+           {L"dry_run", c.dryRun ? L"1" : L"0"},
+           {L"hold_shift", c.holdShift ? L"1" : L"0"},
+           {L"auto_recover", c.autoRecover ? L"1" : L"0"}})
+    writeIni(p, L"agent", kv.first.c_str(), kv.second);
+  writeIni(p, L"workflow", L"count", std::to_wstring(c.steps.size()));
+  for (std::size_t i = 0; i < c.steps.size(); ++i) {
+    auto &s = c.steps[i];
+    auto sec = L"step" + std::to_wstring(i);
+    std::wostringstream geo;
+    geo.precision(12);
+    geo << s.roi.x << ' ' << s.roi.y << ' ' << s.roi.w << ' ' << s.roi.h << ' ' << s.click.x << ' '
+        << s.click.y << ' ' << s.aspect;
+    std::wstring hex;
+    for (auto b : s.image) {
+      hex += L"0123456789abcdef"[b >> 4];
+      hex += L"0123456789abcdef"[b & 15];
+    }
+    for (auto kv : std::vector<std::pair<std::wstring, std::wstring>>{
+             {L"name", s.label},
+             {L"text", s.text},
+             {L"launcher", s.launcher ? L"1" : L"0"},
+             {L"action", std::to_wstring(int(s.action))},
+             {L"geometry", geo.str()},
+             {L"template", hex}})
+      writeIni(p, sec.c_str(), kv.first.c_str(), kv.second);
+  }
+}
+struct Process {
+  DWORD pid{};
+  std::uint64_t created{};
+  HWND window{};
+};
+inline std::uint64_t processCreation(HANDLE p) {
+  FILETIME c{}, e{}, k{}, u{};
+  if (!GetProcessTimes(p, &c, &e, &k, &u))
+    return 0;
+  return (std::uint64_t(c.dwHighDateTime) << 32) | c.dwLowDateTime;
+}
+inline std::wstring processName(DWORD pid) {
+  Handle p(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid));
+  if (!p.h)
+    return {};
+  wchar_t b[32768]{};
+  DWORD n = 32768;
+  if (!QueryFullProcessImageNameW(p.h, 0, b, &n))
+    return {};
+  return std::filesystem::path(b).filename().wstring();
+}
+inline Process findProcess(const std::wstring &name, const std::wstring &cls = L"") {
+  Process p;
+  // Prefer a verified main window, not an arbitrary same-name background
+  // helper.
+  struct Find {
+    const std::wstring *name;
+    const std::wstring *cls;
+    Process *out;
+  } ctx{&name, &cls, &p};
+  EnumWindows(
+      [](HWND w, LPARAM a) -> BOOL {
+        auto &x = *reinterpret_cast<Find *>(a);
+        if (!IsWindowVisible(w))
+          return TRUE;
+        wchar_t cls[256]{};
+        GetClassNameW(w, cls, 256);
+        if (!x.cls->empty() && *x.cls != cls)
+          return TRUE;
+        DWORD pid{};
+        GetWindowThreadProcessId(w, &pid);
+        if (_wcsicmp(processName(pid).c_str(), x.name->c_str()) != 0)
+          return TRUE;
+        x.out->pid = pid;
+        x.out->window = w;
+        return FALSE;
+      },
+      reinterpret_cast<LPARAM>(&ctx));
+  if (!p.pid) {
+    Handle snap(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0));
+    PROCESSENTRY32W e{};
+    e.dwSize = sizeof(e);
+    if (snap.h != INVALID_HANDLE_VALUE && Process32FirstW(snap.h, &e))
+      do {
+        if (_wcsicmp(e.szExeFile, name.c_str()) == 0) {
+          p.pid = e.th32ProcessID;
+          break;
+        }
+      } while (Process32NextW(snap.h, &e));
+  }
+  if (p.pid) {
+    Handle h(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, p.pid));
+    if (h.h)
+      p.created = processCreation(h.h);
+  }
+  return p;
+}
+inline bool sameProcess(const Process &p, const std::wstring &name) {
+  if (!p.pid || !p.created)
+    return false;
+  Handle h(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, p.pid));
+  return h.h && processCreation(h.h) == p.created &&
+         _wcsicmp(processName(p.pid).c_str(), name.c_str()) == 0;
+}
+inline bool responsive(HWND w) {
+  DWORD_PTR result{};
+  return SendMessageTimeoutW(w, WM_NULL, 0, 0, SMTO_ABORTIFHUNG | SMTO_BLOCK, 200, &result) != 0;
+}
+inline bool foreground(HWND w) { return w && GetForegroundWindow() == w && !IsIconic(w); }
+class Capture {
+  HDC dc_{};
+  HBITMAP bitmap_{}, old_{};
+  void *bits_{};
+  int w_{}, h_{};
+  void release() {
+    if (dc_ && old_)
+      SelectObject(dc_, old_);
+    if (bitmap_)
+      DeleteObject(bitmap_);
+    if (dc_)
+      DeleteDC(dc_);
+    dc_ = nullptr;
+    bitmap_ = old_ = nullptr;
+    bits_ = nullptr;
+    w_ = h_ = 0;
+  }
+
+public:
+  ~Capture() { release(); }
+  bool grab(HWND window, Frame &f) {
+    if (!foreground(window))
+      return false;
+    RECT r{};
+    if (!GetClientRect(window, &r))
+      return false;
+    int w = r.right, h = r.bottom;
+    if (w < 80 || h < 60 || w > 7680 || h > 4320)
+      return false;
+    POINT p{};
+    if (!ClientToScreen(window, &p))
+      return false;
+    int vx = GetSystemMetrics(SM_XVIRTUALSCREEN), vy = GetSystemMetrics(SM_YVIRTUALSCREEN);
+    if (p.x < vx || p.y < vy || p.x + w > vx + GetSystemMetrics(SM_CXVIRTUALSCREEN) ||
+        p.y + h > vy + GetSystemMetrics(SM_CYVIRTUALSCREEN))
+      return false;
+    HDC desktop = GetDC(nullptr);
+    if (!desktop)
+      return false;
+    if (w != w_ || h != h_ || !dc_ || !bitmap_ || !bits_) {
+      release();
+      dc_ = CreateCompatibleDC(desktop);
+      BITMAPINFO bi{};
+      bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+      bi.bmiHeader.biWidth = w;
+      bi.bmiHeader.biHeight = -h;
+      bi.bmiHeader.biPlanes = 1;
+      bi.bmiHeader.biBitCount = 32;
+      bi.bmiHeader.biCompression = BI_RGB;
+      bitmap_ = CreateDIBSection(desktop, &bi, DIB_RGB_COLORS, &bits_, nullptr, 0);
+      if (dc_ && bitmap_)
+        old_ = static_cast<HBITMAP>(SelectObject(dc_, bitmap_));
+      w_ = w;
+      h_ = h;
+    }
+    BOOL ok =
+        dc_ && bitmap_ && bits_ && BitBlt(dc_, 0, 0, w, h, desktop, p.x, p.y, SRCCOPY | CAPTUREBLT);
+    ReleaseDC(nullptr, desktop);
+    if (!ok || !GdiFlush() || !foreground(window))
+      return false;
+    f.width = w;
+    f.height = h;
+    f.pixels.resize(std::size_t(w) * h);
+    std::memcpy(f.pixels.data(), bits_, f.pixels.size() * 4);
+    return true;
+  }
+};
+class Input {
+  std::mutex mutex_;
+  bool held_{}, enabled_{};
+  HWND target_{};
+  static bool key(WORD vk, bool up) {
+    INPUT i{};
+    i.type = INPUT_KEYBOARD;
+    i.ki.wVk = vk;
+    i.ki.dwFlags = up ? KEYEVENTF_KEYUP : 0;
+    return SendInput(1, &i, sizeof(i)) == 1;
+  }
+
+public:
+  ~Input() { release(); }
+  void enable(bool on) {
+    std::lock_guard lock(mutex_);
+    enabled_ = on;
+    if (!on && held_) {
+      key(VK_LSHIFT, true);
+      held_ = false;
+      target_ = nullptr;
+    }
+  }
+  void release() {
+    std::lock_guard lock(mutex_);
+    if (held_) {
+      key(VK_LSHIFT, true);
+      held_ = false;
+      target_ = nullptr;
+    }
+  }
+  void checkFocus() {
+    std::lock_guard lock(mutex_);
+    if (held_ && !foreground(target_)) {
+      key(VK_LSHIFT, true);
+      held_ = false;
+      target_ = nullptr;
+    }
+  }
+  bool hold(HWND w) {
+    std::lock_guard lock(mutex_);
+    if (!enabled_ || !foreground(w))
+      return false;
+    if (held_)
+      return target_ == w;
+    if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0)
+      return false;
+    held_ = key(VK_LSHIFT, false);
+    if (held_)
+      target_ = w;
+    return held_;
+  }
+  bool click(HWND w, Point p) {
+    std::lock_guard lock(mutex_);
+    if (!enabled_ || !foreground(w))
+      return false;
+    RECT r{};
+    GetClientRect(w, &r);
+    POINT xy{LONG(p.x * r.right), LONG(p.y * r.bottom)};
+    ClientToScreen(w, &xy);
+    INPUT seq[3]{};
+    for (auto &i : seq)
+      i.type = INPUT_MOUSE;
+    seq[0].mi.dx = LONG((xy.x - GetSystemMetrics(SM_XVIRTUALSCREEN)) * 65535.0 /
+                        std::max(1, GetSystemMetrics(SM_CXVIRTUALSCREEN) - 1));
+    seq[0].mi.dy = LONG((xy.y - GetSystemMetrics(SM_YVIRTUALSCREEN)) * 65535.0 /
+                        std::max(1, GetSystemMetrics(SM_CYVIRTUALSCREEN) - 1));
+    seq[0].mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
+    seq[1].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+    seq[2].mi.dwFlags = MOUSEEVENTF_LEFTUP;
+    auto n = SendInput(3, seq, sizeof(INPUT));
+    if (n < 3) {
+      INPUT up{};
+      up.type = INPUT_MOUSE;
+      up.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+      SendInput(1, &up, sizeof(up));
+    }
+    return n == 3;
+  }
+  bool press(HWND w, WORD vk) {
+    std::lock_guard lock(mutex_);
+    if (!enabled_ || !foreground(w))
+      return false;
+    bool ok = key(vk, false);
+    return key(vk, true) && ok;
+  }
+  bool text(HWND w, const std::wstring &s) {
+    std::lock_guard lock(mutex_);
+    if (!enabled_ || !foreground(w) || s.size() > 256)
+      return false;
+    // This action is calibrated together with its input-field click.
+    if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0)
+      return false;
+    INPUT select[4]{};
+    for (auto &i : select)
+      i.type = INPUT_KEYBOARD;
+    select[0].ki.wVk = VK_CONTROL;
+    select[1].ki.wVk = 'A';
+    select[2].ki.wVk = 'A';
+    select[2].ki.dwFlags = KEYEVENTF_KEYUP;
+    select[3].ki.wVk = VK_CONTROL;
+    select[3].ki.dwFlags = KEYEVENTF_KEYUP;
+    if (SendInput(4, select, sizeof(INPUT)) != 4) {
+      key('A', true);
+      key(VK_CONTROL, true);
+      return false;
+    }
+    for (wchar_t ch : s) {
+      if (!foreground(w))
+        return false;
+      INPUT a[2]{};
+      for (auto &i : a) {
+        i.type = INPUT_KEYBOARD;
+        i.ki.wScan = ch;
+        i.ki.dwFlags = KEYEVENTF_UNICODE;
+      }
+      a[1].ki.dwFlags |= KEYEVENTF_KEYUP;
+      if (SendInput(2, a, sizeof(INPUT)) != 2) {
+        a[1].ki.dwFlags |= KEYEVENTF_KEYUP;
+        SendInput(1, a + 1, sizeof(INPUT));
+        return false;
+      }
+    }
+    return true;
+  }
+};
+inline bool launch(const Config &c) {
+  if (c.launcherPath.empty() || !std::filesystem::exists(c.launcherPath))
+    return false;
+  SHELLEXECUTEINFOW s{};
+  s.cbSize = sizeof(s);
+  s.fMask = SEE_MASK_NOASYNC;
+  s.lpFile = c.launcherPath.c_str();
+  s.lpParameters = c.launcherArgs.c_str();
+  s.nShow = SW_SHOWNORMAL;
+  return ShellExecuteExW(&s) != FALSE;
+}
+inline bool terminateGame(const Process &p, const std::wstring &name,
+                          const std::atomic<bool> &running, const std::atomic<unsigned> &generation,
+                          unsigned epoch) {
+  auto active = [&] { return running && generation.load() == epoch; };
+  if (!sameProcess(p, name))
+    return false;
+  Handle h(OpenProcess(SYNCHRONIZE | PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE,
+                       p.pid));
+  if (!h.h || processCreation(h.h) != p.created)
+    return false;
+  if (!active())
+    return false;
+  if (p.window) {
+    DWORD owner{};
+    GetWindowThreadProcessId(p.window, &owner);
+    if (owner == p.pid)
+      PostMessageW(p.window, WM_CLOSE, 0, 0);
+  }
+  for (int i = 0; i < 25; ++i) {
+    if (WaitForSingleObject(h.h, 200) == WAIT_OBJECT_0)
+      return true;
+    if (!active())
+      return false;
+  }
+  return active() && TerminateProcess(h.h, 0) != FALSE;
+}
+inline int heartbeat(const Config &c, const std::string &json) {
+  if (c.server.empty() || c.token.empty())
+    return 0;
+  std::wstring url = c.server;
+  while (!url.empty() && url.back() == '/')
+    url.pop_back();
+  url += L"/api/heartbeat";
+  wchar_t host[1024]{}, path[4096]{};
+  URL_COMPONENTS u{};
+  u.dwStructSize = sizeof(u);
+  u.lpszHostName = host;
+  u.dwHostNameLength = 1024;
+  u.lpszUrlPath = path;
+  u.dwUrlPathLength = 4096;
+  if (!WinHttpCrackUrl(url.c_str(), 0, 0, &u) ||
+      (u.nScheme != INTERNET_SCHEME_HTTP && u.nScheme != INTERNET_SCHEME_HTTPS))
+    return -1;
+  auto session = WinHttpOpen(L"OverwatchHelper/0.1", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                             WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+  if (!session)
+    return -2;
+  WinHttpSetTimeouts(session, 1500, 1500, 1500, 1500);
+  auto connect = WinHttpConnect(session, host, u.nPort, 0);
+  auto request =
+      connect ? WinHttpOpenRequest(connect, L"POST", path, nullptr, WINHTTP_NO_REFERER,
+                                   WINHTTP_DEFAULT_ACCEPT_TYPES,
+                                   u.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0)
+              : nullptr;
+  int status = -3;
+  if (request) {
+    DWORD redirects = WINHTTP_OPTION_REDIRECT_POLICY_NEVER;
+    WinHttpSetOption(request, WINHTTP_OPTION_REDIRECT_POLICY, &redirects, sizeof(redirects));
+    std::wstring headers =
+        L"Content-Type: application/json\r\nAuthorization: Bearer " + c.token + L"\r\n";
+    if (WinHttpSendRequest(request, headers.c_str(), DWORD(-1), const_cast<char *>(json.data()),
+                           DWORD(json.size()), DWORD(json.size()), 0) &&
+        WinHttpReceiveResponse(request, nullptr)) {
+      DWORD code{}, n = sizeof(code);
+      if (WinHttpQueryHeaders(request, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                              WINHTTP_HEADER_NAME_BY_INDEX, &code, &n, WINHTTP_NO_HEADER_INDEX))
+        status = int(code);
+    }
+    WinHttpCloseHandle(request);
+  }
+  if (connect)
+    WinHttpCloseHandle(connect);
+  WinHttpCloseHandle(session);
+  return status;
+}
+} // namespace owh
