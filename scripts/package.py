@@ -10,12 +10,13 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--output', type=Path, default=root / 'dist')
+parser.add_argument('--windows-only', action='store_true', help='Do not require a Linux dashboard binary')
 args = parser.parse_args()
 args.output.mkdir(parents=True, exist_ok=True)
-version = '0.1.0'
+version = '0.3.0'
 files = {name: (root / 'dist' / name).read_bytes() for name in (
     'overwatch-helper.exe', 'owh-demo.exe', 'owh-dashboard.exe')}
-for name in ('start-demo.cmd', 'start-dashboard.cmd'):
+for name in ('start-demo.cmd', 'start-dashboard.cmd', 'diagnose.cmd'):
     files[name] = (root / 'scripts' / name).read_text().replace('\n', '\r\n').encode('ascii')
 for path in sorted((root / 'docs').glob('*.md')):
     files['docs/' + path.name] = path.read_bytes()
@@ -27,6 +28,9 @@ archive = args.output / f'OverwatchHelper-{version}-windows-x64.zip'
 with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as z:
     for name, data in files.items():
         z.writestr(f'OverwatchHelper-{version}/{name}', data)
+if args.windows_only:
+    print(f'{hashlib.sha256(archive.read_bytes()).hexdigest()}  {archive.name} ({archive.stat().st_size:,} bytes)')
+    raise SystemExit(0)
 server = root / 'dist' / 'owh-dashboard-linux-amd64'
 linux = args.output / f'OverwatchHelper-{version}-dashboard-linux-x64.tar.gz'
 with tarfile.open(linux, 'w:gz') as t:

@@ -67,6 +67,18 @@ func TestServerTimestampAndPersistence(t *testing.T) {
 		t.Fatal("stale heartbeat age")
 	}
 }
+func TestBackgroundAndDesktopStates(t *testing.T) {
+	s := NewServer("a", "v", t.TempDir())
+	for _, state := range []string{"BACKGROUND_INPUT", "WAITING_DESKTOP"} {
+		body, _ := json.Marshal(Heartbeat{Machine: "pc", State: state, Version: "0.2.0"})
+		if response := request(s, "POST", "/api/heartbeat", "a", body); response.Code != 200 {
+			t.Fatalf("new client state %s rejected: %d", state, response.Code)
+		}
+		if s.snapshot().Agents[0].State != state {
+			t.Fatalf("state %s was not delivered to dashboard", state)
+		}
+	}
+}
 func TestBoundedEventsAndEscaping(t *testing.T) {
 	s := NewServer("a", "v", t.TempDir())
 	for i := 0; i < 260; i++ {

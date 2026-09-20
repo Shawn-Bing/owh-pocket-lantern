@@ -1,6 +1,10 @@
 #pragma once
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 #ifndef _WIN32_WINNT
 #define _WIN32_WINNT 0x0A00
 #endif
@@ -9,6 +13,7 @@
 #include <atomic>
 #include <commdlg.h>
 #include <cstring>
+#include <dwmapi.h>
 #include <filesystem>
 #include <fstream>
 #include <mutex>
@@ -114,8 +119,10 @@ inline std::wstring discoverLauncher() {
 }
 struct Config {
   std::wstring gameExe{L"Overwatch.exe"}, gameClass{L"TankWindowClass"}, launcherPath, launcherArgs;
-  std::wstring server, token, machine;
+  std::wstring server, token, machine, neacPath;
   bool dryRun{true}, holdShift{true}, autoRecover{true}, demo{};
+  bool pulseShift{true}, backgroundPulse{true};
+  bool cnPreset{true};
   double threshold{.90};
   std::vector<Step> steps;
 };
@@ -138,6 +145,10 @@ inline Config loadConfig(const std::wstring &dir, bool demo) {
   c.dryRun = number(readIni(p, L"agent", L"dry_run", L"1")) != 0;
   c.holdShift = number(readIni(p, L"agent", L"hold_shift", L"1")) != 0;
   c.autoRecover = number(readIni(p, L"agent", L"auto_recover", L"1")) != 0;
+  c.pulseShift = number(readIni(p, L"agent", L"pulse_shift", L"1")) != 0;
+  c.backgroundPulse = number(readIni(p, L"agent", L"background_pulse", L"1")) != 0;
+  c.cnPreset = !demo && number(readIni(p, L"agent", L"cn_preset", L"1")) != 0;
+  c.neacPath = readIni(p, L"agent", L"neac_path");
   int count = std::clamp(number(readIni(p, L"workflow", L"count")), 0, 32);
   for (int i = 0; i < count; ++i) {
     Step s;
@@ -190,6 +201,10 @@ inline void saveConfig(const std::wstring &dir, const Config &c) {
            {L"machine", c.machine},
            {L"dry_run", c.dryRun ? L"1" : L"0"},
            {L"hold_shift", c.holdShift ? L"1" : L"0"},
+           {L"pulse_shift", c.pulseShift ? L"1" : L"0"},
+           {L"background_pulse", c.backgroundPulse ? L"1" : L"0"},
+           {L"cn_preset", c.cnPreset ? L"1" : L"0"},
+           {L"neac_path", c.neacPath},
            {L"auto_recover", c.autoRecover ? L"1" : L"0"}})
     writeIni(p, L"agent", kv.first.c_str(), kv.second);
   writeIni(p, L"workflow", L"count", std::to_wstring(c.steps.size()));
@@ -244,6 +259,7 @@ inline Process findProcess(const std::wstring &name, const std::wstring &cls = L
     const std::wstring *name;
     const std::wstring *cls;
     Process *out;
+    std::int64_t best{-1};
   } ctx{&name, &cls, &p};
   EnumWindows(
       [](HWND w, LPARAM a) -> BOOL {
@@ -258,9 +274,22 @@ inline Process findProcess(const std::wstring &name, const std::wstring &cls = L
         GetWindowThreadProcessId(w, &pid);
         if (_wcsicmp(processName(pid).c_str(), x.name->c_str()) != 0)
           return TRUE;
+        RECT client{};
+        GetClientRect(w, &client);
+        std::int64_t area = std::int64_t(std::max(0L,client.right))*std::max(0L,client.bottom);
+        if (IsIconic(w)) {
+          WINDOWPLACEMENT place{};place.length=sizeof(place);
+          if (GetWindowPlacement(w,&place))
+            area=std::int64_t(std::max(0L,place.rcNormalPosition.right-place.rcNormalPosition.left))*
+                 std::max(0L,place.rcNormalPosition.bottom-place.rcNormalPosition.top);
+        }
+        // Battle.net also exposes tiny auxiliary Chromium windows.
+        auto rank=area+(GetWindow(w,GW_OWNER)==nullptr ? (std::int64_t(1)<<40) : 0);
+        if (rank<=x.best) return TRUE;
+        x.best=rank;
         x.out->pid = pid;
         x.out->window = w;
-        return FALSE;
+        return TRUE;
       },
       reinterpret_cast<LPARAM>(&ctx));
   if (!p.pid) {
@@ -294,11 +323,101 @@ inline bool responsive(HWND w) {
   return SendMessageTimeoutW(w, WM_NULL, 0, 0, SMTO_ABORTIFHUNG | SMTO_BLOCK, 200, &result) != 0;
 }
 inline bool foreground(HWND w) { return w && GetForegroundWindow() == w && !IsIconic(w); }
+inline bool interactiveDesktop() {
+  HDESK input = OpenInputDesktop(0, FALSE, DESKTOP_READOBJECTS);
+  if (!input) return false;
+  wchar_t a[256]{}, b[256]{};
+  DWORD needed{};
+  bool ok = GetUserObjectInformationW(input, UOI_NAME, a, sizeof(a), &needed) &&
+            GetUserObjectInformationW(GetThreadDesktop(GetCurrentThreadId()), UOI_NAME,
+                                      b, sizeof(b), &needed) && _wcsicmp(a, b) == 0;
+  CloseDesktop(input);
+  return ok;
+}
+inline bool cloaked(HWND w) {
+  DWORD value{};
+  return SUCCEEDED(DwmGetWindowAttribute(w, DWMWA_CLOAKED, &value, sizeof(value))) && value;
+}
+inline bool screenClientRect(HWND w, RECT &r) {
+  POINT origin{};
+  if (!GetClientRect(w, &r) || !ClientToScreen(w, &origin)) return false;
+  OffsetRect(&r, origin.x, origin.y);
+  return true;
+}
+inline bool passiveGameOverlay(const std::wstring &process, const std::wstring &cls, LONG_PTR style) {
+  // WS_EX_TRANSPARENT alone describes input/painting order, not visual transparency.
+  // Only allow the NVIDIA passive HUD identified on the affected machine. Its
+  // per-pixel overlay can span the desktop even when no HUD pixels are drawn.
+  constexpr LONG_PTR flags = WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_TOPMOST;
+  return (style & flags) == flags && _wcsicmp(process.c_str(), L"NVIDIA Overlay.exe") == 0 &&
+         cls == L"CEF-OSC-WIDGET";
+}
+inline bool ignorableCaptureOverlay(HWND w) {
+  if (cloaked(w)) return true;
+  auto style = GetWindowLongPtrW(w, GWL_EXSTYLE);
+  if (!(style & WS_EX_LAYERED)) return false;
+  COLORREF color{};
+  BYTE alpha{};
+  DWORD flags{};
+  if (GetLayeredWindowAttributes(w, &color, &alpha, &flags) && (flags & LWA_ALPHA) && alpha == 0)
+    return true;
+  wchar_t cls[256]{};
+  GetClassNameW(w, cls, 256);
+  if (wcscmp(cls, L"CEF-OSC-WIDGET") != 0) return false;
+  DWORD pid{};
+  GetWindowThreadProcessId(w, &pid);
+  return passiveGameOverlay(processName(pid), cls, style);
+}
+inline HWND captureBlocker(HWND w, const RECT &client) {
+  for (HWND other = GetWindow(w, GW_HWNDPREV); other; other = GetWindow(other, GW_HWNDPREV)) {
+    RECT r{}, intersection{};
+    if (IsWindowVisible(other) && !IsIconic(other) && GetWindowRect(other, &r) &&
+        IntersectRect(&intersection, &r, &client) && !ignorableCaptureOverlay(other)) return other;
+  }
+  return nullptr;
+}
+inline bool unobscured(HWND w) {
+  RECT client{};
+  return w && IsWindowVisible(w) && !IsIconic(w) && !cloaked(w) && screenClientRect(w, client) &&
+         !captureBlocker(w, client);
+}
+struct CaptureFailure {
+  std::string code{"ok"};
+  DWORD windowsError{}, blockerPid{};
+  std::wstring blockerProcess;
+  std::wstring message() const {
+    if (code == "occluded") return L"目标画面被 " +
+        (blockerProcess.empty() ? L"其他窗口" : blockerProcess) + L" 遮挡，请移开该窗口。";
+    if (code == "not_foreground") return L"目标窗口没有获得前台焦点，请切回目标窗口后重试。";
+    if (code == "minimized") return L"目标窗口已最小化，请还原窗口。";
+    if (code == "window_unavailable") return L"目标窗口不存在或未显示，请确认目标程序已打开。";
+    if (code == "desktop_unavailable") return L"当前桌面不可捕获，请解锁或完成系统授权后重试。";
+    if (code == "offscreen") return L"目标画面超出屏幕边缘，请把整个窗口移回屏幕内。";
+    if (code == "invalid_size") return L"窗口客户区大小不支持，请使用正常大小的窗口模式。";
+    if (code == "window_changed") return L"截图时窗口位置或大小发生变化，请停稳后重试。";
+    return L"画面读取失败（" + wide(code) + L"，Windows 错误 " + std::to_wstring(windowsError) + L"）。";
+  }
+};
+inline CaptureFailure captureAvailability(HWND w, bool allowBackground) {
+  if (!w || !IsWindow(w)) return {"window_unavailable"};
+  if (!interactiveDesktop()) return {"desktop_unavailable"};
+  if (IsIconic(w)) return {"minimized"};
+  if (!IsWindowVisible(w) || cloaked(w)) return {"window_unavailable"};
+  if (!allowBackground && !foreground(w)) return {"not_foreground"};
+  RECT client{};
+  if (!screenClientRect(w, client)) return {"geometry_failed", GetLastError()};
+  auto blocker = captureBlocker(w, client);
+  if (!blocker) return {};
+  DWORD pid{};
+  GetWindowThreadProcessId(blocker, &pid);
+  return {"occluded", 0, pid, processName(pid)};
+}
 class Capture {
   HDC dc_{};
   HBITMAP bitmap_{}, old_{};
   void *bits_{};
   int w_{}, h_{};
+  CaptureFailure failure_;
   void release() {
     if (dc_ && old_)
       SelectObject(dc_, old_);
@@ -314,25 +433,30 @@ class Capture {
 
 public:
   ~Capture() { release(); }
-  bool grab(HWND window, Frame &f) {
-    if (!foreground(window))
+  const CaptureFailure &failure() const { return failure_; }
+  bool grab(HWND window, Frame &f, bool allowBackground = false) {
+    // A failed attempt must never expose a previous successful frame.
+    f.width = f.height = 0;
+    f.pixels.clear();
+    failure_ = captureAvailability(window, allowBackground);
+    if (failure_.code != "ok") return false;
+    auto fail = [&](const char *code, DWORD error = 0) {
+      failure_ = {code, error};
       return false;
+    };
     RECT r{};
-    if (!GetClientRect(window, &r))
-      return false;
-    int w = r.right, h = r.bottom;
+    if (!screenClientRect(window, r)) return fail("geometry_failed", GetLastError());
+    int w = r.right - r.left, h = r.bottom - r.top;
     if (w < 80 || h < 60 || w > 7680 || h > 4320)
-      return false;
-    POINT p{};
-    if (!ClientToScreen(window, &p))
-      return false;
+      return fail("invalid_size");
+    POINT p{r.left, r.top};
     int vx = GetSystemMetrics(SM_XVIRTUALSCREEN), vy = GetSystemMetrics(SM_YVIRTUALSCREEN);
     if (p.x < vx || p.y < vy || p.x + w > vx + GetSystemMetrics(SM_CXVIRTUALSCREEN) ||
         p.y + h > vy + GetSystemMetrics(SM_CYVIRTUALSCREEN))
-      return false;
+      return fail("offscreen");
     HDC desktop = GetDC(nullptr);
     if (!desktop)
-      return false;
+      return fail("desktop_dc_failed", GetLastError());
     if (w != w_ || h != h_ || !dc_ || !bitmap_ || !bits_) {
       release();
       dc_ = CreateCompatibleDC(desktop);
@@ -351,9 +475,14 @@ public:
     }
     BOOL ok =
         dc_ && bitmap_ && bits_ && BitBlt(dc_, 0, 0, w, h, desktop, p.x, p.y, SRCCOPY | CAPTUREBLT);
+    DWORD copyError = ok ? ERROR_SUCCESS : GetLastError();
     ReleaseDC(nullptr, desktop);
-    if (!ok || !GdiFlush() || !foreground(window))
-      return false;
+    if (!ok) return fail("bitblt_failed", copyError);
+    if (!GdiFlush()) return fail("gdi_flush_failed", GetLastError());
+    failure_ = captureAvailability(window, allowBackground);
+    if (failure_.code != "ok") return false;
+    RECT after{};
+    if (!screenClientRect(window, after) || !EqualRect(&r, &after)) return fail("window_changed");
     f.width = w;
     f.height = h;
     f.pixels.resize(std::size_t(w) * h);
@@ -364,6 +493,7 @@ public:
 class Input {
   std::mutex mutex_;
   bool held_{}, enabled_{};
+  unsigned epoch_{};
   HWND target_{};
   static bool key(WORD vk, bool up) {
     INPUT i{};
@@ -375,8 +505,9 @@ class Input {
 
 public:
   ~Input() { release(); }
-  void enable(bool on) {
+  void enable(bool on, unsigned epoch) {
     std::lock_guard lock(mutex_);
+    epoch_ = epoch;
     enabled_ = on;
     if (!on && held_) {
       key(VK_LSHIFT, true);
@@ -400,9 +531,9 @@ public:
       target_ = nullptr;
     }
   }
-  bool hold(HWND w) {
+  bool hold(HWND w, unsigned epoch) {
     std::lock_guard lock(mutex_);
-    if (!enabled_ || !foreground(w))
+    if (!enabled_ || epoch != epoch_ || !foreground(w))
       return false;
     if (held_)
       return target_ == w;
@@ -413,9 +544,21 @@ public:
       target_ = w;
     return held_;
   }
-  bool click(HWND w, Point p) {
+  bool pulse(HWND w, unsigned epoch, bool background) {
     std::lock_guard lock(mutex_);
-    if (!enabled_ || !foreground(w))
+    if (!enabled_ || epoch != epoch_ || !w || !IsWindow(w) ||
+        (!background && !foreground(w)) || !interactiveDesktop() ||
+        (GetAsyncKeyState(VK_SHIFT) & 0x8000))
+      return false;
+    // Compatibility with the user's known-working script. This API has no success result.
+    keybd_event(VK_LSHIFT, 0, 0, 0);
+    Sleep(20);
+    keybd_event(VK_LSHIFT, 0, KEYEVENTF_KEYUP, 0);
+    return true; // Events requested, not proof that the game accepted them.
+  }
+  bool click(HWND w, Point p, unsigned epoch) {
+    std::lock_guard lock(mutex_);
+    if (!enabled_ || epoch != epoch_ || !foreground(w))
       return false;
     RECT r{};
     GetClientRect(w, &r);
@@ -440,16 +583,16 @@ public:
     }
     return n == 3;
   }
-  bool press(HWND w, WORD vk) {
+  bool press(HWND w, WORD vk, unsigned epoch) {
     std::lock_guard lock(mutex_);
-    if (!enabled_ || !foreground(w))
+    if (!enabled_ || epoch != epoch_ || !foreground(w))
       return false;
     bool ok = key(vk, false);
     return key(vk, true) && ok;
   }
-  bool text(HWND w, const std::wstring &s) {
+  bool text(HWND w, const std::wstring &s, unsigned epoch) {
     std::lock_guard lock(mutex_);
-    if (!enabled_ || !foreground(w) || s.size() > 256)
+    if (!enabled_ || epoch != epoch_ || !foreground(w) || s.size() > 256)
       return false;
     // This action is calibrated together with its input-field click.
     if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0)
@@ -522,7 +665,77 @@ inline bool terminateGame(const Process &p, const std::wstring &name,
     if (!active())
       return false;
   }
-  return active() && TerminateProcess(h.h, 0) != FALSE;
+  if (!active() || !TerminateProcess(h.h, 0)) return false;
+  for (int i = 0; i < 25; ++i) {
+    if (WaitForSingleObject(h.h, 200) == WAIT_OBJECT_0) return true;
+    if (!active()) return false;
+  }
+  return false;
+}
+inline bool validNeacPath(const std::wstring &path) {
+  auto p = std::filesystem::path(path);
+  return p.is_absolute() && _wcsicmp(p.filename().c_str(), L"OWNeacClient.exe") == 0;
+}
+inline std::wstring fullProcessPath(HANDLE h) {
+  wchar_t path[32768]{};
+  DWORD size = 32768;
+  return QueryFullProcessImageNameW(h, 0, path, &size) ? path : L"";
+}
+inline bool exactExecutable(const std::wstring &actual, const std::wstring &expected) {
+  if (!validNeacPath(actual) || !validNeacPath(expected)) return false;
+  return _wcsicmp(std::filesystem::path(actual).lexically_normal().c_str(),
+                  std::filesystem::path(expected).lexically_normal().c_str()) == 0;
+}
+inline bool processIds(const wchar_t *name, std::vector<DWORD> &ids) {
+  ids.clear();
+  Handle snap(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0));
+  PROCESSENTRY32W entry{};
+  entry.dwSize = sizeof(entry);
+  if (snap.h == INVALID_HANDLE_VALUE || !Process32FirstW(snap.h, &entry)) return false;
+  do {
+    if (_wcsicmp(entry.szExeFile, name) == 0) ids.push_back(entry.th32ProcessID);
+  } while (Process32NextW(snap.h, &entry));
+  return GetLastError() == ERROR_NO_MORE_FILES;
+}
+enum class CleanupResult { Clear, NeedsPath, Denied, Cancelled, GamePresent };
+inline CleanupResult cleanupNeac(const Config &c, const std::atomic<bool> &running,
+                                  const std::atomic<unsigned> &generation, unsigned epoch) {
+  auto active = [&] { return running && generation.load() == epoch && interactiveDesktop(); };
+  if (!active()) return CleanupResult::Cancelled;
+  if (c.demo) return CleanupResult::Clear;
+  std::vector<DWORD> games, clients;
+  if (!processIds(L"Overwatch.exe", games)) return CleanupResult::Denied;
+  if (!games.empty()) return CleanupResult::GamePresent;
+  if (!processIds(L"OWNeacClient.exe", clients)) return CleanupResult::Denied;
+  if (clients.empty()) return CleanupResult::Clear;
+  if (_wcsicmp(c.gameExe.c_str(), L"Overwatch.exe") || !validNeacPath(c.neacPath))
+    return CleanupResult::NeedsPath;
+  for (auto pid : clients) {
+    Handle query(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid));
+    if (!query.h) return CleanupResult::Denied;
+    auto created = processCreation(query.h);
+    auto path = fullProcessPath(query.h);
+    // Unknown or different installation: stop instead of terminating by basename alone.
+    if (!created || !exactExecutable(path, c.neacPath)) return CleanupResult::Denied;
+    if (c.dryRun) continue;
+    Handle target(OpenProcess(SYNCHRONIZE | PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION,
+                               FALSE, pid));
+    if (!target.h || processCreation(target.h) != created ||
+        !exactExecutable(fullProcessPath(target.h), c.neacPath)) return CleanupResult::Denied;
+    if (!processIds(L"Overwatch.exe", games)) return CleanupResult::Denied;
+    if (!games.empty()) return CleanupResult::GamePresent;
+    if (!active()) return CleanupResult::Cancelled;
+    if (!TerminateProcess(target.h, 0)) return CleanupResult::Denied;
+    bool exited = false;
+    for (int i = 0; i < 25; ++i) {
+      if (WaitForSingleObject(target.h, 200) == WAIT_OBJECT_0) { exited = true; break; }
+      if (!active()) return CleanupResult::Cancelled;
+    }
+    if (!exited) return CleanupResult::Denied;
+  }
+  if (!c.dryRun && (!processIds(L"OWNeacClient.exe", clients) || !clients.empty()))
+    return CleanupResult::Denied;
+  return CleanupResult::Clear;
 }
 inline int heartbeat(const Config &c, const std::string &json) {
   if (c.server.empty() || c.token.empty())

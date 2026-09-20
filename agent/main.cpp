@@ -1,4 +1,5 @@
-#include "agent/platform.hpp"
+#include "agent/startup.hpp"
+#include "core/cn_recovery.hpp"
 #include <commctrl.h>
 #include <condition_variable>
 #include <iomanip>
@@ -12,7 +13,7 @@ constexpr const wchar_t *ActionNames[] = {L"点击按钮",
                                           L"按 Enter",
                                           L"按 Esc",
                                           L"输入文字并 Enter",
-                                          L"到达目标房间 / 保持 Shift",
+                                          L"到达目标房间 / 持续 Shift",
                                           L"登录/错误页超时恢复",
                                           L"战网启动游戏"};
 enum {
@@ -40,10 +41,19 @@ enum {
   StatusTitle,
   StatusDetail,
   Stats,
-  NetStatus
+  NetStatus,
+  Diagnose,
+  ShiftMode,
+  BackgroundPulse,
+  NeacPath,
+  NeacBrowse,
+  CnPreset,
+  RestartNow
 };
 HINSTANCE instance{};
-HWND mainWindow{};
+HWND mainWindow{}, calibrationWindow{};
+bool calibrating{};
+void cancelCalibration();
 HFONT font{}, titleFont{};
 int dpi = 96;
 Config config;
@@ -51,12 +61,13 @@ std::wstring directory;
 std::mutex configMutex, statusMutex, networkMutex, logMutex;
 std::atomic<bool> running{}, quitting{};
 std::atomic<unsigned> generation{};
+std::atomic<unsigned> restartRequested{~0u};
 std::condition_variable wake, networkWake;
 Input input;
 Millis bootTime = GetTickCount64();
 struct Status {
   std::string state = "STOPPED";
-  std::wstring detail = L"先校准页面，演练确认后再开启实际动作。";
+  std::wstring detail = L"国服预设支持登录错误重启及最稳轮换版导航。先演练确认，再开启实际动作。";
   DWORD pid{};
   double score{};
   unsigned restarts{};
@@ -149,7 +160,7 @@ void telemetry() {
       << "\",\"detail\":\"" << jsonEscape(utf8(s.detail)) << "\",\"pid\":" << s.pid
       << ",\"uptime\":" << (last - bootTime) / 1000 << ",\"restarts\":" << s.restarts
       << ",\"score\":" << std::fixed << std::setprecision(3) << s.score
-      << ",\"dry_run\":" << (c.dryRun ? "true" : "false") << ",\"version\":\"0.1.0\"}";
+      << ",\"dry_run\":" << (c.dryRun ? "true" : "false") << ",\"version\":\"" << Version << "\"}";
     int code = heartbeat(c, j.str());
     {
       std::lock_guard lock(statusMutex);
@@ -161,14 +172,19 @@ void worker() {
   Capture capture;
   Frame frame;
   StepGate gate;
+  RoomSession room;
+  ContinuousEvidence disconnect;
+  CNJoinGate cnJoin;
   RecoveryBudget budget;
   unsigned epoch = ~0u;
-  Millis tickAt{}, missingSince{}, hungSince{}, unknownSince{}, restartPageSince{},
+  Millis tickAt{}, missingSince{}, hungSince{}, unknownSince{}, desktopPaused{},
       launchDeadline{}, lastProcessScan{}, windowSince{};
-  int restartPage = -1, typedPage = -1;
+  int typedPage = -1;
   Process game{}, launcher{};
   Config c;
-  bool blocked{}, cycleBudgeted{}, waitingGame{}, activationPending{};
+  bool blocked{}, cycleBudgeted{}, waitingGame{}, activationPending{}, cleanupChecked{};
+  bool launcherCoverRetried{};
+  Millis launcherCoverSince{};
   for (;;) {
     input.checkFocus();
     {
@@ -188,18 +204,40 @@ void worker() {
       epoch = generation.load();
       c = snapshotConfig();
       gate.reset();
-      missingSince = hungSince = unknownSince = restartPageSince = launchDeadline =
+      room.reset();
+      disconnect.reset();
+      cnJoin.reset();
+      missingSince = hungSince = unknownSince = desktopPaused = launchDeadline =
           lastProcessScan = windowSince = 0;
-      restartPage = typedPage = -1;
+      typedPage = -1;
       blocked = false;
       cycleBudgeted = false;
       waitingGame = false;
       activationPending = true;
+      cleanupChecked = false;
       tickAt = 0;
+      launcherCoverRetried=false;
+      launcherCoverSince=0;
     }
     if (now < tickAt)
       continue;
     tickAt = now + 1000;
+    if (!interactiveDesktop()) {
+      input.release();
+      gate.observe(-1);
+      disconnect.reset();
+      if (!desktopPaused) desktopPaused = now;
+      publish("WAITING_DESKTOP", L"等待返回普通桌面；如有 NeacProtect 管理员授权，请手动处理。",
+              game.pid);
+      continue;
+    }
+    if (desktopPaused) {
+      if (launchDeadline) launchDeadline += now - desktopPaused;
+      desktopPaused = hungSince = windowSince = 0;
+      lastProcessScan = 0;
+    }
+    bool requestedRestart=restartRequested.load()==epoch;
+    if (requestedRestart) blocked=false;
     if (blocked) {
       input.release();
       continue;
@@ -211,22 +249,37 @@ void worker() {
           activationPending = true;
         input.release();
         gate.reset();
-        hungSince = windowSince = restartPageSince = 0;
-        restartPage = typedPage = -1;
+        room.reset();
+        disconnect.reset();
+        cnJoin.reset();
+        hungSince = windowSince = 0;
+        typedPage = -1;
+        cleanupChecked = false;
       }
       game = discovered;
       launcher = c.demo ? Process{} : findProcess(L"Battle.net.exe", L"Chrome_WidgetWin_0");
       lastProcessScan = now;
     }
-    auto recover = [&](const std::wstring &reason) {
+    auto recover = [&](const std::wstring &reason, bool manual = false) {
       input.release();
+      room.reset();
+      cnJoin.reset();
       if (!running || epoch != generation.load())
         return;
-      if (c.dryRun) {
-        publish("DRY_RUN", L"演练：将恢复游戏。" + reason, game.pid);
+      std::error_code neacError,launcherError;
+      if (!c.demo && ((!c.cnPreset && std::none_of(c.steps.begin(),c.steps.end(),[](const Step &s){return s.launcher && s.action==Action::Launch;})) ||
+          !validNeacPath(c.neacPath) || !std::filesystem::is_regular_file(c.neacPath,neacError) ||
+          ((!launcher.pid || !launcher.window) && !std::filesystem::is_regular_file(c.launcherPath,launcherError)))) {
+        publish("NEEDS_CONFIG", L"重启前请填写 OWNeacClient.exe 完整路径和启动器，并启用国服预设或录制战网启动按钮。游戏尚未关闭。",game.pid);
+        blocked=true;
         return;
       }
-      if (!c.autoRecover) {
+      if (c.dryRun) {
+        publish("DRY_RUN", L"演练：将恢复游戏。" + reason, game.pid);
+        if (manual) blocked=true;
+        return;
+      }
+      if (!c.autoRecover && !manual) {
         publish("NEEDS_USER", L"自动恢复已关闭。" + reason, game.pid);
         return;
       }
@@ -251,13 +304,49 @@ void worker() {
       }
       game = {};
       gate.reset();
-      restartPageSince = 0;
-      restartPage = typedPage = -1;
-      missingSince = now;
+      disconnect.reset();
+      typedPage = -1;
+      missingSince = GetTickCount64();
       lastProcessScan = 0;
       launchDeadline = 0;
       activationPending = true;
+      waitingGame = cleanupChecked = false;
+      launcherCoverRetried=false;
+      launcherCoverSince=0;
     };
+    auto continueRoom = [&](double score, bool background) {
+      if (!room.active() || !running || epoch != generation.load()) return;
+      if (background && c.holdShift && !c.pulseShift) {
+        input.release();
+        publish("WAITING_FOCUS", L"持续按住模式只在前台工作；游戏回到前台后继续。", game.pid, score);
+        return;
+      }
+      bool ok = true;
+      if (c.dryRun || !c.holdShift) input.release();
+      else if (!sameProcess(game, c.gameExe)) {
+        input.release();
+        room.reset();
+        lastProcessScan = 0;
+        publish("INPUT_BLOCKED", L"无法核对游戏进程身份，已暂停按键。", game.pid);
+        return;
+      } else if (c.pulseShift) ok = input.pulse(game.window, epoch, c.backgroundPulse);
+      else ok = input.hold(game.window, epoch);
+      publish(c.dryRun ? "DRY_RUN" : (!ok ? "INPUT_BLOCKED" : (background ? "BACKGROUND_INPUT" : "ACTIVE")),
+              c.dryRun ? (c.holdShift ? L"演练：房间会话已确认，将持续发送 Shift。"
+                                     : L"演练：房间会话已确认，仅监控。")
+                       : (!ok ? L"Shift 本次未发送；检查手动按键、游戏身份或权限。"
+                              : (!c.holdShift ? L"房间会话已确认，仅监控。"
+                                 : (background ? L"继续全局点按 Shift；游戏被遮挡/最小化时暂停画面检测。"
+                                    : (c.pulseShift ? L"房间会话已确认，每秒请求点按左 Shift（20 毫秒）。"
+                                                    : L"房间会话已确认，保持左 Shift。")))),
+              game.pid, score);
+    };
+    if (requestedRestart) {
+      unsigned requestEpoch=epoch;
+      if (restartRequested.compare_exchange_strong(requestEpoch,~0u))
+        recover(L"手动请求：关闭当前游戏、核验并清理残留，再通过战网启动。",true);
+      continue;
+    }
     if (game.pid) {
       missingSince = 0;
       launchDeadline = 0;
@@ -285,10 +374,12 @@ void worker() {
       hungSince = 0;
     } else {
       input.release();
+      room.reset();
+      disconnect.reset();
       unknownSince = 0;
       if (!missingSince)
         missingSince = now;
-      if (!c.autoRecover) {
+      if (!c.autoRecover && !cycleBudgeted) {
         publish("GAME_NOT_RUNNING", L"未发现游戏；自动恢复已关闭。");
         continue;
       }
@@ -298,7 +389,33 @@ void worker() {
         blocked = true;
         continue;
       }
-      if (!launcher.pid) {
+      if (!waitingGame && !cleanupChecked && !c.demo) {
+        // Allow a manually started client to finish launching before considering it stale.
+        Millis grace = cycleBudgeted ? 3000 : 30000;
+        if (now - missingSince < grace) {
+          publish("STARTING", L"未发现游戏，等待进程退出或启动完成，再核对残留进程。", 0, 0,
+                  missingSince + grace);
+          continue;
+        }
+        auto result = cleanupNeac(c, running, generation, epoch);
+        if (result == CleanupResult::Cancelled) continue;
+        if (result == CleanupResult::GamePresent) { lastProcessScan = 0; continue; }
+        if (result != CleanupResult::Clear) {
+          publish(result == CleanupResult::NeedsPath ? "NEEDS_CONFIG" : "NEEDS_USER",
+                  result == CleanupResult::NeedsPath
+                      ? L"检测到残留 OWNeacClient.exe，请停止后填写其完整路径。"
+                      : L"无法核验或结束残留 OWNeacClient.exe（路径/权限）。请手动处理后停止、重新开始。");
+          blocked = true;
+          continue;
+        }
+        cleanupChecked = true;
+        log(c.dryRun ? L"演练：残留进程检查通过，未结束任何进程。"
+                     : L"游戏已退出，残留进程清理检查通过。");
+      }
+      // An existing Battle.net process may be tray-only. Opening its configured
+      // entry point requests the existing main window; the deadline prevents
+      // repeatedly launching while waiting for it to appear.
+      if (!launcher.pid || (!launcher.window && activationPending)) {
         if (launchDeadline) {
           publish("STARTING", L"等待启动器或游戏出现。", 0, 0, launchDeadline);
           continue;
@@ -357,28 +474,43 @@ void worker() {
         SetForegroundWindow(target.window);
       }
     }
-    if (!foreground(target.window)) {
+    bool background = !foreground(target.window);
+    bool backgroundRoom = !isLauncher && room.active() && c.pulseShift && c.backgroundPulse;
+    bool backgroundCapture = !isLauncher && c.backgroundPulse;
+    auto availability=captureAvailability(target.window,true);
+    bool launcherCover=!isLauncher && background && c.cnPreset && c.autoRecover && !c.dryRun &&
+        availability.code=="occluded" && launcher.pid && availability.blockerPid==launcher.pid;
+    if (launcherCover) {
+      if (!launcherCoverSince) launcherCoverSince=now;
+      if (!launcherCoverRetried && now-launcherCoverSince>=5000 && running && generation.load()==epoch) {
+        launcherCoverRetried=true;
+        ShowWindow(target.window,SW_RESTORE);
+        SetForegroundWindow(target.window);
+        log(L"战网遮挡游戏超过 5 秒，已请求一次切回游戏以继续检查和导航。");
+        continue;
+      }
+    } else {launcherCoverSince=0;launcherCoverRetried=false;}
+    if (background && !backgroundRoom && !(backgroundCapture && unobscured(target.window))) {
       input.release();
       gate.observe(-1);
-      restartPage = -1;
-      restartPageSince = 0;
+      disconnect.reset();
       publish("WAITING_FOCUS",
               isLauncher ? L"请把战网窗口置于前台；切换回来后自动继续。"
                          : L"已释放 Shift。游戏回到前台后自动继续。",
               target.pid);
       continue;
     }
-    if (!capture.grab(target.window, frame)) {
+    if (!capture.grab(target.window, frame, backgroundCapture)) {
       input.release();
       gate.observe(-1);
-      restartPage = -1;
-      restartPageSince = 0;
-      publish("CAPTURE_FAILED", L"无法取得可见客户区；请使用窗口化并让窗口完整显示。", target.pid);
+      disconnect.reset();
+      if (backgroundRoom) { continueRoom(0, background); continue; }
+      publish("CAPTURE_FAILED", capture.failure().message(), target.pid);
       continue;
     }
     bool hasTemplates = std::any_of(c.steps.begin(), c.steps.end(),
                                     [&](auto &s) { return s.launcher == isLauncher; });
-    if (!hasTemplates) {
+    if (!hasTemplates && (!c.cnPreset || c.demo)) {
       input.release();
       publish("NEEDS_CALIBRATION",
               isLauncher ? L"请校准战网启动按钮（操作选择“战网启动游戏”）。"
@@ -387,11 +519,19 @@ void worker() {
       continue;
     }
     auto m = match(frame, c.steps, isLauncher, c.threshold);
+    CNObservation builtin;
+    if (c.cnPreset && !c.demo)
+      builtin=isLauncher ? recognizeCNLauncher(frame,GetDpiForWindow(target.window)/96.0) : recognizeCNGame(frame);
+    builtin=cnJoin.prepare(std::move(builtin),now);
+    bool useBuiltin=builtin && (builtin.step.action==Action::Restart || (m.index<0 && !m.ambiguous) ||
+        (m.index>=0 && c.steps[m.index].action==Action::Ready && builtin.step.action!=Action::Ready));
+    if (useBuiltin) {m.index=builtin.key();m.score=builtin.score;m.ambiguous=false;m.aspectMismatch=false;}
     if (m.index < 0) {
-      input.release();
+      room.observe(nullptr, false, m.ambiguous);
       gate.observe(-1);
-      restartPage = -1;
-      restartPageSince = 0;
+      disconnect.reset();
+      if (room.active()) { continueRoom(m.score, background); continue; }
+      input.release();
       if (!unknownSince)
         unknownSince = now;
       publish(m.ambiguous ? "AMBIGUOUS" : "UNKNOWN",
@@ -402,43 +542,32 @@ void worker() {
       continue;
     }
     unknownSince = 0;
-    auto &s = c.steps[m.index];
+    const auto &s = useBuiltin ? builtin.step : c.steps[m.index];
     if (!running || epoch != generation.load())
       continue;
-    if (!gate.observe(m.index)) {
+    int key = observationKey(s, m.index);
+    bool confirmed = gate.observe(key);
+    room.observe(&s, confirmed);
+    disconnect.observe(s.action == Action::Restart, now);
+    if (!confirmed) {
+      if (room.active()) { continueRoom(m.score, background); continue; }
       input.release();
       publish("CONFIRMING", L"确认页面：" + s.label, target.pid, m.score);
       continue;
     }
-    gate.arrived(m.index);
+    gate.arrived(key);
     if (typedPage >= 0 && typedPage != m.index)
       typedPage = -1;
     if (s.action == Action::Ready) {
-      restartPage = -1;
-      restartPageSince = 0;
-      bool ok = true;
-      if (c.dryRun || !c.holdShift)
-        input.release();
-      else
-        ok = input.hold(target.window);
-      publish(c.dryRun ? "DRY_RUN" : (ok ? "ACTIVE" : "INPUT_BLOCKED"),
-              c.dryRun ? L"演练匹配目标房间：" + s.label
-                       : (ok ? (c.holdShift ? L"目标房间已确认，保持 Shift。"
-                                            : L"目标房间已确认，仅监控。 ")
-                             : L"Shift 输入未成功；检查手动按键或权限。"),
-              target.pid, m.score);
+      continueRoom(m.score, background);
       continue;
     }
     input.release();
     if (s.action == Action::Restart) {
-      if (restartPage != m.index) {
-        restartPage = m.index;
-        restartPageSince = now;
-      }
       Millis delay = c.demo ? 5000 : 90000;
       publish("LOGIN_STUCK", L"已识别恢复页面：" + s.label + L"；等待持续确认。", target.pid,
-              m.score, restartPageSince + delay);
-      if (now - restartPageSince >= delay) {
+              m.score, disconnect.deadline(delay));
+      if (disconnect.elapsed(now, delay)) {
         if (isLauncher) {
           publish("NEEDS_USER", L"战网需要登录或验证，请处理后继续。", target.pid);
           continue;
@@ -447,8 +576,10 @@ void worker() {
       }
       continue;
     }
-    restartPage = -1;
-    restartPageSince = 0;
+    if (background) {
+      publish("WAITING_FOCUS", L"已离开房间画面，暂停按键；请把游戏切回前台继续导航。", target.pid);
+      continue;
+    }
     if (c.dryRun) {
       publish("DRY_RUN", L"演练：" + s.label + L" → " + ActionNames[int(s.action)], target.pid,
               m.score);
@@ -489,27 +620,29 @@ void worker() {
     switch (s.action) {
     case Action::Click:
     case Action::Launch:
-      ok = input.click(target.window, s.click);
+      ok = input.click(target.window, s.click, epoch);
       break;
     case Action::Enter:
-      ok = input.press(target.window, VK_RETURN);
+      ok = input.press(target.window, VK_RETURN, epoch);
       break;
     case Action::Escape:
-      ok = input.press(target.window, VK_ESCAPE);
+      ok = input.press(target.window, VK_ESCAPE, epoch);
       break;
     case Action::Text:
-      ok = input.click(target.window, s.click) && input.text(target.window, s.text) &&
-           input.press(target.window, VK_RETURN);
+      ok = input.click(target.window, s.click, epoch) && input.text(target.window, s.text, epoch) &&
+           input.press(target.window, VK_RETURN, epoch);
       typedPage = m.index;
       break;
     default:
       break;
     }
+    // Partial SendInput failures are attempts too: never retry them every second forever.
+    gate.acted(m.index, now);
+    if (useBuiltin) cnJoin.acted(builtin.page,ok,now);
     if (!ok) {
       publish("INPUT_BLOCKED", L"输入未成功或焦点改变，请检查窗口权限。", target.pid);
       continue;
     }
-    gate.acted(m.index, now);
     if (s.action == Action::Launch) {
       waitingGame = true;
       activationPending = true;
@@ -539,6 +672,15 @@ bool syncConfig() {
   c.dryRun = checked(Dry);
   c.holdShift = checked(Hold);
   c.autoRecover = checked(Auto);
+  c.pulseShift = SendMessageW(control(ShiftMode), CB_GETCURSEL, 0, 0) == 0;
+  c.backgroundPulse = checked(BackgroundPulse);
+  c.cnPreset = !c.demo && checked(CnPreset);
+  c.neacPath = textOf(NeacPath);
+  if (!c.neacPath.empty() && !validNeacPath(c.neacPath)) {
+    MessageBoxW(mainWindow, L"残留进程路径必须是 OWNeacClient.exe 的完整绝对路径。", L"配置未保存",
+                MB_ICONWARNING);
+    return false;
+  }
   if (c.gameExe.empty() || c.gameExe.find_first_of(L"/\\") != std::wstring::npos ||
       c.machine.empty() || utf8(c.machine).size() > 64 ||
       c.machine.find_first_of(L"/\\\r\n\t") != std::wstring::npos ||
@@ -563,16 +705,25 @@ bool syncConfig() {
     return false;
   }
 }
-void setRunning(bool on) {
+void setRunning(bool on, bool manualRestart = false) {
+  if (on && running && manualRestart) {
+    restartRequested=generation.load();
+    wake.notify_all();
+    return;
+  }
+  if (on && (running || calibrating))
+    return;
   if (on && !syncConfig())
     return;
+  ++generation;
+  restartRequested=on && manualRestart ? generation.load() : ~0u;
   if (on) {
-    ++generation;
-    input.enable(!snapshotConfig().dryRun);
+    input.enable(!snapshotConfig().dryRun, generation.load());
     running = true;
   } else {
-    input.enable(false);
     running = false;
+    input.enable(false, generation.load());
+    cancelCalibration();
   }
   if (on) {
     publish("DETECTING", L"正在检测游戏与页面。");
@@ -604,6 +755,18 @@ struct Calibration {
   bool dragging{}, chooseClick{};
 };
 Calibration calibration;
+void cancelCalibration() {
+  KillTimer(mainWindow, 2);
+  if (calibrationWindow)
+    DestroyWindow(calibrationWindow);
+  if (calibrating) {
+    calibrating = false;
+    calibration = Calibration{};
+    ShowWindow(mainWindow, SW_RESTORE);
+  }
+  EnableWindow(control(Start), !running);
+  EnableWindow(control(Record), !running);
+}
 void finishCalibration(HWND overlay) {
   auto &s = calibration.step;
   s.image = sample(calibration.frame, s.roi);
@@ -723,16 +886,20 @@ LRESULT CALLBACK overlayProc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
     return 0;
   }
   case WM_DESTROY:
+    calibrationWindow = nullptr;
+    calibrating = false;
     calibration.frame.pixels.clear();
     ShowWindow(mainWindow, SW_RESTORE);
     SetForegroundWindow(mainWindow);
     refreshSteps();
+    EnableWindow(control(Start), TRUE);
+    EnableWindow(control(Record), TRUE);
     return 0;
   }
   return DefWindowProcW(w, msg, wp, lp);
 }
 void beginCalibration() {
-  if (running || !syncConfig())
+  if (running || calibrating || !syncConfig())
     return;
   calibration = Calibration{};
   calibration.step.label = textOf(Label);
@@ -764,6 +931,9 @@ void beginCalibration() {
     return;
   }
   calibration.target = p.window;
+  calibrating = true;
+  EnableWindow(control(Start), FALSE);
+  EnableWindow(control(Record), FALSE);
   ShowWindow(mainWindow, SW_MINIMIZE);
   ShowWindow(p.window, SW_RESTORE);
   SetForegroundWindow(p.window);
@@ -771,10 +941,14 @@ void beginCalibration() {
 }
 void captureCalibration() {
   KillTimer(mainWindow, 2);
+  if (!calibrating)
+    return;
   Capture cap;
   if (!cap.grab(calibration.target, calibration.frame)) {
-    ShowWindow(mainWindow, SW_RESTORE);
-    MessageBoxW(mainWindow, L"校准时目标必须位于前台并完整可见。请重新尝试。", L"截图失败",
+    auto message = cap.failure().message();
+    log(L"校准截图失败 [" + wide(cap.failure().code) + L"] " + message);
+    cancelCalibration();
+    MessageBoxW(mainWindow, message.c_str(), L"截图失败",
                 MB_ICONWARNING);
     return;
   }
@@ -784,6 +958,11 @@ void captureCalibration() {
   HWND w = CreateWindowExW(WS_EX_TOPMOST, OverlayClass, L"校准", WS_POPUP, p.x, p.y,
                            calibration.frame.width, calibration.frame.height, mainWindow, nullptr,
                            instance, nullptr);
+  calibrationWindow = w;
+  if (!w) {
+    cancelCalibration();
+    return;
+  }
   ShowWindow(w, SW_SHOW);
   SetForegroundWindow(w);
   SetFocus(w);
@@ -804,6 +983,7 @@ void controls() {
   add(L"BUTTON", L"停止 · F8", Stop, 148, 106, 115, 32, BS_PUSHBUTTON);
   add(L"BUTTON", L"保存配置", Save, 274, 106, 110, 32);
   add(L"BUTTON", L"演练（不执行动作）", Dry, 409, 107, 220, 28, BS_AUTOCHECKBOX);
+  add(L"BUTTON", L"运行诊断", Diagnose, 650, 106, 168, 32, BS_PUSHBUTTON);
   SendMessageW(control(Dry), BM_SETCHECK, c.dryRun ? BST_CHECKED : BST_UNCHECKED, 0);
   auto edit = [&](const wchar_t *label, int id, const std::wstring &value, int y, int width = 648,
                   DWORD extra = 0) {
@@ -818,34 +998,45 @@ void controls() {
   edit(L"启动参数（可空）", Args, c.launcherArgs, 222, 674);
   edit(L"看板服务地址", Server, c.server, 256, 674);
   edit(L"Agent 令牌", Token, c.token, 290, 674, ES_PASSWORD);
-  add(L"BUTTON", L"目标房间保持 Shift", Hold, 22, 329, 224, 26, BS_AUTOCHECKBOX);
-  add(L"BUTTON", L"自动恢复（每小时最多 3 次）", Auto, 264, 329, 350, 26, BS_AUTOCHECKBOX);
+  add(L"BUTTON", L"房间内发送 Shift", Hold, 22, 329, 170, 26, BS_AUTOCHECKBOX);
+  add(L"COMBOBOX", L"", ShiftMode, 195, 329, 190, 100, CBS_DROPDOWNLIST | WS_TABSTOP);
+  for (auto t : {L"每秒点按（20ms）", L"持续按住（前台）"})
+    SendMessageW(control(ShiftMode), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(t));
+  SendMessageW(control(ShiftMode), CB_SETCURSEL, c.pulseShift ? 0 : 1, 0);
+  add(L"BUTTON", L"切到后台仍全局点按", BackgroundPulse, 405, 329, 400, 26, BS_AUTOCHECKBOX);
+  SendMessageW(control(BackgroundPulse), BM_SETCHECK, c.backgroundPulse ? BST_CHECKED : BST_UNCHECKED, 0);
+  add(L"BUTTON", L"自动恢复（每小时最多 3 次）", Auto, 22, 365, 350, 26, BS_AUTOCHECKBOX);
+  add(L"BUTTON", L"国服预设：最稳轮换版导航与重启", CnPreset, 405, 365, 413, 26, BS_AUTOCHECKBOX);
+  SendMessageW(control(CnPreset),BM_SETCHECK,c.cnPreset?BST_CHECKED:BST_UNCHECKED,0);
+  edit(L"OWNeac 路径", NeacPath, c.neacPath, 399, 570);
+  add(L"BUTTON", L"浏览", NeacBrowse, 726, 399, 92, 26);
   SendMessageW(control(Hold), BM_SETCHECK, c.holdShift ? BST_CHECKED : BST_UNCHECKED, 0);
   SendMessageW(control(Auto), BM_SETCHECK, c.autoRecover ? BST_CHECKED : BST_UNCHECKED, 0);
-  add(L"STATIC", L"页面校准 · 手动打开一个页面，选择操作，录制特征与点击位置", 0, 22, 369, 800, 24);
-  add(L"COMBOBOX", L"", Scope, 22, 402, 92, 140, CBS_DROPDOWNLIST | WS_TABSTOP);
+  add(L"STATIC", L"页面校准 · 手动打开一个页面，选择操作，录制特征与点击位置", 0, 22, 441, 800, 24);
+  add(L"COMBOBOX", L"", Scope, 22, 474, 92, 140, CBS_DROPDOWNLIST | WS_TABSTOP);
   for (auto t : {L"游戏", L"战网"})
     SendMessageW(control(Scope), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(t));
   SendMessageW(control(Scope), CB_SETCURSEL, 0, 0);
-  add(L"COMBOBOX", L"", ActionBox, 126, 402, 260, 230, CBS_DROPDOWNLIST | WS_TABSTOP);
+  add(L"COMBOBOX", L"", ActionBox, 126, 474, 260, 230, CBS_DROPDOWNLIST | WS_TABSTOP);
   for (auto t : ActionNames)
     SendMessageW(control(ActionBox), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(t));
   SendMessageW(control(ActionBox), CB_SETCURSEL, 0, 0);
-  add(L"EDIT", L"页面名称", Label, 399, 402, 220, 26, ES_AUTOHSCROLL | WS_TABSTOP);
-  add(L"BUTTON", L"3 秒后录制", Record, 632, 402, 186, 28);
-  add(L"STATIC", L"输入文字内容", 0, 22, 440, 115, 24);
-  add(L"EDIT", L"", TextArg, 144, 436, 480, 26, ES_AUTOHSCROLL | WS_TABSTOP);
-  add(L"BUTTON", L"删除选中页面", Remove, 637, 436, 181, 28);
-  add(L"LISTBOX", L"", Steps, 22, 478, 796, 122, WS_BORDER | WS_VSCROLL | LBS_NOTIFY | WS_TABSTOP);
-  add(L"STATIC", L"", Stats, 22, 613, 790, 22);
-  add(L"STATIC", L"", NetStatus, 22, 643, 640, 22);
-  add(L"BUTTON", L"配置与日志", OpenData, 682, 637, 136, 30);
+  add(L"EDIT", L"页面名称", Label, 399, 474, 220, 26, ES_AUTOHSCROLL | WS_TABSTOP);
+  add(L"BUTTON", L"3 秒后录制", Record, 632, 474, 186, 28);
+  add(L"STATIC", L"输入文字内容", 0, 22, 512, 115, 24);
+  add(L"EDIT", L"", TextArg, 144, 508, 480, 26, ES_AUTOHSCROLL | WS_TABSTOP);
+  add(L"BUTTON", L"删除选中页面", Remove, 637, 508, 181, 28);
+  add(L"LISTBOX", L"", Steps, 22, 550, 796, 122, WS_BORDER | WS_VSCROLL | LBS_NOTIFY | WS_TABSTOP);
+  add(L"STATIC", L"", Stats, 22, 685, 790, 22);
+  add(L"STATIC", L"", NetStatus, 22, 715, 480, 22);
+  add(L"BUTTON", L"重启游戏", RestartNow, 512, 709, 160, 30);
+  add(L"BUTTON", L"配置与日志", OpenData, 682, 709, 136, 30);
   add(L"STATIC",
-      L"提示：小窗口需保持原宽高比；切走窗口自动释放按键。关闭本窗口会退出助手"
-      L"。",
-      0, 22, 677, 800, 26);
+      L"提示：小窗口保持原宽高比；后台检测要求游戏无遮挡。关闭窗口会退出助手。",
+      0, 22, 749, 800, 26);
   settingsIds = {Save,    Browse, Record, Remove, GameExe, Launcher,  Args,  Server, Token,
-                 Machine, Dry,    Hold,   Auto,   Scope,   ActionBox, Label, TextArg};
+                 Machine, Dry,    Hold,   Auto,   Scope,   ActionBox, Label, TextArg,
+                 ShiftMode, BackgroundPulse, NeacPath, NeacBrowse, CnPreset};
   refreshSteps();
 }
 void refreshStatus() {
@@ -857,12 +1048,13 @@ void refreshStatus() {
   auto title = L"OverwatchHelper · " + wide(s.state);
   SetWindowTextW(control(StatusTitle), title.c_str());
   SetWindowTextW(control(StatusDetail), s.detail.c_str());
+  const auto now = GetTickCount64();
   std::wostringstream stats;
   stats << L"PID " << s.pid << L"    匹配 " << std::fixed << std::setprecision(1) << s.score * 100
-        << L"%    恢复次数 " << s.restarts << L"    运行 " << (GetTickCount64() - bootTime) / 1000
+        << L"%    恢复次数 " << s.restarts << L"    运行 " << (now - bootTime) / 1000
         << L" 秒";
-  if (s.next > GetTickCount64())
-    stats << L"    等待 " << (s.next - GetTickCount64()) / 1000 << L" 秒";
+  if (s.next > now)
+    stats << L"    等待 " << (s.next - now) / 1000 << L" 秒";
   SetWindowTextW(control(Stats), stats.str().c_str());
   auto net = s.http == 0 ? L"远程看板：未配置"
                          : (s.http >= 200 && s.http < 300
@@ -876,6 +1068,9 @@ LRESULT CALLBACK mainProc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
     switch (LOWORD(wp)) {
     case Start:
       setRunning(true);
+      break;
+    case RestartNow:
+      setRunning(true,true);
       break;
     case Stop:
       setRunning(false);
@@ -908,7 +1103,20 @@ LRESULT CALLBACK mainProc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
     case OpenData:
       ShellExecuteW(w, L"open", directory.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
       break;
-    case Browse: {
+    case Diagnose:
+      if (running || syncConfig()) {
+        try {
+          auto path = writeDiagnostics(directory, snapshotConfig());
+          MessageBoxW(w, (L"诊断报告已保存：\n" + path +
+                         L"\n\n包含进程、窗口、启动器和校准检查；不含令牌或搜索文字。").c_str(),
+                      L"诊断完成", MB_OK);
+        } catch (...) {
+          MessageBoxW(w, L"无法写入诊断报告，请检查配置目录权限。", L"诊断失败", MB_ICONERROR);
+        }
+      }
+      break;
+    case Browse:
+    case NeacBrowse: {
       wchar_t b[32768]{};
       OPENFILENAMEW o{};
       o.lStructSize = sizeof(o);
@@ -918,7 +1126,7 @@ LRESULT CALLBACK mainProc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
       o.lpstrFilter = L"程序或快捷方式\0*.exe;*.lnk\0所有文件\0*.*\0";
       o.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
       if (GetOpenFileNameW(&o))
-        SetWindowTextW(control(Launcher), b);
+        SetWindowTextW(control(LOWORD(wp) == Browse ? Launcher : NeacPath), b);
       break;
     }
     }
@@ -951,19 +1159,28 @@ LRESULT CALLBACK mainProc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
 int WINAPI wWinMain(HINSTANCE h, HINSTANCE, PWSTR, int) {
   instance = h;
   SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-  bool demo = std::wstring(GetCommandLineW()).find(L"--demo") != std::wstring::npos;
+  StartupOptions options;
+  try {
+    options = commandLineOptions();
+    directory = resolveDataDirectory(options);
+    config = loadConfig(directory, options.demo);
+    if (options.diagnose) {
+      writeDiagnostics(directory, config);
+      return 0;
+    }
+  } catch (...) {
+    // CLI diagnosis must not leave an unattended message box on failure.
+    if (!options.diagnose)
+      MessageBoxW(nullptr, L"无法读取启动参数或配置目录。\n支持 --demo、--data-dir 路径、--diagnose。",
+                  L"OverwatchHelper", MB_ICONERROR);
+    return 1;
+  }
+  bool demo = options.demo;
   Handle singleton(CreateMutexW(
       nullptr, TRUE, demo ? L"Local\\OverwatchHelper.Demo" : L"Local\\OverwatchHelper.Main"));
   if (GetLastError() == ERROR_ALREADY_EXISTS) {
     MessageBoxW(nullptr, L"助手已经在运行。", L"OverwatchHelper", MB_OK);
     return 0;
-  }
-  try {
-    directory = dataDirectory(demo);
-    config = loadConfig(directory, demo);
-  } catch (...) {
-    MessageBoxW(nullptr, L"无法读取配置目录。", L"OverwatchHelper", MB_ICONERROR);
-    return 1;
   }
   dpi = GetDpiForSystem();
   font = CreateFontW(-u(14), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
@@ -982,11 +1199,11 @@ int WINAPI wWinMain(HINSTANCE h, HINSTANCE, PWSTR, int) {
   wc.lpfnWndProc = overlayProc;
   wc.lpszClassName = OverlayClass;
   RegisterClassW(&wc);
-  RECT r{0, 0, u(844), u(718)};
+  RECT r{0, 0, u(844), u(790)};
   DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
   AdjustWindowRectExForDpi(&r, style, FALSE, 0, dpi);
   mainWindow = CreateWindowExW(0, AppClass,
-                               demo ? L"OverwatchHelper · 演示配置" : L"OverwatchHelper · 国服战网",
+                               demo ? L"OverwatchHelper 0.3.0 · 演示配置" : L"OverwatchHelper 0.3.0 · 国服战网",
                                style, CW_USEDEFAULT, CW_USEDEFAULT, r.right - r.left,
                                r.bottom - r.top, nullptr, nullptr, h, nullptr);
   if (!mainWindow)

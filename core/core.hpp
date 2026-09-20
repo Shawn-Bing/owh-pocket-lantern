@@ -91,10 +91,34 @@ struct Match {
   bool ambiguous{};
   bool aspectMismatch{};
 };
+inline bool equivalentObservation(const Step &a, const Step &b) {
+  return a.launcher == b.launcher && a.action == b.action &&
+         (a.action == Action::Ready || a.action == Action::Restart);
+}
+inline int observationKey(const Step &s, int index) {
+  // Configuration admits at most 32 templates. Non-action observations may have variants.
+  return s.action == Action::Ready ? 32 : (s.action == Action::Restart ? 33 : index);
+}
+inline double templateScore(const Frame &f, const Step &s) {
+  double best = similarity(sample(f, s.roi), s.image);
+  if (s.action != Action::Ready || best >= .98 || f.width <= 0 || f.height <= 0) return best;
+  // Small HUD alignment tolerance only; navigation and error templates remain exact.
+  double dx = std::max(1, f.width / 1024) / double(f.width);
+  double dy = std::max(1, f.height / 576) / double(f.height);
+  for (int y = -2; y <= 2; ++y)
+    for (int x = -2; x <= 2; ++x) {
+      if (x == 0 && y == 0) continue;
+      auto r = s.roi;
+      r.x += x * dx;
+      r.y += y * dy;
+      best = std::max(best, similarity(sample(f, r), s.image));
+    }
+  return best;
+}
 inline Match match(const Frame &f, const std::vector<Step> &steps, bool launcher,
                    double threshold = .90) {
   Match result;
-  double second = 0;
+  std::vector<double> scores(steps.size());
   for (std::size_t i = 0; i < steps.size(); ++i) {
     auto &s = steps[i];
     if (s.launcher != launcher)
@@ -103,20 +127,51 @@ inline Match match(const Frame &f, const std::vector<Step> &steps, bool launcher
       result.aspectMismatch = true;
       continue;
     }
-    auto score = similarity(sample(f, s.roi), s.image);
+    auto score = templateScore(f, s);
+    scores[i] = score;
     if (score > result.score) {
-      second = result.score;
       result.score = score;
       result.index = int(i);
-    } else
-      second = std::max(second, score);
+    }
   }
-  result.ambiguous =
-      result.score >= threshold && second >= threshold && result.score - second < .025;
+  if (result.index >= 0 && result.score >= threshold)
+    for (std::size_t i = 0; i < steps.size(); ++i)
+      if (int(i) != result.index && scores[i] >= threshold && result.score - scores[i] < .025 &&
+          !equivalentObservation(steps[result.index], steps[i]))
+        result.ambiguous = true;
   if (result.score < threshold || result.ambiguous)
     result.index = -1;
   return result;
 }
+class RoomSession {
+  bool active_{};
+public:
+  void reset() { active_ = false; }
+  bool active() const { return active_; }
+  void observe(const Step *step, bool confirmed, bool ambiguous = false) {
+    if (ambiguous || (step && (step->launcher || step->action != Action::Ready)))
+      active_ = false;
+    else if (step && confirmed)
+      active_ = true;
+    // Missing HUD during spectating/loading/results does not end an established session.
+  }
+};
+class ContinuousEvidence {
+  Millis start_{}, last_{};
+  bool tracking_{};
+public:
+  void reset() { tracking_ = false; }
+  void observe(bool present, Millis now) {
+    if (!present) { reset(); return; }
+    if (!tracking_ || now < last_ || now - last_ > 2500) start_ = now;
+    tracking_ = true;
+    last_ = now;
+  }
+  bool elapsed(Millis now, Millis duration) const {
+    return tracking_ && now >= last_ && now - last_ <= 2500 && now - start_ >= duration;
+  }
+  Millis deadline(Millis duration) const { return tracking_ ? start_ + duration : 0; }
+};
 class StepGate {
   int candidate_{-1}, confirmations_{}, lastAction_{-1}, attempts_{};
   Millis lastAt_{};

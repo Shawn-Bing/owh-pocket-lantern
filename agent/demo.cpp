@@ -4,6 +4,8 @@
 #include <windows.h>
 #include <windowsx.h>
 int page = 0;
+unsigned shiftPulses{};
+ULONGLONG lastShift{};
 HFONT largeFont, normalFont;
 void draw(HDC dc, RECT r, const wchar_t *text, int size, COLORREF color) {
   SetBkMode(dc, TRANSPARENT);
@@ -44,8 +46,11 @@ LRESULT CALLBACK proc(HWND w, UINT m, WPARAM p, LPARAM l) {
     draw(dc, rect(60, 346, 810, 32), L"校准：圈选上方独特标题区域，再标记中间按钮。", 0,
          RGB(168, 187, 205));
     bool shift = (GetAsyncKeyState(VK_LSHIFT) & 0x8000) != 0;
-    draw(dc, rect(60, 400, 810, 40), shift ? L"Shift：正在按下 ✓" : L"Shift：未按下", 1,
-         shift ? RGB(103, 226, 167) : RGB(188, 201, 212));
+    auto shiftStatus = L"左 Shift 点按：" + std::to_wstring(shiftPulses) + L" 次  ·  " +
+                       (shift ? L"正在按下" : L"已松开");
+    draw(dc, rect(60, 400, 810, 40), shiftStatus.c_str(), 1,
+         shift || (lastShift && GetTickCount64() - lastShift < 800)
+             ? RGB(103, 226, 167) : RGB(188, 201, 212));
     draw(dc, rect(60, 481, 810, 26), L"F8：停止助手    F9：关闭测试窗口，验证自动重启", 0,
          RGB(122, 156, 179));
     EndPaint(w, &ps);
@@ -65,6 +70,12 @@ LRESULT CALLBACK proc(HWND w, UINT m, WPARAM p, LPARAM l) {
     InvalidateRect(w, nullptr, FALSE);
     return 0;
   case WM_KEYDOWN:
+    if ((p == VK_LSHIFT || (p == VK_SHIFT && ((l >> 16) & 255) == 0x2a)) &&
+        !(l & (1LL << 30))) {
+      ++shiftPulses;
+      lastShift = GetTickCount64();
+      InvalidateRect(w, nullptr, FALSE);
+    }
     if (p == VK_F9) {
       DestroyWindow(w);
       return 0;

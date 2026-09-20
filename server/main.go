@@ -69,7 +69,7 @@ type Server struct {
 var states = map[string]bool{}
 
 func init() {
-	for _, s := range strings.Fields("STOPPED DETECTING DRY_RUN ACTIVE INPUT_BLOCKED RECOVERING NEEDS_USER BACKOFF STARTING WINDOW_HUNG GAME_NOT_RUNNING NEEDS_CONFIG WAITING_WINDOW WAITING_FOCUS CAPTURE_FAILED NEEDS_CALIBRATION AMBIGUOUS UNKNOWN CONFIRMING LOGIN_STUCK NAVIGATING") {
+	for _, s := range strings.Fields("STOPPED DETECTING DRY_RUN ACTIVE BACKGROUND_INPUT WAITING_DESKTOP INPUT_BLOCKED RECOVERING NEEDS_USER BACKOFF STARTING WINDOW_HUNG GAME_NOT_RUNNING NEEDS_CONFIG WAITING_WINDOW WAITING_FOCUS CAPTURE_FAILED NEEDS_CALIBRATION AMBIGUOUS UNKNOWN CONFIRMING LOGIN_STUCK NAVIGATING") {
 		states[s] = true
 	}
 }
@@ -226,7 +226,7 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("/api/status", s.auth(s.viewToken, s.handleStatus))
 	mux.HandleFunc("/api/events", s.auth(s.viewToken, s.handleEvents))
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		reply(w, 200, map[string]string{"status": "ok", "version": "0.1.0"})
+		reply(w, 200, map[string]string{"status": "ok", "version": "0.2.0"})
 	})
 	files, _ := fs.Sub(webFiles, "web")
 	static := http.FileServer(http.FS(files))

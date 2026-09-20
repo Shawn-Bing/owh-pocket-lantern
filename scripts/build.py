@@ -16,7 +16,7 @@ cache = root / 'build' / 'cache'
 cache.mkdir(parents=True, exist_ok=True)
 env = dict(os.environ, ZIG_GLOBAL_CACHE_DIR=str(cache / 'zig'), ZIG_LOCAL_CACHE_DIR=str(cache / 'zig-local'), GOCACHE=str(cache / 'go'))
 common = [args.zig, 'c++', '-target', 'x86_64-windows-gnu', '-std=c++20', '-O2', '-s', '-municode', '-Wl,--subsystem,windows', '-DUNICODE', '-D_UNICODE', '-I', str(root)]
-for source, name, libs in [('main.cpp', 'overwatch-helper.exe', ['user32', 'gdi32', 'shell32', 'advapi32', 'comdlg32', 'winhttp', 'ole32']), ('demo.cpp', 'owh-demo.exe', ['user32', 'gdi32'])]:
+for source, name, libs in [('main.cpp', 'overwatch-helper.exe', ['user32', 'gdi32', 'shell32', 'advapi32', 'comdlg32', 'winhttp', 'ole32', 'dwmapi']), ('demo.cpp', 'owh-demo.exe', ['user32', 'gdi32'])]:
     subprocess.run(common + [str(root / 'agent' / source), '-o', str(dist / name)] + ['-l' + x for x in libs], env=env, check=True)
 for goos, arch, name in [('windows', 'amd64', 'owh-dashboard.exe'), ('linux', 'amd64', 'owh-dashboard-linux-amd64'), ('darwin', 'arm64', 'owh-dashboard-macos-arm64')]:
     subprocess.run([args.go, 'build', '-trimpath', '-ldflags=-s -w', '-o', str(dist / name), '.'], cwd=root / 'server', env=dict(env, GOOS=goos, GOARCH=arch, CGO_ENABLED='0'), check=True)
