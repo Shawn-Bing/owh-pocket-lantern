@@ -1,5 +1,7 @@
 #include "core/core.hpp"
 #include "core/cn_recovery.hpp"
+#include "core/cn_profile.hpp"
+#include "core/cn_default_profile.hpp"
 #include <cstdlib>
 #include <iostream>
 void require(bool x, const char *msg) {
@@ -109,38 +111,92 @@ int main() {
   require(budget.take(100000), "third recovery");
   require(!budget.take(500000), "hourly restart cap");
   require(budget.take(3610000), "budget replenishes after one hour");
+  Point card{.1833, .6815};
   CNJoinGate join;
   CNObservation selected;
   selected.page = CNPage::Join;
   selected.step.action = Action::Click;
   selected.step.click = {.54, .89};
-  require(join.prepare(selected, 1000).page == CNPage::Browser,
+  require(join.prepare(selected, 1000, card).page == CNPage::Browser,
           "Highlighted or hovered card requires our own selection before joining");
   join.acted(CNPage::Browser, false, 1000);
-  require(join.prepare(selected, 2000).page == CNPage::Browser,
+  require(join.prepare(selected, 2000, card).page == CNPage::Browser,
           "Failed selection cannot authorize joining");
   join.acted(CNPage::Browser, true, 3000);
-  require(join.prepare(selected, 8000).page == CNPage::Join,
+  require(join.prepare(selected, 8000, card).page == CNPage::Join,
           "Fresh confirmed selection allows joining");
   join.acted(CNPage::Join, false, 8000);
-  require(join.prepare(selected, 9000).page == CNPage::Browser,
+  require(join.prepare(selected, 9000, card).page == CNPage::Browser,
           "Even failed join consumes selection evidence");
   join.acted(CNPage::Browser, true, 10000);
-  require(join.prepare(selected, 25001).page == CNPage::Browser,
+  require(join.prepare(selected, 25001, card).page == CNPage::Browser,
           "Stale selection cannot authorize joining");
   join.acted(CNPage::Browser, true, 30000);
   CNObservation home;
   home.page = CNPage::Home;
-  join.prepare(home, 31000);
-  require(join.prepare(selected, 32000).page == CNPage::Browser,
+  join.prepare(home, 31000, card);
+  require(join.prepare(selected, 32000, card).page == CNPage::Browser,
           "Leaving browser revokes selection");
   join.acted(CNPage::Browser, true, 33000);
   join.reset();
-  require(join.prepare(selected, 34000).page == CNPage::Browser,
+  require(join.prepare(selected, 34000, card).page == CNPage::Browser,
           "Stop or process replacement revokes selection");
   join.acted(CNPage::Browser, true, 35000);
-  require(join.prepare(selected, 34000).page == CNPage::Browser,
+  require(join.prepare(selected, 34000, card).page == CNPage::Browser,
           "Clock rollback revokes selection");
   require(jsonEscape("a\"\n\\") == "a\\\"\\u000a\\\\", "telemetry JSON escaping");
+  // The preset is data now, so the parser sits on the recovery path: a profile
+  // that parsed only partially would silently drop navigation steps.
+  CNProfile profile, ignored;
+  std::string profileError;
+  require(parseCNProfile(defaultCNProfileJson(), profile, profileError),
+          ("embedded CN profile must parse: " + profileError).c_str());
+  require(!profile.rules.empty() && profile.launcher.size() >= 2,
+          "embedded CN profile must be complete");
+  bool hasVariants = false;
+  for (const auto &rule : profile.rules)
+    for (const auto &anchor : rule.anchors)
+      hasVariants = hasVariants || anchor.variants.size() > 1;
+  require(hasVariants, "one page sampled at two window sizes must share a rule as variants");
+  CNProfile reparsed;
+  require(parseCNProfile(writeCNProfile(profile), reparsed, profileError),
+          ("written CN profile must parse back: " + profileError).c_str());
+  require(reparsed.rules.size() == profile.rules.size() &&
+              reparsed.launcher.size() == profile.launcher.size(),
+          "round trip preserves the rule and launcher counts");
+  bool identical = true;
+  for (std::size_t i = 0; i < profile.rules.size() && identical; ++i) {
+    const auto &before = profile.rules[i], &after = reparsed.rules[i];
+    identical = before.page == after.page && before.action == after.action &&
+                before.label == after.label &&
+                std::abs(before.click.x - after.click.x) < 1e-12 &&
+                std::abs(before.aspect - after.aspect) < 1e-12 &&
+                before.anchors.size() == after.anchors.size();
+    for (std::size_t j = 0; identical && j < before.anchors.size(); ++j)
+      identical = before.anchors[j].variants == after.anchors[j].variants;
+  }
+  require(identical, "round trip preserves anchors and template bytes");
+  require(!parseCNProfile("{", ignored, profileError), "truncated profile rejected");
+  require(!parseCNProfile("[]", ignored, profileError), "non-object profile rejected");
+  require(!parseCNProfile("{\"format\":\"owh-profile\",\"version\":2,\"rules\":[]}", ignored,
+                          profileError),
+          "unsupported profile version rejected");
+  std::string shortTemplate =
+      "{\"format\":\"owh-profile\",\"version\":1,\"rules\":[{\"page\":\"home\",\"label\":\"x\","
+      "\"action\":\"click\",\"click\":[0.5,0.5],\"aspect\":1.7777,\"minimum\":0.9,\"anchors\":"
+      "[{\"roi\":[0,0,0.1,0.1],\"minimum\":0.9,\"variants\":[\"00ff\"]}]}],\"join\":"
+      "{\"selection_roi\":[0,0,0.1,0.1],\"button_roi\":[0,0,0.1,0.1],\"click\":[0.5,0.5]}}";
+  require(!parseCNProfile(shortTemplate, ignored, profileError), "short template rejected");
+  // 512 identical samples have zero contrast and cannot tell two pages apart.
+  std::string flat =
+      "{\"format\":\"owh-profile\",\"version\":1,\"rules\":[{\"page\":\"home\",\"label\":\"x\","
+      "\"action\":\"click\",\"click\":[0.5,0.5],\"aspect\":1.7777,\"minimum\":0.9,\"anchors\":"
+      "[{\"roi\":[0,0,0.1,0.1],\"minimum\":0.9,\"variants\":[\"" +
+      std::string(1024, '8') +
+      "\"]}]}],\"join\":{\"selection_roi\":[0,0,0.1,0.1],\"button_roi\":[0,0,0.1,0.1],"
+      "\"click\":[0.5,0.5]}}";
+  require(!parseCNProfile(flat, ignored, profileError), "flat template rejected");
+  require(cnCardClick(profile).x > .1 && cnCardClick(profile).x < .3,
+          "card click comes from the profile's browser rule");
   std::cout << "All core scenarios passed\n";
 }

@@ -10,6 +10,8 @@
 #endif
 #include <windows.h>
 #include "core/core.hpp"
+#include "core/cn_default_profile.hpp"
+#include "core/cn_profile.hpp"
 #include <atomic>
 #include <commdlg.h>
 #include <cstring>
@@ -117,13 +119,63 @@ inline std::wstring discoverLauncher() {
   }
   return {};
 }
+// The recognition profile ships as data so steps can be edited, versioned and
+// shared without rebuilding the executable. A local override wins over the
+// shipped file, and the embedded copy is the last resort: an unattended recovery
+// must not lose its navigation because a data file went missing.
+struct CNProfileLoad {
+  CNProfile profile;
+  std::string source;
+  std::string error;
+};
+inline CNProfileLoad loadCNProfile(const std::wstring &dir) {
+  CNProfileLoad result;
+  auto attempt = [&](const std::filesystem::path &path, const char *label) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file)
+      return false;
+    std::ostringstream buffer;
+    buffer << file.rdbuf();
+    CNProfile parsed;
+    std::string error;
+    if (!parseCNProfile(buffer.str(), parsed, error)) {
+      result.error = std::string(label) + ": " + error;
+      return false;
+    }
+    result.profile = std::move(parsed);
+    result.source = label;
+    result.error.clear();
+    return true;
+  };
+  if (attempt(std::filesystem::path(dir) / L"cn-profile.json", "local"))
+    return result;
+  if (attempt(std::filesystem::path(exeDirectory()) / L"profiles" / L"cn-16x9.json", "shipped"))
+    return result;
+  CNProfile parsed;
+  std::string error;
+  if (parseCNProfile(defaultCNProfileJson(), parsed, error)) {
+    result.profile = std::move(parsed);
+    result.source = "builtin";
+  } else if (result.error.empty()) {
+    // Only reachable if the generated fallback itself is corrupt.
+    result.error = "builtin: " + error;
+  }
+  return result;
+}
 struct Config {
   std::wstring gameExe{L"Overwatch.exe"}, gameClass{L"TankWindowClass"}, launcherPath, launcherArgs;
   std::wstring server, token, machine, neacPath;
   bool dryRun{true}, holdShift{true}, autoRecover{true}, demo{};
   bool pulseShift{true}, backgroundPulse{true};
+  // While the player is at the computer the helper stands down entirely: they can
+  // see a disconnect themselves, the pulses are global events that would land in
+  // whatever application they are using, and captures would be spent on a screen
+  // nobody is watching.
+  bool standbyOnInput{true};
   bool cnPreset{true};
   double threshold{.90};
+  CNProfile cnProfile;
+  std::string cnProfileSource, cnProfileError;
   std::vector<Step> steps;
 };
 inline Config loadConfig(const std::wstring &dir, bool demo) {
@@ -146,9 +198,17 @@ inline Config loadConfig(const std::wstring &dir, bool demo) {
   c.holdShift = number(readIni(p, L"agent", L"hold_shift", L"1")) != 0;
   c.autoRecover = number(readIni(p, L"agent", L"auto_recover", L"1")) != 0;
   c.pulseShift = number(readIni(p, L"agent", L"pulse_shift", L"1")) != 0;
-  c.backgroundPulse = number(readIni(p, L"agent", L"background_pulse", L"1")) != 0;
+  // Removed: a global pulse is delivered to whatever window has focus, so with the
+  // game in the background it reached the player's application instead of the game
+  // and could never help. Keeping it as an option only invited that mistake.
+  c.backgroundPulse = false;
+  c.standbyOnInput = number(readIni(p, L"agent", L"standby_on_input", L"1")) != 0;
   c.cnPreset = !demo && number(readIni(p, L"agent", L"cn_preset", L"1")) != 0;
   c.neacPath = readIni(p, L"agent", L"neac_path");
+  auto profile = loadCNProfile(dir);
+  c.cnProfile = std::move(profile.profile);
+  c.cnProfileSource = std::move(profile.source);
+  c.cnProfileError = std::move(profile.error);
   int count = std::clamp(number(readIni(p, L"workflow", L"count")), 0, 32);
   for (int i = 0; i < count; ++i) {
     Step s;
@@ -157,7 +217,7 @@ inline Config loadConfig(const std::wstring &dir, bool demo) {
     s.text = readIni(p, sec.c_str(), L"text");
     s.launcher = number(readIni(p, sec.c_str(), L"launcher")) != 0;
     int action = number(readIni(p, sec.c_str(), L"action"), -1);
-    if (action < 0 || action > 6)
+    if (action < 0 || action > int(Action::Ignore))
       continue;
     s.action = Action(action);
     std::wistringstream v(readIni(p, sec.c_str(), L"geometry"));
@@ -203,6 +263,7 @@ inline void saveConfig(const std::wstring &dir, const Config &c) {
            {L"hold_shift", c.holdShift ? L"1" : L"0"},
            {L"pulse_shift", c.pulseShift ? L"1" : L"0"},
            {L"background_pulse", c.backgroundPulse ? L"1" : L"0"},
+           {L"standby_on_input", c.standbyOnInput ? L"1" : L"0"},
            {L"cn_preset", c.cnPreset ? L"1" : L"0"},
            {L"neac_path", c.neacPath},
            {L"auto_recover", c.autoRecover ? L"1" : L"0"}})
@@ -250,6 +311,77 @@ inline std::wstring processName(DWORD pid) {
   if (!QueryFullProcessImageNameW(p.h, 0, b, &n))
     return {};
   return std::filesystem::path(b).filename().wstring();
+}
+// Windows blocks input and foreground changes from a lower-integrity process
+// towards a window owned by a higher-integrity one (UIPI). The mismatch is
+// otherwise invisible: SendInput and SetForegroundWindow simply fail, or return
+// success and do nothing. Compare the levels explicitly so the panel can name
+// the real reason instead of reporting a generic focus or input failure.
+enum class Integrity { Unknown, Untrusted, Low, Medium, High, System };
+inline const wchar_t *integrityName(Integrity v) {
+  switch (v) {
+  case Integrity::Untrusted: return L"untrusted";
+  case Integrity::Low: return L"low";
+  case Integrity::Medium: return L"medium";
+  case Integrity::High: return L"high";
+  case Integrity::System: return L"system";
+  default: return L"unknown";
+  }
+}
+inline Integrity tokenIntegrity(HANDLE token) {
+  DWORD size{};
+  if (!token)
+    return Integrity::Unknown;
+  // The zero-length probe is expected to fail with ERROR_INSUFFICIENT_BUFFER;
+  // any other failure means the level really is unavailable.
+  if (GetTokenInformation(token, TokenIntegrityLevel, nullptr, 0, &size) ||
+      GetLastError() != ERROR_INSUFFICIENT_BUFFER || size < sizeof(TOKEN_MANDATORY_LABEL))
+    return Integrity::Unknown;
+  std::vector<char> buffer(size);
+  if (!GetTokenInformation(token, TokenIntegrityLevel, buffer.data(), size, &size))
+    return Integrity::Unknown;
+  auto label = reinterpret_cast<const TOKEN_MANDATORY_LABEL *>(buffer.data());
+  if (!label->Label.Sid)
+    return Integrity::Unknown;
+  auto count = *GetSidSubAuthorityCount(label->Label.Sid);
+  if (!count)
+    return Integrity::Unknown;
+  DWORD level = *GetSidSubAuthority(label->Label.Sid, DWORD(count - 1));
+  if (level < SECURITY_MANDATORY_LOW_RID) return Integrity::Untrusted;
+  if (level < SECURITY_MANDATORY_MEDIUM_RID) return Integrity::Low;
+  if (level < SECURITY_MANDATORY_HIGH_RID) return Integrity::Medium;
+  if (level < SECURITY_MANDATORY_SYSTEM_RID) return Integrity::High;
+  return Integrity::System;
+}
+inline Integrity processIntegrity(DWORD pid) {
+  if (!pid)
+    return Integrity::Unknown;
+  Handle p(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid));
+  if (!p.h)
+    return Integrity::Unknown;
+  HANDLE raw{};
+  if (!OpenProcessToken(p.h, TOKEN_QUERY, &raw))
+    return Integrity::Unknown;
+  Handle token(raw);
+  return tokenIntegrity(token.h);
+}
+inline Integrity selfIntegrity() { return processIntegrity(GetCurrentProcessId()); }
+inline bool selfElevated() {
+  HANDLE raw{};
+  if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &raw))
+    return false;
+  Handle token(raw);
+  TOKEN_ELEVATION elevation{};
+  DWORD size = sizeof(elevation);
+  return GetTokenInformation(token.h, TokenElevation, &elevation, size, &size) &&
+         elevation.TokenIsElevated != 0;
+}
+// True when the target outranks us, so Windows will refuse both our input and
+// our foreground requests regardless of what the window is doing.
+inline bool outranks(const Process &target) {
+  auto mine = selfIntegrity(), theirs = processIntegrity(target.pid);
+  return mine != Integrity::Unknown && theirs != Integrity::Unknown &&
+         int(theirs) > int(mine);
 }
 inline Process findProcess(const std::wstring &name, const std::wstring &cls = L"") {
   Process p;
@@ -323,6 +455,33 @@ inline bool responsive(HWND w) {
   return SendMessageTimeoutW(w, WM_NULL, 0, 0, SMTO_ABORTIFHUNG | SMTO_BLOCK, 200, &result) != 0;
 }
 inline bool foreground(HWND w) { return w && GetForegroundWindow() == w && !IsIconic(w); }
+// Windows only grants a foreground change to a process that owns the foreground
+// lock. A refused SetForegroundWindow reports nothing useful and merely flashes
+// the taskbar button, so one request is never enough: the caller has to verify
+// the result and retry. Sharing the input queue with the current foreground
+// thread satisfies the same check without changing any system setting.
+inline bool requestForeground(HWND w) {
+  if (!w || !IsWindow(w) || !IsWindowVisible(w))
+    return false;
+  if (IsIconic(w))
+    ShowWindow(w, SW_RESTORE);
+  if (foreground(w))
+    return true;
+  SetWindowPos(w, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+  SetForegroundWindow(w);
+  if (foreground(w))
+    return true;
+  auto current = GetForegroundWindow();
+  DWORD other = current ? GetWindowThreadProcessId(current, nullptr) : 0;
+  DWORD mine = GetCurrentThreadId();
+  if (other && other != mine && AttachThreadInput(mine, other, TRUE)) {
+    ShowWindow(w, SW_RESTORE);
+    SetForegroundWindow(w);
+    BringWindowToTop(w);
+    AttachThreadInput(mine, other, FALSE);
+  }
+  return foreground(w);
+}
 inline bool interactiveDesktop() {
   HDESK input = OpenInputDesktop(0, FALSE, DESKTOP_READOBJECTS);
   if (!input) return false;
@@ -490,12 +649,186 @@ public:
     return true;
   }
 };
+// PrintWindow asks the window to render itself into a DC, so unlike a screen copy
+// it can return content for an occluded window. It is measured here rather than
+// trusted: a DirectX surface may come back black or stale, and acting on a stale
+// frame during recovery would be worse than refusing to capture at all.
+#ifndef PW_RENDERFULLCONTENT
+#define PW_RENDERFULLCONTENT 0x00000002
+#endif
+inline bool printWindowFrame(HWND window, Frame &f) {
+  RECT r{};
+  if (!window || !screenClientRect(window, r))
+    return false;
+  int w = r.right - r.left, h = r.bottom - r.top;
+  if (w < 80 || h < 60 || w > 7680 || h > 4320)
+    return false;
+  HDC desktop = GetDC(nullptr);
+  if (!desktop)
+    return false;
+  HDC dc = CreateCompatibleDC(desktop);
+  BITMAPINFO bi{};
+  bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+  bi.bmiHeader.biWidth = w;
+  bi.bmiHeader.biHeight = -h;
+  bi.bmiHeader.biPlanes = 1;
+  bi.bmiHeader.biBitCount = 32;
+  bi.bmiHeader.biCompression = BI_RGB;
+  void *bits = nullptr;
+  HBITMAP bitmap = CreateDIBSection(desktop, &bi, DIB_RGB_COLORS, &bits, nullptr, 0);
+  ReleaseDC(nullptr, desktop);
+  if (!dc || !bitmap || !bits) {
+    if (bitmap) DeleteObject(bitmap);
+    if (dc) DeleteDC(dc);
+    return false;
+  }
+  auto old = SelectObject(dc, bitmap);
+  BOOL ok = PrintWindow(window, dc, PW_RENDERFULLCONTENT);
+  GdiFlush();
+  bool usable = ok != FALSE;
+  if (usable) {
+    f.width = w;
+    f.height = h;
+    f.pixels.resize(std::size_t(w) * std::size_t(h));
+    std::memcpy(f.pixels.data(), bits, f.pixels.size() * 4);
+  }
+  SelectObject(dc, old);
+  DeleteObject(bitmap);
+  DeleteDC(dc);
+  return usable;
+}
+inline int lumaOf(std::uint32_t p) {
+  return (int((p >> 16) & 255) * 30 + int((p >> 8) & 255) * 59 + int(p & 255) * 11) / 100;
+}
+// How much structure a capture carries. An all-black DirectX surface and a real
+// screenshot both "succeed"; only the numbers tell them apart.
+struct FrameInk {
+  double ink{};       // fraction of pixels that are not near black
+  double deviation{}; // luminance standard deviation
+};
+inline FrameInk frameInk(const Frame &f) {
+  FrameInk result;
+  if (f.pixels.empty())
+    return result;
+  double sum = 0;
+  std::size_t lit = 0;
+  for (auto p : f.pixels) {
+    int luma = lumaOf(p);
+    if (luma > 12)
+      ++lit;
+    sum += luma;
+  }
+  double mean = sum / f.pixels.size();
+  double variance = 0;
+  for (auto p : f.pixels)
+    variance += (lumaOf(p) - mean) * (lumaOf(p) - mean);
+  result.ink = double(lit) / f.pixels.size();
+  result.deviation = std::sqrt(variance / f.pixels.size());
+  return result;
+}
+// Mean absolute luminance difference, used to tell a live render from a stale one.
+inline double frameDifference(const Frame &a, const Frame &b) {
+  if (a.width != b.width || a.height != b.height || a.pixels.empty())
+    return -1;
+  double sum = 0;
+  for (std::size_t i = 0; i < a.pixels.size(); ++i)
+    sum += std::abs(lumaOf(a.pixels[i]) - lumaOf(b.pixels[i]));
+  return sum / a.pixels.size();
+}
+// Writes a 32-bit BMP. The helper links no image encoder, and the point of saving
+// an unmatched frame is diagnosis: a page that missed its threshold by a
+// thousandth needs a template sampled from the client's real pixels, not from a
+// recording that was captured at a different size.
+inline bool saveFrameBmp(const Frame &f, const std::filesystem::path &path) {
+  if (f.width <= 0 || f.height <= 0 || f.pixels.size() != std::size_t(f.width) * f.height)
+    return false;
+  std::ofstream out(path, std::ios::binary | std::ios::trunc);
+  if (!out)
+    return false;
+  auto u16 = [&](std::uint16_t v) { out.write(reinterpret_cast<const char *>(&v), 2); };
+  auto u32 = [&](std::uint32_t v) { out.write(reinterpret_cast<const char *>(&v), 4); };
+  auto i32 = [&](std::int32_t v) { out.write(reinterpret_cast<const char *>(&v), 4); };
+  std::uint32_t pixels = std::uint32_t(f.pixels.size()) * 4;
+  out.put('B');
+  out.put('M');
+  u32(14 + 40 + pixels);
+  u32(0);
+  u32(14 + 40);
+  u32(40);
+  u32(std::uint32_t(f.width));
+  // Negative height marks top-down rows, which is the order Frame stores.
+  i32(-f.height);
+  u16(1);
+  u16(32);
+  u32(0);
+  u32(pixels);
+  u32(2835);
+  u32(2835);
+  u32(0);
+  u32(0);
+  out.write(reinterpret_cast<const char *>(f.pixels.data()), std::ptrdiff_t(f.pixels.size()) * 4);
+  return out.good();
+}
 class Input {
   std::mutex mutex_;
   bool held_{}, enabled_{};
   unsigned epoch_{};
   HWND target_{};
-  static bool key(WORD vk, bool up) {
+  // When the helper last injected anything. Windows counts injected input as
+  // input, so without this the helper's own pulses would look like the player
+  // typing and the pause below would never end.
+  Millis lastSend_{GetTickCount64()};
+  // The pulse is a global event delivered to whatever window has focus, so while
+  // the player is working it reaches their application instead of the game.
+  // Skipping it costs the game nothing and stops fighting them for the keyboard.
+  //
+  // GetLastInputInfo counts injected input, so while pulsing the player's input
+  // is whatever arrived clearly later than our own last send; our key-up lands
+  // within a few milliseconds of it and a margin absorbs scheduling jitter.
+  //
+  // The pause must not be able to sustain itself. Once paused we inject nothing,
+  // so that timestamp goes stale and "later than our last send" would stay true
+  // forever, which is exactly the lock-up this replaced. While paused, any change
+  // at all is therefore the player, and the pause simply ends once their input
+  // stops advancing. A short hold keeps one key press from flickering the state.
+  static constexpr Millis PlayerInputMargin = 400;
+  // Three seconds was far too short: reading a paragraph, thinking, or watching
+  // something all exceed it, so standby released during ordinary computer use and
+  // the pulses landed in whatever application had focus. One minute spans those
+  // pauses while still resuming promptly once the player walks away.
+  static constexpr Millis PlayerHoldWindow = 10000;
+  DWORD lastSeenInput_{}, lastPlayerInput_{};
+  bool paused_{};
+  Millis lastPlayerIdle_{};
+  bool lastChanged_{};
+  bool playerBusyLocked() {
+    LASTINPUTINFO info{};
+    info.cbSize = sizeof(info);
+    if (!GetLastInputInfo(&info))
+      return false;
+    DWORD now = DWORD(GetTickCount64());
+    DWORD last = info.dwTime;
+    bool changed = last != lastSeenInput_;
+    lastSeenInput_ = last;
+    lastChanged_ = changed;
+    // Both comparisons use wrapping 32-bit subtraction, which is correct across
+    // the tick rollover that GetLastInputInfo's DWORD domain shares with
+    // GetTickCount.
+    if (paused_ ? changed
+                : std::int32_t(last - DWORD(lastSend_)) > std::int32_t(PlayerInputMargin))
+      lastPlayerInput_ = last;
+    lastPlayerIdle_ = Millis(std::int32_t(now - lastPlayerInput_));
+    bool busy = lastPlayerIdle_ < PlayerHoldWindow;
+    if (paused_ && !busy)
+      // Leaving the pause: the send timestamp is stale from the silent period and
+      // would otherwise read as the player having been busy the whole time.
+      lastSend_ = GetTickCount64();
+    paused_ = busy;
+    return busy;
+  }
+
+  bool key(WORD vk, bool up) {
+    lastSend_ = GetTickCount64();
     INPUT i{};
     i.type = INPUT_KEYBOARD;
     i.ki.wVk = vk;
@@ -509,11 +842,48 @@ public:
     std::lock_guard lock(mutex_);
     epoch_ = epoch;
     enabled_ = on;
+    // Start the idle window now, so the first check does not read the untouched
+    // initial timestamp as "the player has been busy all along".
+    if (on) {
+      lastSend_ = GetTickCount64();
+      lastSeenInput_ = 0;
+      lastPlayerInput_ = 0;
+      paused_ = false;
+    }
     if (!on && held_) {
       key(VK_LSHIFT, true);
       held_ = false;
       target_ = nullptr;
     }
+  }
+  // Forgets the current activity burst. Called once the helper has taken control
+  // back: the very keystroke that ended standby is still inside the hold window,
+  // so leaving it counted put the helper straight back to sleep the instant it
+  // resumed -- it detected the room and then began counting down again.
+  void clearPlayerHold() {
+    std::lock_guard lock(mutex_);
+    lastPlayerInput_ = DWORD(GetTickCount64()) - DWORD(PlayerHoldWindow) - 1;
+    // lastSend_ must move too. Nothing is injected while standing by, so it is
+    // stale by the whole standby period, and the player's last input -- which is
+    // what ended standby -- would then read as clearly newer than it and put the
+    // helper straight back to sleep. The normal exit path refreshes it as well;
+    // this entry point has to do the same.
+    lastSend_ = GetTickCount64();
+    lastSeenInput_ = 0;
+    paused_ = false;
+  }
+  // True while the player has produced input that the helper did not send.
+  bool playerBusy() {
+    std::lock_guard lock(mutex_);
+    return playerBusyLocked();
+  }
+  // Reported with the paused status so a stuck pause can be told apart from the
+  // player genuinely still working: a small idle value means input keeps
+  // arriving, a large one means the exit condition never fired.
+  std::wstring activityText() {
+    std::lock_guard lock(mutex_);
+    return L"距上次你的操作 " + std::to_wstring(lastPlayerIdle_) + L" ms" +
+           (lastChanged_ ? L"，本轮有新输入" : L"，本轮无新输入");
   }
   void release() {
     std::lock_guard lock(mutex_);
@@ -554,6 +924,7 @@ public:
     keybd_event(VK_LSHIFT, 0, 0, 0);
     Sleep(20);
     keybd_event(VK_LSHIFT, 0, KEYEVENTF_KEYUP, 0);
+    lastSend_ = GetTickCount64();
     return true; // Events requested, not proof that the game accepted them.
   }
   bool click(HWND w, Point p, unsigned epoch) {
@@ -581,6 +952,7 @@ public:
       up.mi.dwFlags = MOUSEEVENTF_LEFTUP;
       SendInput(1, &up, sizeof(up));
     }
+    lastSend_ = GetTickCount64();
     return n == 3;
   }
   bool press(HWND w, WORD vk, unsigned epoch) {
@@ -611,6 +983,7 @@ public:
       key(VK_CONTROL, true);
       return false;
     }
+    lastSend_ = GetTickCount64();
     for (wchar_t ch : s) {
       if (!foreground(w))
         return false;

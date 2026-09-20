@@ -54,4 +54,7 @@ Get-ChildItem -LiteralPath (Join-Path $projectRoot 'docs') -Filter '*.md' | ForE
     Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $distDir 'docs') -Force
 }
 Copy-Item -LiteralPath (Join-Path $projectRoot 'README.md') -Destination $distDir -Force
+# Recognition steps ship as data so they can be edited and shared without a rebuild.
+New-Item -ItemType Directory -Force (Join-Path $distDir 'profiles') | Out-Null
+Copy-Item -LiteralPath (Join-Path $projectRoot 'profiles/cn-16x9.json') -Destination (Join-Path $distDir 'profiles') -Force
 Write-Host "Windows build and tests complete: $distDir"

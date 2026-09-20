@@ -1,5 +1,27 @@
 # 验证记录
 
+## 0.3.0 补丁 · 识别步骤外置为数据文件
+
+2026-09-21 凌晨，Windows x64 / MinGW-w64 GCC。国服预设从编译期 `.inc` 迁到 `profiles/cn-16x9.json`。
+
+- 构建：六个目标全部重建通过，无警告。CTest 四套（core / platform / recorder / cn-recovery）全部通过。
+- 等价性核对：从 git 取出旧 `core/cn_templates.inc` 与 `core/cn_launcher_templates.inc`，逐条比对页面、动作、点击、宽高比、阈值、每个锚点的 ROI 与阈值、以及每一份模板字节。8 条旧规则全部映射到新 profile 的 6 条规则（Home 与 Browser 各两条重复规则合并为多变体锚点），**零差异**。
+- 新增回归测试：内置 profile 可解析且非空、序列化往返保持规则/锚点/模板字节一致、多变体确实存在、截断 JSON / 非对象根 / 不支持的版本 / 短模板 / 零对比度模板均被拒绝。
+- 本机实跑：从 `dist` 启动时 `cn_profile_source=shipped`、`cn_profile_rules=6`，确认外部文件被正确加载而非回退到内置副本。
+- 新增诊断能力实测：游戏前台且无遮挡、截图为 1024×576 时，最接近的已录页面为「更多模式：自定游戏」，总分 0.591，两个锚点分别 0.591 / 0.592，阈值均为 0.93。这说明当时不在任何已录页面，而非阈值偏严。
+- 未验证：`scripts/generate-cn-profile.py` 的图片模式需要 Pillow 与本机私有证据，本次未运行，因此**不能断言它能重新生成出一致的 profile**。239 帧历史回放（449 项）同样因为 `cn-replay` 需要 manifest 而尚未用新 profile 重跑。
+- 未改动：不引入任何第三方库；不放宽战网 0.94 与各页面阈值；识别仍不使用 OCR 或模型。
+
+## 0.3.0 补丁 · 前台切换与权限错配诊断
+
+2026-09-20 深夜，Windows x64 / MinGW-w64 GCC。起因是实机反馈“重启游戏能关掉游戏，但不会点击战网的进入游戏”。
+
+- 构建：`build/windows` 六个目标全部重建通过，无警告。CTest 四套（core / platform / recorder / cn-recovery）全部通过。
+- 本机只读诊断实跑：`helper.integrity=medium`、`helper.elevated=0`、`launcher.integrity=medium`。**战网不是以管理员权限运行**，因此本次点击失败与 UIPI 无关，排除了一条假设。
+- 同一次诊断：战网窗口 1000×640、`foreground=0`、`unobscured=0`，遮挡者是助手自身窗口、Chrome 与一个控制台窗口；NVIDIA 悬浮层仍按预期被忽略。这与“后台/遮挡状态下不截图、且必须先切到前台”的实现一致。
+- 未验证：修复后的前台重试在真实重启流程中能否把战网切到前台并点中“进入游戏”；`cn_branding` / `cn_button` 实际分数仍未知，因为截图被遮挡无法取得。这两项必须由用户在本机跑一次确认。
+- 未改动：截图仍拒绝被遮挡或最小化的窗口；没有放宽战网 0.94 的识别阈值，也没有绕过或模拟 UAC。权限错配只做检测与说明，不自动提权。
+
 ## 0.3.0 · 整夜分析、国服预设与重启入口
 
 2026-09-20，Windows x64 / MinGW-w64 GCC 15.2.0。完整证据与限制见 [整夜分析](OVERNIGHT-20260920.zh-CN.md)。

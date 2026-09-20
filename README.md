@@ -96,7 +96,8 @@ cd server && go test -race ./...
 
 ```text
 agent/             Windows 面板、校准、采集、输入、恢复与演示窗口
-core/              跨平台图像匹配、动作去抖与恢复预算
+core/              跨平台图像匹配、动作去抖、恢复预算与识别预设解析
+profiles/          识别步骤数据文件（国服 16:9 预设）
 tests/             核心行为测试
 server/            Go 服务端与内嵌网页
 scripts/           构建脚本

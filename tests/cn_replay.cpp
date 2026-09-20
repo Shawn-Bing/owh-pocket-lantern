@@ -22,10 +22,20 @@ Frame load(const std::wstring &path, int cropTop) {
 }
 int main(int argc,char **argv) {
   try {
+    // The embedded fallback is generated from the shipped profile file, so
+    // validating it here covers the bytes both of them carry.
+    CNProfile profile;
+    std::string error;
+    require(parseCNProfile(defaultCNProfileJson(),profile,error),
+            ("Embedded CN profile must parse: "+error).c_str());
+    require(!profile.rules.empty(),"CN profile must carry game rules");
+    require(profile.launcher.size()>=2,"CN profile must carry both launcher anchors");
     Frame empty, blank{960,540,std::vector<std::uint32_t>(960*540,0xff182348)};
-    require(!recognizeCNGame(empty) && !recognizeCNGame(blank),"Unknown or blue-only screen must not restart");
-    require(!recognizeCNLauncher(blank,1),"Blue-only launcher must not launch");
-    require(!recognizeCNLauncher(blank,0),"Invalid DPI must not launch");
+    require(!recognizeCNGame(empty,profile.rules,profile.join) &&
+            !recognizeCNGame(blank,profile.rules,profile.join),
+            "Unknown or blue-only screen must not restart");
+    require(!recognizeCNLauncher(blank,1,profile.launcher),"Blue-only launcher must not launch");
+    require(!recognizeCNLauncher(blank,0,profile.launcher),"Invalid DPI must not launch");
     if(argc==1) {std::cout<<"CN recovery negative cases passed\n";return 0;}
     require(argc==2,"Usage: cn-replay [manifest.tsv]");
     Gdiplus::GdiplusStartupInput input;ULONG_PTR token{};
@@ -40,7 +50,9 @@ int main(int argc,char **argv) {
       std::getline(in,scale,'\t');std::getline(in,path);
       if(!path.empty() && path.back()=='\r')path.pop_back();
       auto frame=load(wide(path),std::stoi(top));
-      auto result=scope=="launcher" ? recognizeCNLauncher(frame,std::stod(scale)) : recognizeCNGame(frame);
+      auto result=scope=="launcher"
+                      ? recognizeCNLauncher(frame,std::stod(scale),profile.launcher)
+                      : recognizeCNGame(frame,profile.rules,profile.join);
       bool accepted=false;
       std::istringstream allowed(expected);std::string page;
       while(std::getline(allowed,page,'|')) accepted=accepted || int(result.page)==std::stoi(page);
@@ -52,7 +64,8 @@ int main(int argc,char **argv) {
         for(int y=int(frame.height*.63);y<int(frame.height*.715);++y)
           for(int x=int(frame.width*.41);x<int(frame.width*.59);++x)
             frame.pixels[std::size_t(y)*frame.width+x]=0xff151828;
-        require(recognizeCNGame(frame).page!=CNPage::LoginError,"Logo and login button without error text must not restart");
+        require(recognizeCNGame(frame,profile.rules,profile.join).page!=CNPage::LoginError,
+                "Logo and login button without error text must not restart");
         ++mutations;
       }
       ++rows;

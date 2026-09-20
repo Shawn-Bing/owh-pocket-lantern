@@ -15,7 +15,8 @@ constexpr const wchar_t *ActionNames[] = {L"点击按钮",
                                           L"输入文字并 Enter",
                                           L"到达目标房间 / 持续 Shift",
                                           L"登录/错误页超时恢复",
-                                          L"战网启动游戏"};
+                                          L"战网启动游戏",
+                                          L"仅观察（结束房间会话）"};
 enum {
   Start = 101,
   Stop,
@@ -88,6 +89,40 @@ std::wstring textOf(int id) {
   return s;
 }
 bool checked(int id) { return SendMessageW(control(id), BM_GETCHECK, 0, 0) == BST_CHECKED; }
+// Three decimals, the precision the recognition thresholds are expressed in.
+std::wstring fixed3(double v) {
+  std::wostringstream out;
+  out << std::fixed << std::setprecision(3) << v;
+  return out.str();
+}
+std::wstring launcherScoresText(const CNLauncherScore &score) {
+  std::wstring out;
+  for (std::size_t i = 0; i < score.scores.size(); ++i) {
+    if (i)
+      out += L" / ";
+    out += fixed3(score.scores[i]);
+  }
+  return out;
+}
+// Names the closest recorded page and the first anchor that missed its own
+// threshold, so a failing page says whether to retune or to record a new step.
+std::wstring gameClosestText(const CNGameScore &score, const std::vector<CNRule> &rules) {
+  if (!score.evaluated || score.rule < 0 || std::size_t(score.rule) >= rules.size())
+    return L"未匹配任何已录制页面。";
+  const auto &rule = rules[std::size_t(score.rule)];
+  std::wstring out = L"最接近「" + rule.label + L"」" + fixed3(score.best) + L"：";
+  bool named = false;
+  for (std::size_t i = 0; i < score.anchors.size() && i < rule.anchors.size(); ++i)
+    if (score.anchors[i] < rule.anchors[i].minimum) {
+      out += L"锚点" + std::to_wstring(i) + L" " + fixed3(score.anchors[i]) + L" < " +
+             fixed3(rule.anchors[i].minimum);
+      named = true;
+      break;
+    }
+  if (!named)
+    out += L"宽高比或阈值不符";
+  return out + L"。";
+}
 void log(const std::wstring &msg) {
   std::lock_guard lock(logMutex);
   try {
@@ -178,12 +213,14 @@ void worker() {
   RecoveryBudget budget;
   unsigned epoch = ~0u;
   Millis tickAt{}, missingSince{}, hungSince{}, unknownSince{}, desktopPaused{},
-      launchDeadline{}, lastProcessScan{}, windowSince{};
+      launchDeadline{}, lastProcessScan{}, windowSince{}, activationDeadline{}, standbySince{},
+      lastUnmatchedSave{};
   int typedPage = -1;
   Process game{}, launcher{};
   Config c;
   bool blocked{}, cycleBudgeted{}, waitingGame{}, activationPending{}, cleanupChecked{};
   bool launcherCoverRetried{};
+  int unmatchedSaved{};
   Millis launcherCoverSince{};
   for (;;) {
     input.checkFocus();
@@ -208,7 +245,7 @@ void worker() {
       disconnect.reset();
       cnJoin.reset();
       missingSince = hungSince = unknownSince = desktopPaused = launchDeadline =
-          lastProcessScan = windowSince = 0;
+          lastProcessScan = windowSince = activationDeadline = standbySince = 0;
       typedPage = -1;
       blocked = false;
       cycleBudgeted = false;
@@ -240,6 +277,58 @@ void worker() {
     if (requestedRestart) blocked=false;
     if (blocked) {
       input.release();
+      continue;
+    }
+    // While the player is at the computer the helper is redundant: they can see a
+    // disconnect themselves, the pulses are global events that would land in
+    // whatever application they are using rather than in the game, and captures
+    // would be spent on a screen nobody is watching. Standing down is therefore
+    // strictly cheaper than continuing, and it resumes by itself once their input
+    // stops. This is deliberately placed after `blocked` so a configuration or
+    // permission problem is still reported instead of being masked by standby.
+    // The game being in front means the player is back at it, so the countdown
+    // ends at once rather than running out: clicking the game is itself the signal
+    // that they want it driven again. Without this the helper sits in standby while
+    // the game is focused, never recognises the settings screen it was left on and
+    // never presses Escape to close it.
+    if (c.standbyOnInput && input.playerBusy() && !foreground(game.window)) {
+      input.release();
+      gate.observe(-1);
+      disconnect.reset();
+      if (!standbySince)
+        standbySince = now;
+      publish("STANDBY",
+              L"你正在使用电脑，助手待机中；不发按键、不检测，停手约 1 分钟后自动恢复并切回游戏（" +
+                  input.activityText() + L"）。",
+              game.pid);
+      continue;
+    }
+    if (standbySince) {
+      // Deadlines must not expire while nobody was watching.
+      if (launchDeadline)
+        launchDeadline += now - standbySince;
+      standbySince = 0;
+      lastProcessScan = 0;
+      // The input that ended standby must not immediately re-arm it, or the
+      // helper resumes for one tick and sleeps again.
+      input.clearPlayerHold();
+      // Resuming is useless while the game is behind the window the player left
+      // open, and the pulses would keep landing in that window. Ask for the
+      // foreground back; the settings screen they usually leave open is closed by
+      // the escape rule once it is recognised.
+      activationPending = true;
+      log(L"你已停手，助手恢复运行，并请求切回游戏窗口。");
+    }
+    // A higher-integrity game silently swallows every input we send: SendInput
+    // reports success and the log says "已执行", while nothing reaches the game.
+    // Saying so up front is far cheaper than debugging a run that clicks into the
+    // void, which is exactly what this cost twice.
+    if (game.pid && outranks(game)) {
+      publish("NEEDS_USER",
+              L"游戏以管理员权限运行，助手是普通权限，Windows 会丢弃助手发送的全部按键和点击。"
+              L"请关闭助手，以管理员身份重新运行后再开始。",
+              game.pid);
+      blocked = true;
       continue;
     }
     if (now - lastProcessScan >= 2000 || lastProcessScan == 0) {
@@ -319,6 +408,16 @@ void worker() {
       if (background && c.holdShift && !c.pulseShift) {
         input.release();
         publish("WAITING_FOCUS", L"持续按住模式只在前台工作；游戏回到前台后继续。", game.pid, score);
+        return;
+      }
+      // The pulse is a global event addressed to whatever window has focus, so
+      // while the player is working it reaches their application instead of the
+      // game. Standby already covers that case before this point; this is the
+      // fallback for the transition second, where standby has not yet engaged.
+      if (c.standbyOnInput && c.pulseShift && input.playerBusy()) {
+        input.release();
+        publish("STANDBY",
+                L"你正在使用电脑，助手待机中（" + input.activityText() + L"）。", game.pid, score);
         return;
       }
       bool ok = true;
@@ -466,12 +565,23 @@ void worker() {
       continue;
     }
     // Request focus once per start/recovery transition. Manual focus changes while
-    // running do not cause repeated focus stealing; Windows may deny this request.
+    // running do not cause repeated focus stealing. A refused SetForegroundWindow
+    // only flashes the taskbar button, so one request is not proof of success:
+    // keep asking for a bounded window, then stop and record why.
     if (activationPending) {
-      activationPending = false;
-      if (running && !foreground(target.window)) {
-        ShowWindow(target.window, SW_RESTORE);
-        SetForegroundWindow(target.window);
+      if (foreground(target.window)) {
+        activationPending = false;
+        activationDeadline = 0;
+      } else if (!activationDeadline) {
+        activationDeadline = now + 10000;
+        requestForeground(target.window);
+      } else if (now < activationDeadline) {
+        requestForeground(target.window);
+      } else {
+        activationPending = false;
+        activationDeadline = 0;
+        log(outranks(target) ? L"前台切换超时：目标以更高权限运行，Windows 拒绝切换（UIPI）。"
+                             : L"前台切换超时：Windows 拒绝了前台切换。");
       }
     }
     bool background = !foreground(target.window);
@@ -494,9 +604,16 @@ void worker() {
       input.release();
       gate.observe(-1);
       disconnect.reset();
-      publish("WAITING_FOCUS",
-              isLauncher ? L"请把战网窗口置于前台；切换回来后自动继续。"
-                         : L"已释放 Shift。游戏回到前台后自动继续。",
+      // A window owned by a higher-integrity process can never be activated or
+      // receive our input, so asking the user to click it would be misleading.
+      bool uipi = outranks(target);
+      publish(uipi ? "NEEDS_USER" : "WAITING_FOCUS",
+              uipi ? (isLauncher ? L"战网以管理员权限运行，助手是普通权限；Windows 会阻止助手切换窗口和发送点击。"
+                                   L"请以管理员身份运行助手，或让战网以普通权限运行。"
+                                 : L"游戏以管理员权限运行，助手是普通权限；Windows 会阻止助手发送按键。"
+                                   L"请以管理员身份运行助手。")
+                   : (isLauncher ? L"请把战网窗口置于前台；切换回来后自动继续。"
+                                 : L"已释放 Shift。游戏回到前台后自动继续。"),
               target.pid);
       continue;
     }
@@ -520,10 +637,14 @@ void worker() {
     }
     auto m = match(frame, c.steps, isLauncher, c.threshold);
     CNObservation builtin;
+    CNLauncherScore launcherScore;
+    CNGameScore gameScore;
     if (c.cnPreset && !c.demo)
-      builtin=isLauncher ? recognizeCNLauncher(frame,GetDpiForWindow(target.window)/96.0) : recognizeCNGame(frame);
-    builtin=cnJoin.prepare(std::move(builtin),now);
-    bool useBuiltin=builtin && (builtin.step.action==Action::Restart || (m.index<0 && !m.ambiguous) ||
+      builtin=isLauncher ? recognizeCNLauncher(frame,GetDpiForWindow(target.window)/96.0,c.cnProfile.launcher,&launcherScore)
+                         : recognizeCNGame(frame,c.cnProfile.rules,c.cnProfile.join,&gameScore);
+    builtin=cnJoin.prepare(std::move(builtin),now,cnCardClick(c.cnProfile));
+    bool useBuiltin=builtin && (builtin.step.action==Action::Restart ||
+        builtin.step.action==Action::Ignore || (m.index<0 && !m.ambiguous) ||
         (m.index>=0 && c.steps[m.index].action==Action::Ready && builtin.step.action!=Action::Ready));
     if (useBuiltin) {m.index=builtin.key();m.score=builtin.score;m.ambiguous=false;m.aspectMismatch=false;}
     if (m.index < 0) {
@@ -534,10 +655,35 @@ void worker() {
       input.release();
       if (!unknownSince)
         unknownSince = now;
+      // Stuck on an unrecognised page for a while: that frame is the evidence, and
+      // it is saved whatever the score. An earlier "near miss >= 0.80" condition
+      // skipped exactly the interesting case, where a page matches no rule at all
+      // or matches only intermittently and so never passes the two-frame gate.
+      if (!isLauncher && unknownSince && now - unknownSince >= 5000 && unmatchedSaved < 40 &&
+          now - lastUnmatchedSave >= 30000) {
+        lastUnmatchedSave = now;
+        std::error_code ec;
+        auto dir = std::filesystem::path(directory) / L"unmatched";
+        std::filesystem::create_directories(dir, ec);
+        SYSTEMTIME t{};
+        GetLocalTime(&t);
+        std::wostringstream name;
+        name << L"miss-" << std::setfill(L'0') << std::setw(2) << t.wHour << std::setw(2)
+             << t.wMinute << std::setw(2) << t.wSecond << L"-" << std::setw(3)
+             << t.wMilliseconds << L"-" << ++unmatchedSaved << L".bmp";
+        auto path = dir / name.str();
+        if (saveFrameBmp(frame, path))
+          log(L"未识别画面已保存：" + path.wstring());
+      }
       publish(m.ambiguous ? "AMBIGUOUS" : "UNKNOWN",
               m.ambiguous ? L"多个页面特征过于相似，请重新圈选更独特的区域。"
                           : (m.aspectMismatch ? L"页面未匹配；检查窗口宽高比是否与校准时一致。"
-                                              : L"未匹配已校准页面，等待加载或新的校准。"),
+                             : (isLauncher && launcherScore.evaluated
+                                    ? L"战网启动页未匹配：锚点 " + launcherScoresText(launcherScore) +
+                                          L"（每个锚点都要达到自己的阈值）。"
+                                    : (!isLauncher && gameScore.evaluated
+                                           ? gameClosestText(gameScore, c.cnProfile.rules)
+                                           : L"未匹配已校准页面，等待加载或新的校准。"))),
               target.pid, m.score);
       continue;
     }
@@ -585,18 +731,24 @@ void worker() {
               m.score);
       continue;
     }
-    if (!gate.cooldownReady(now)) {
+    // "自动加入" is worth retrying quickly and often: if the click did not take,
+    // the lobby may have filled in that instant, and the normal 5s/3 attempts
+    // budget would stop and demand a manual restart instead of just asking again.
+    const bool joining = useBuiltin && builtin.page == CNPage::Join;
+    const Millis cooldown = joining ? 1500 : 5000;
+    const int maximum = joining ? 8 : 3;
+    if (!gate.cooldownReady(now, cooldown)) {
       publish("NAVIGATING", L"等待页面变化：" + s.label, target.pid, m.score);
       continue;
     }
-    if (gate.exhausted(m.index) || (s.action == Action::Text && typedPage == m.index)) {
+    if (gate.exhausted(m.index, maximum) || (s.action == Action::Text && typedPage == m.index)) {
       publish("NEEDS_USER",
               L"操作后页面没有变化：" + s.label + L"。为避免重复输入已暂停；停止后重新开始。",
               target.pid, m.score);
       blocked = true;
       continue;
     }
-    if (!gate.canAct(m.index, now)) {
+    if (!gate.canAct(m.index, now, cooldown, maximum)) {
       publish("NAVIGATING", L"等待页面变化：" + s.label, target.pid, m.score);
       continue;
     }
@@ -616,6 +768,13 @@ void worker() {
         std::lock_guard lock(statusMutex);
         ++status.restarts;
       }
+    }
+    // A recognised page that must never be acted on: the room session has
+    // already been cleared above, so all that is left is to say so and wait.
+    if (s.action == Action::Ignore) {
+      publish("IDLE", L"已知的非对局页面：" + s.label + L"；已释放 Shift 并结束房间会话。",
+              target.pid, m.score);
+      continue;
     }
     switch (s.action) {
     case Action::Click:
@@ -639,8 +798,20 @@ void worker() {
     // Partial SendInput failures are attempts too: never retry them every second forever.
     gate.acted(m.index, now);
     if (useBuiltin) cnJoin.acted(builtin.page,ok,now);
+    // The join click is itself the evidence of being in a room: the lobby, the
+    // map intro, spectating and the results screen all follow it and none shows
+    // the HUD the Ready template was recorded from. Without this the pulses only
+    // start once the first match HUD appears, which can be minutes later.
+    if (useBuiltin && builtin.page == CNPage::Join && !c.dryRun) {
+      room.joined();
+      log(L"已确认加入房间，立即开始房间会话。");
+    }
     if (!ok) {
-      publish("INPUT_BLOCKED", L"输入未成功或焦点改变，请检查窗口权限。", target.pid);
+      publish("INPUT_BLOCKED",
+              outranks(target) ? L"输入被 Windows 拒绝：目标以更高权限运行（UIPI）。"
+                                 L"请以管理员身份运行助手。"
+                               : L"输入未成功或焦点改变，请检查窗口权限。",
+              target.pid);
       continue;
     }
     if (s.action == Action::Launch) {
@@ -655,11 +826,36 @@ void worker() {
 void refreshSteps() {
   SendMessageW(control(Steps), LB_RESETCONTENT, 0, 0);
   auto c = snapshotConfig();
+  auto add = [&](const std::wstring &line) {
+    SendMessageW(control(Steps), LB_ADDSTRING, 0, reinterpret_cast<LPARAM>(line.c_str()));
+  };
   for (auto &s : c.steps) {
     auto line =
         (s.launcher ? L"[战网] " : L"[游戏] ") + s.label + L"  →  " + ActionNames[int(s.action)];
-    SendMessageW(control(Steps), LB_ADDSTRING, 0, reinterpret_cast<LPARAM>(line.c_str()));
+    add(line);
   }
+  // The preset lives in profiles/cn-16x9.json and is not edited from this list,
+  // but leaving it out made the panel claim two steps while the helper was acting
+  // on eight more. Preset entries come after the manual ones on purpose: the
+  // remove handler already ignores any index past c.steps, so they are read-only.
+  if (!c.cnPreset)
+    return;
+  if (!c.cnProfileError.empty()) {
+    add(L"—— 国服预设加载失败：" + wide(c.cnProfileError));
+    return;
+  }
+  if (c.cnProfile.rules.empty() && c.cnProfile.launcher.empty())
+    return;
+  std::wstring source = c.cnProfileSource == "local"     ? L"本机覆盖"
+                        : c.cnProfileSource == "shipped" ? L"随包文件"
+                        : c.cnProfileSource == "builtin" ? L"内置回退"
+                                                         : L"未加载";
+  add(L"—— 国服预设 · " + source + L" · 只读 ——");
+  if (!c.cnProfile.launcher.empty())
+    add(L"[战网] 战网启动锚点 ×" + std::to_wstring(c.cnProfile.launcher.size()) +
+        L"  →  战网启动游戏   （预设）");
+  for (const auto &rule : c.cnProfile.rules)
+    add(L"[游戏] " + rule.label + L"  →  " + ActionNames[int(rule.action)] + L"   （预设）");
 }
 bool syncConfig() {
   auto c = snapshotConfig();
@@ -673,7 +869,7 @@ bool syncConfig() {
   c.holdShift = checked(Hold);
   c.autoRecover = checked(Auto);
   c.pulseShift = SendMessageW(control(ShiftMode), CB_GETCURSEL, 0, 0) == 0;
-  c.backgroundPulse = checked(BackgroundPulse);
+  c.backgroundPulse = false;  // 全局后台点按已移除：全局按键只会送到焦点窗口
   c.cnPreset = !c.demo && checked(CnPreset);
   c.neacPath = textOf(NeacPath);
   if (!c.neacPath.empty() && !validNeacPath(c.neacPath)) {
@@ -1003,8 +1199,6 @@ void controls() {
   for (auto t : {L"每秒点按（20ms）", L"持续按住（前台）"})
     SendMessageW(control(ShiftMode), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(t));
   SendMessageW(control(ShiftMode), CB_SETCURSEL, c.pulseShift ? 0 : 1, 0);
-  add(L"BUTTON", L"切到后台仍全局点按", BackgroundPulse, 405, 329, 400, 26, BS_AUTOCHECKBOX);
-  SendMessageW(control(BackgroundPulse), BM_SETCHECK, c.backgroundPulse ? BST_CHECKED : BST_UNCHECKED, 0);
   add(L"BUTTON", L"自动恢复（每小时最多 3 次）", Auto, 22, 365, 350, 26, BS_AUTOCHECKBOX);
   add(L"BUTTON", L"国服预设：最稳轮换版导航与重启", CnPreset, 405, 365, 413, 26, BS_AUTOCHECKBOX);
   SendMessageW(control(CnPreset),BM_SETCHECK,c.cnPreset?BST_CHECKED:BST_UNCHECKED,0);
@@ -1036,7 +1230,7 @@ void controls() {
       0, 22, 749, 800, 26);
   settingsIds = {Save,    Browse, Record, Remove, GameExe, Launcher,  Args,  Server, Token,
                  Machine, Dry,    Hold,   Auto,   Scope,   ActionBox, Label, TextArg,
-                 ShiftMode, BackgroundPulse, NeacPath, NeacBrowse, CnPreset};
+                 ShiftMode, NeacPath, NeacBrowse, CnPreset};
   refreshSteps();
 }
 void refreshStatus() {
@@ -1081,6 +1275,24 @@ LRESULT CALLBACK mainProc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
       break;
     case Record:
       beginCalibration();
+      break;
+    case Steps:
+      // Double-clicking the preset header opens the profile, so thresholds and
+      // variants can be edited without hunting for the path. Preset rows sit after
+      // the manual ones and the remove handler already ignores them.
+      if (HIWORD(wp) == LBN_DBLCLK) {
+        auto c = snapshotConfig();
+        auto i = SendMessageW(control(Steps), LB_GETCURSEL, 0, 0);
+        if (i == int(c.steps.size())) {
+          auto local = std::filesystem::path(directory) / L"cn-profile.json";
+          auto shipped = std::filesystem::path(exeDirectory()) / L"profiles" / L"cn-16x9.json";
+          auto target = std::filesystem::exists(local) ? local : shipped;
+          if (std::filesystem::exists(target))
+            ShellExecuteW(w, L"open", target.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+          else
+            MessageBoxW(w, L"没有找到预设文件。", L"国服预设", MB_ICONINFORMATION);
+        }
+      }
       break;
     case Remove: {
       auto i = SendMessageW(control(Steps), LB_GETCURSEL, 0, 0);

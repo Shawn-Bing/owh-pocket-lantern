@@ -75,7 +75,11 @@ inline double similarity(const std::vector<std::uint8_t> &a, const std::vector<s
   diff = diff / a.size() + .20 * std::abs(ma - mb);
   return std::clamp(1 - diff / 128.0, 0.0, 1.0);
 }
-enum class Action { Click, Enter, Escape, Text, Ready, Restart, Launch };
+// Ignore marks a page recognised only so an established room session ends: it
+// is never clicked, and unlike Ready it stops the Shift pulses. Menus the player
+// opens deliberately -- settings, hero gallery -- belong here. Appended last so
+// the integer values already stored in settings.ini keep their meaning.
+enum class Action { Click, Enter, Escape, Text, Ready, Restart, Launch, Ignore };
 struct Step {
   std::wstring label, text;
   bool launcher{};
@@ -148,6 +152,12 @@ class RoomSession {
 public:
   void reset() { active_ = false; }
   bool active() const { return active_; }
+  // A confirmed join is itself evidence of being in a room. The lobby, the map
+  // intro, spectating and the results screen all follow it, and none of them
+  // shows the HUD the Ready template was recorded from, so waiting for that HUD
+  // could delay the first pulse by minutes. Recognised menus, error pages,
+  // ambiguity and process changes still end the session.
+  void joined() { active_ = true; }
   void observe(const Step *step, bool confirmed, bool ambiguous = false) {
     if (ambiguous || (step && (step->launcher || step->action != Action::Ready)))
       active_ = false;
@@ -191,9 +201,20 @@ public:
       confirmations_ = std::min(2, confirmations_ + 1);
     return confirmations_ >= 2;
   }
-  bool exhausted(int index) const { return lastAction_ == index && attempts_ >= 3; }
-  bool cooldownReady(Millis now) const { return lastAt_ == 0 || now - lastAt_ >= 5000; }
-  bool canAct(int index, Millis now) const { return cooldownReady(now) && !exhausted(index); }
+  // The retry budget is per action kind rather than global. A join that silently
+  // did nothing is worth retrying quickly, because the lobby may simply have been
+  // full at that instant and stopping there strands the whole session. A
+  // navigation button that did nothing usually means the screen is not what we
+  // think it is, so it keeps the conservative default.
+  bool exhausted(int index, int maximum = 3) const {
+    return lastAction_ == index && attempts_ >= maximum;
+  }
+  bool cooldownReady(Millis now, Millis cooldown = 5000) const {
+    return lastAt_ == 0 || now - lastAt_ >= cooldown;
+  }
+  bool canAct(int index, Millis now, Millis cooldown = 5000, int maximum = 3) const {
+    return cooldownReady(now, cooldown) && !exhausted(index, maximum);
+  }
   void acted(int index, Millis now) {
     if (lastAction_ != index) {
       attempts_ = 0;
