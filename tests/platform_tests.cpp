@@ -106,6 +106,12 @@ int main(int argc, char **argv) {
     require(loadConfig(dir, true).standbySeconds == StandbySecondsMin, "Standby delay clamped up");
     writeIni(dir + L"\\settings.ini", L"agent", L"standby_seconds", L"99999");
     require(loadConfig(dir, true).standbySeconds == StandbySecondsMax, "Standby delay clamped down");
+    // A removed option must not survive in the settings file, or it reads as live
+    // configuration that simply has no effect.
+    writeIni(dir + L"\\settings.ini", L"agent", L"background_pulse", L"1");
+    saveConfig(dir, c);
+    require(readIni(dir + L"\\settings.ini", L"agent", L"background_pulse", L"gone") == L"gone",
+            "Retired background pulse option is removed on save");
     saveConfig(dir, c);
     require(Config{}.cnPreset && !loaded.cnPreset, "CN preset defaults on and stays disabled in demo");
     c.cnPreset = false;

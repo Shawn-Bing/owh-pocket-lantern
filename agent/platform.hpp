@@ -83,6 +83,13 @@ inline void writeIni(const std::wstring &p, const wchar_t *section, const wchar_
   if (!WritePrivateProfileStringW(section, key, v.c_str(), p.c_str()))
     throw std::runtime_error("Cannot save configuration");
 }
+// WritePrivateProfileString with a null value deletes the key. Used to retire
+// options that no longer exist: leaving a stale line in the user's settings file
+// makes a removed feature look like live configuration.
+inline void removeIni(const std::wstring &p, const wchar_t *section, const wchar_t *key) {
+  if (std::filesystem::exists(p))
+    WritePrivateProfileStringW(section, key, nullptr, p.c_str());
+}
 inline int number(const std::wstring &s, int def = 0) {
   try {
     return std::stoi(s);
@@ -280,6 +287,9 @@ inline void saveConfig(const std::wstring &dir, const Config &c) {
            {L"auto_recover", c.autoRecover ? L"1" : L"0"}})
     writeIni(p, L"agent", kv.first.c_str(), kv.second);
   writeIni(p, L"workflow", L"count", std::to_wstring(c.steps.size()));
+  // Retired: the global background pulse no longer exists. Writing it with a
+  // value would keep re-creating a setting nothing reads.
+  removeIni(p, L"agent", L"background_pulse");
   for (std::size_t i = 0; i < c.steps.size(); ++i) {
     auto &s = c.steps[i];
     auto sec = L"step" + std::to_wstring(i);

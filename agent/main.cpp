@@ -143,6 +143,25 @@ void log(const std::wstring &msg) {
   } catch (...) {
   }
 }
+// Durations are shown the way a person reads them: whole minutes above a minute,
+// seconds below. Getting this from the setting rather than hardcoding it matters,
+// because the message is the only place the user sees which delay is in force.
+std::wstring durationText(int seconds) {
+  if (seconds >= 60 && seconds % 60 == 0)
+    return std::to_wstring(seconds / 60) + L" 分钟";
+  return std::to_wstring(seconds) + L" 秒";
+}
+// The recovery counter is the number the user reads off the status bar, so every
+// increment is logged with its reason. Two of the three sites used to bump it
+// silently, which made "恢复了几次" unanswerable from the log afterwards.
+void countRecovery(const std::wstring &what) {
+  unsigned n;
+  {
+    std::lock_guard lock(statusMutex);
+    n = ++status.restarts;
+  }
+  log(L"恢复计数 " + std::to_wstring(n) + L"：" + what);
+}
 void publish(const char *state, const std::wstring &detail, DWORD pid = 0, double score = 0,
              Millis next = 0) {
   bool changed;
@@ -299,7 +318,8 @@ void worker() {
       if (!standbySince)
         standbySince = now;
       publish("STANDBY",
-              L"你正在使用电脑，助手待机中；不发按键、不检测，停手约 1 分钟后自动恢复并切回游戏（" +
+              L"你正在使用电脑，助手待机中；不发按键、不检测，停手约 " +
+                  durationText(c.standbySeconds) + L"后自动恢复并切回游戏（" +
                   input.activityText() + L"）。",
               game.pid);
       continue;
@@ -380,10 +400,7 @@ void worker() {
       if (!budget.take(now))
         return;
       cycleBudgeted = true;
-      {
-        std::lock_guard lock(statusMutex);
-        ++status.restarts;
-      }
+      countRecovery(L"游戏缺失或卡死，正在执行恢复。" + reason);
       publish("RECOVERING", reason, game.pid);
       if (game.pid && !terminateGame(game, c.gameExe, running, generation, epoch)) {
         if (!running || epoch != generation.load())
@@ -536,10 +553,7 @@ void worker() {
           if (!budget.take(now))
             continue;
           cycleBudgeted = true;
-          {
-            std::lock_guard lock(statusMutex);
-            ++status.restarts;
-          }
+          countRecovery(L"检测到游戏缺失，正在拉起启动器。");
         }
         if (!running || epoch != generation.load())
           continue;
@@ -766,10 +780,9 @@ void worker() {
         continue;
       }
       cycleBudgeted = true;
-      {
-        std::lock_guard lock(statusMutex);
-        ++status.restarts;
-      }
+      // The counter is consumed here, before the click: the budget slot is spent
+      // either way, and a failed click must not be retried without limit.
+      countRecovery(L"准备点击启动按钮「" + s.label + L"」，尚未执行。");
     }
     // A recognised page that must never be acted on: the room session has
     // already been cleared above, so all that is left is to say so and wait.
