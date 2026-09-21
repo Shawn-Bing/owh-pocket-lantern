@@ -143,6 +143,25 @@ PAGES = {
             ("标题+标签行", [0.0229, 0.010, 0.2156, 0.185]),
         ],
     },
+    # These two keep the region they already had -- it is the element the rule
+    # acts on (the 更多模式 tab, the 自定游戏 card), so moving it would change what
+    # the click means. Only the pixels are refreshed. One native frame each is
+    # thin: there is no same-page variation to measure, so the threshold stays at
+    # the floor and the separation below is the only thing verified.
+    "play": {
+        "label": "模式选择 · 更多模式",
+        "frames": ["201703"],
+        "anchors": [("模式选择标题", None), ("更多模式标签", None)],
+    },
+    "more": {
+        "label": "更多模式 · 自定游戏",
+        # 033507 is the same page with the 自定游戏 card hover-highlighted and the
+        # idle-kick warning showing. Treating it as a counter-example is what
+        # forced this rule's thresholds up to 0.96; it is same-page variation, and
+        # the card's glow is exactly the variation the anchor has to tolerate.
+        "frames": ["201733", "033507"],
+        "anchors": [("更多模式标题", None), ("自定游戏卡片", None)],
+    },
 }
 
 
@@ -178,13 +197,35 @@ def main():
     # Without this the negatives get polluted by the page itself and every
     # threshold comes out impossible.
     page_frames = {p: [k for k in spec["frames"] if k in frames] for p, spec in PAGES.items()}
-    seeds = {p: sample(*frames[ks[0]], PAGES[p]["anchors"][0][1])
-             for p, ks in page_frames.items() if ks}
+
+    def resolve_roi(page, index, spec_roi):
+        """`None` means "keep the region this rule already uses"."""
+        if spec_roi is not None:
+            return spec_roi
+        rules = by_page.get(page) or []
+        if not rules or index >= len(rules[0]["anchors"]):
+            return None
+        return rules[0]["anchors"][index]["roi"]
+
+    # Keep the seed ROI and the seed template apart. They are both "the seed", and
+    # passing the template where sample() wants an roi silently samples a region
+    # described by the template's first four bytes -- which classifies nothing and
+    # looks exactly like "no frame matches".
+    seeds, seed_rois = {}, {}
+    for p, ks in page_frames.items():
+        if not ks:
+            continue
+        roi = resolve_roi(p, 0, PAGES[p]["anchors"][0][1])
+        if roi is None:
+            print(f"  {p}: 无法确定种子区域，跳过分类")
+            continue
+        seed_rois[p] = roi
+        seeds[p] = sample(*frames[ks[0]], roi)
     others = []
     for k in sorted(frames):
         if any(k in ks for ks in page_frames.values()):
             continue
-        best = max(((similarity(sample(*frames[k], PAGES[p]["anchors"][0][1]), s), p)
+        best = max(((similarity(sample(*frames[k], seed_rois[p]), s), p)
                     for p, s in seeds.items()), default=(0, None))
         if best[0] >= args.assign:
             page_frames[best[1]].append(k)
@@ -203,7 +244,15 @@ def main():
         rule = rules[0]
         print(f"\n=== {page} · {rule['label']} -> {spec['label']}")
         new_anchors = []
-        for name, roi in spec["anchors"]:
+        old_anchors = list(rule["anchors"])
+        for index, (name, roi) in enumerate(spec["anchors"]):
+            if roi is None:
+                # Reuse this rule's existing geometry, in order.
+                if index >= len(old_anchors):
+                    print(f"  {name}: 规则没有第 {index} 个锚点，跳过")
+                    refused.append(f"{page}/{name}")
+                    continue
+                roi = old_anchors[index]["roi"]
             all_variants = [sample(*frames[k], roi) for k in page_frames[page] if k in frames]
             if not all_variants:
                 print(f"  {name}: no frames, keeping old anchor")
