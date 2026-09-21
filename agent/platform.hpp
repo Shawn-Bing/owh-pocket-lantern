@@ -1057,20 +1057,35 @@ inline bool terminateGame(const Process &p, const std::wstring &name,
     return false;
   if (!active())
     return false;
+  // Killing a client that has stopped talking to Windows is not one call. A
+  // disconnected Overwatch leaves its window hung -- the log says WINDOW_HUNG
+  // in as many words -- so a posted WM_CLOSE lands in a queue nobody will ever
+  // read and the graceful phase can only burn its budget. TerminateProcess does
+  // work, but a process parked inside a driver call, which is where an
+  // anti-cheat client leaves a disconnected game, is not destroyed the instant
+  // it is asked to be: it survives as a process object until the driver
+  // returns. Five seconds of waiting after the kill was measured to be far too
+  // short. The helper reported "无法关闭已验证的游戏进程" at 00:56:30, went idle,
+  // and the process then disappeared on its own -- the recovery had already
+  // been abandoned by the time the game actually let go. The two phases are
+  // therefore sized by what can still succeed: asking a window that answers to
+  // close itself is worth five seconds, asking one that does not is worth two,
+  // and the kill gets the long wait it needs.
+  const int gracefulTicks = (p.window && responsive(p.window)) ? 25 : 10;
   if (p.window) {
     DWORD owner{};
     GetWindowThreadProcessId(p.window, &owner);
     if (owner == p.pid)
       PostMessageW(p.window, WM_CLOSE, 0, 0);
   }
-  for (int i = 0; i < 25; ++i) {
+  for (int i = 0; i < gracefulTicks; ++i) {
     if (WaitForSingleObject(h.h, 200) == WAIT_OBJECT_0)
       return true;
     if (!active())
       return false;
   }
   if (!active() || !TerminateProcess(h.h, 0)) return false;
-  for (int i = 0; i < 25; ++i) {
+  for (int i = 0; i < 150; ++i) {
     if (WaitForSingleObject(h.h, 200) == WAIT_OBJECT_0) return true;
     if (!active()) return false;
   }

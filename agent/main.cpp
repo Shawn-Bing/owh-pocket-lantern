@@ -435,12 +435,20 @@ void worker() {
       cycleBudgeted = true;
       countRecovery(L"游戏缺失或卡死，正在执行恢复。" + reason);
       publish("RECOVERING", reason, game.pid);
+      // A false here is ambiguous. It means "could not kill it", but it also
+      // means "it was already gone when the handle was opened" -- the ordinary
+      // outcome when the client finally lets go during the wait. Conflating the
+      // two is what left the helper blocked, reporting that it could not close
+      // a process that had in fact already exited underneath it.
       if (game.pid && !terminateGame(game, c.gameExe, running, generation, epoch)) {
         if (!running || epoch != generation.load())
           return;
-        publish("NEEDS_USER", L"无法关闭已验证的游戏进程；请手动处理。", game.pid);
-        blocked = true;
-        return;
+        if (sameProcess(game, c.gameExe)) {
+          publish("NEEDS_USER", L"无法关闭已验证的游戏进程；请手动处理。", game.pid);
+          blocked = true;
+          return;
+        }
+        log(L"游戏进程在关闭过程中自行退出，继续恢复。");
       }
       game = {};
       gate.reset();
