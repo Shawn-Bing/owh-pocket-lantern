@@ -155,11 +155,12 @@ PAGES = {
     },
     "more": {
         "label": "更多模式 · 自定游戏",
-        # 033507 is the same page with the 自定游戏 card hover-highlighted and the
-        # idle-kick warning showing. Treating it as a counter-example is what
-        # forced this rule's thresholds up to 0.96; it is same-page variation, and
-        # the card's glow is exactly the variation the anchor has to tolerate.
-        "frames": ["201733", "033507"],
+        # Three renderings of the same page, and the difference between them is
+        # the point: 201733/033507 have the 自定游戏 card hover-highlighted, 205003
+        # has it dark because the pointer is elsewhere. The highlight follows the
+        # mouse, so an anchor recorded only in the lit state fails the moment the
+        # pointer moves -- which is what happened.
+        "frames": ["201733", "033507", "205003"],
         "anchors": [("更多模式标题", None), ("自定游戏卡片", None)],
     },
 }
