@@ -163,6 +163,21 @@ PAGES = {
         "frames": ["201733", "033507", "205003"],
         "anchors": [("更多模式标题", None), ("自定游戏卡片", None)],
     },
+    # The disconnect screen. It never fired: anchor1 was a horizontal strip at
+    # y=0.535 sampled from a *different* disconnect layout, so on the real
+    # "正在搜索游戏服务器..." screen it sat on empty background and scored 0.874
+    # against a 0.96 floor. That floor had been raised earlier as a stopgap
+    # because anchor0 -- the big Overwatch logo -- also matches the 创建游戏 lobby,
+    # which would restart the game while the user sits in a lobby waiting. The
+    # real defect was never the threshold: one anchor pointed at the wrong layout
+    # and the other is not distinctive. Both are replaced with regions that exist
+    # on this screen and not on the lobby.
+    "login_error": {
+        "rule": "与游戏服务器失去连接",
+        "label": "掉线 · 正在搜索游戏服务器",
+        "frames": ["143054"],
+        "anchors": [("守望先锋标志", None), ("正在搜索游戏服务器", [0.40, 0.710, 0.20, 0.050])],
+    },
 }
 
 
@@ -199,14 +214,24 @@ def main():
     # threshold comes out impossible.
     page_frames = {p: [k for k in spec["frames"] if k in frames] for p, spec in PAGES.items()}
 
+    # A page can hold more than one rule: every disconnect screen is `login_error`,
+    # so matching on the page alone would always rebuild whichever one happens to
+    # be first and silently leave the other untouched.
+    def find_rule(page, spec):
+        rules = by_page.get(page) or []
+        want = spec.get("rule")
+        if not want:
+            return rules[0] if rules else None
+        return next((r for r in rules if r["label"] == want), None)
+
     def resolve_roi(page, index, spec_roi):
         """`None` means "keep the region this rule already uses"."""
         if spec_roi is not None:
             return spec_roi
-        rules = by_page.get(page) or []
-        if not rules or index >= len(rules[0]["anchors"]):
+        rule = find_rule(page, PAGES[page])
+        if rule is None or index >= len(rule["anchors"]):
             return None
-        return rules[0]["anchors"][index]["roi"]
+        return rule["anchors"][index]["roi"]
 
     # Keep the seed ROI and the seed template apart. They are both "the seed", and
     # passing the template where sample() wants an roi silently samples a region
@@ -238,11 +263,12 @@ def main():
 
     refused = []
     for page, spec in PAGES.items():
-        rules = by_page.get(page)
-        if not rules:
-            print(f"!! no existing rule for page {page}, skipping")
+        rule = find_rule(page, spec)
+        if rule is None:
+            print(f"!! no existing rule for page {page}"
+                  + (f" labelled {spec.get('rule')}" if spec.get("rule") else "")
+                  + ", skipping")
             continue
-        rule = rules[0]
         print(f"\n=== {page} · {rule['label']} -> {spec['label']}")
         new_anchors = []
         old_anchors = list(rule["anchors"])
