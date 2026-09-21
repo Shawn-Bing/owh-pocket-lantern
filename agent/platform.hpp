@@ -162,16 +162,25 @@ inline CNProfileLoad loadCNProfile(const std::wstring &dir) {
   }
   return result;
 }
+// Bounds for the standby takeover delay. Below a few seconds the helper would
+// treat ordinary reading as "away" and start pulsing into whatever the player is
+// using; above ten minutes it would never take over during a real absence.
+inline constexpr int StandbySecondsMin = 3;
+inline constexpr int StandbySecondsMax = 600;
 struct Config {
   std::wstring gameExe{L"Overwatch.exe"}, gameClass{L"TankWindowClass"}, launcherPath, launcherArgs;
   std::wstring server, token, machine, neacPath;
   bool dryRun{true}, holdShift{true}, autoRecover{true}, demo{};
-  bool pulseShift{true}, backgroundPulse{true};
+  bool pulseShift{true};
   // While the player is at the computer the helper stands down entirely: they can
   // see a disconnect themselves, the pulses are global events that would land in
   // whatever application they are using, and captures would be spent on a screen
   // nobody is watching.
   bool standbyOnInput{true};
+  // How long the player must stop producing input before the helper takes over.
+  // Ten seconds distinguishes "reading or thinking mid-session" from "walked
+  // away"; it is a setting because that judgement is the user's, not ours.
+  int standbySeconds{10};
   bool cnPreset{true};
   double threshold{.90};
   CNProfile cnProfile;
@@ -198,11 +207,13 @@ inline Config loadConfig(const std::wstring &dir, bool demo) {
   c.holdShift = number(readIni(p, L"agent", L"hold_shift", L"1")) != 0;
   c.autoRecover = number(readIni(p, L"agent", L"auto_recover", L"1")) != 0;
   c.pulseShift = number(readIni(p, L"agent", L"pulse_shift", L"1")) != 0;
-  // Removed: a global pulse is delivered to whatever window has focus, so with the
-  // game in the background it reached the player's application instead of the game
-  // and could never help. Keeping it as an option only invited that mistake.
-  c.backgroundPulse = false;
+  // A global pulse is delivered to whatever window has focus, so with the game in
+  // the background it reached the player's application instead of the game and
+  // could never help. The option is gone rather than defaulted off: keeping it
+  // only invited that mistake.
   c.standbyOnInput = number(readIni(p, L"agent", L"standby_on_input", L"1")) != 0;
+  c.standbySeconds = std::clamp(int(number(readIni(p, L"agent", L"standby_seconds", L"10"))),
+                                StandbySecondsMin, StandbySecondsMax);
   c.cnPreset = !demo && number(readIni(p, L"agent", L"cn_preset", L"1")) != 0;
   c.neacPath = readIni(p, L"agent", L"neac_path");
   auto profile = loadCNProfile(dir);
@@ -262,8 +273,8 @@ inline void saveConfig(const std::wstring &dir, const Config &c) {
            {L"dry_run", c.dryRun ? L"1" : L"0"},
            {L"hold_shift", c.holdShift ? L"1" : L"0"},
            {L"pulse_shift", c.pulseShift ? L"1" : L"0"},
-           {L"background_pulse", c.backgroundPulse ? L"1" : L"0"},
            {L"standby_on_input", c.standbyOnInput ? L"1" : L"0"},
+           {L"standby_seconds", std::to_wstring(c.standbySeconds)},
            {L"cn_preset", c.cnPreset ? L"1" : L"0"},
            {L"neac_path", c.neacPath},
            {L"auto_recover", c.autoRecover ? L"1" : L"0"}})
@@ -792,11 +803,14 @@ class Input {
   // at all is therefore the player, and the pause simply ends once their input
   // stops advancing. A short hold keeps one key press from flickering the state.
   static constexpr Millis PlayerInputMargin = 400;
-  // Three seconds was far too short: reading a paragraph, thinking, or watching
+  // How long the player must stay silent before the helper takes over. Three
+  // seconds was far too short: reading a paragraph, thinking, or watching
   // something all exceed it, so standby released during ordinary computer use and
-  // the pulses landed in whatever application had focus. One minute spans those
-  // pauses while still resuming promptly once the player walks away.
-  static constexpr Millis PlayerHoldWindow = 10000;
+  // the pulses landed in whatever application had focus. The default spans those
+  // pauses while still resuming promptly once the player walks away, and the exact
+  // value is a user setting because only the user knows their own rhythm.
+  static constexpr Millis DefaultHoldWindow = 10000;
+  Millis holdWindow_{DefaultHoldWindow};
   DWORD lastSeenInput_{}, lastPlayerInput_{};
   bool paused_{};
   Millis lastPlayerIdle_{};
@@ -818,7 +832,7 @@ class Input {
                 : std::int32_t(last - DWORD(lastSend_)) > std::int32_t(PlayerInputMargin))
       lastPlayerInput_ = last;
     lastPlayerIdle_ = Millis(std::int32_t(now - lastPlayerInput_));
-    bool busy = lastPlayerIdle_ < PlayerHoldWindow;
+    bool busy = lastPlayerIdle_ < holdWindow_;
     if (paused_ && !busy)
       // Leaving the pause: the send timestamp is stale from the silent period and
       // would otherwise read as the player having been busy the whole time.
@@ -838,6 +852,13 @@ class Input {
 
 public:
   ~Input() { release(); }
+  // Takes over after this much player silence. Clamped so a bad settings value
+  // cannot disable the standby guard entirely or make it fire on every keystroke.
+  void holdWindow(Millis ms) {
+    std::lock_guard lock(mutex_);
+    holdWindow_ = std::clamp<Millis>(ms, Millis(StandbySecondsMin) * 1000,
+                                     Millis(StandbySecondsMax) * 1000);
+  }
   void enable(bool on, unsigned epoch) {
     std::lock_guard lock(mutex_);
     epoch_ = epoch;
@@ -862,7 +883,7 @@ public:
   // resumed -- it detected the room and then began counting down again.
   void clearPlayerHold() {
     std::lock_guard lock(mutex_);
-    lastPlayerInput_ = DWORD(GetTickCount64()) - DWORD(PlayerHoldWindow) - 1;
+    lastPlayerInput_ = DWORD(GetTickCount64()) - DWORD(holdWindow_) - 1;
     // lastSend_ must move too. Nothing is injected while standing by, so it is
     // stale by the whole standby period, and the player's last input -- which is
     // what ended standby -- would then read as clearly newer than it and put the
@@ -914,10 +935,10 @@ public:
       target_ = w;
     return held_;
   }
-  bool pulse(HWND w, unsigned epoch, bool background) {
+  bool pulse(HWND w, unsigned epoch) {
     std::lock_guard lock(mutex_);
-    if (!enabled_ || epoch != epoch_ || !w || !IsWindow(w) ||
-        (!background && !foreground(w)) || !interactiveDesktop() ||
+    if (!enabled_ || epoch != epoch_ || !w || !IsWindow(w) || !foreground(w) ||
+        !interactiveDesktop() ||
         (GetAsyncKeyState(VK_SHIFT) & 0x8000))
       return false;
     // Compatibility with the user's known-working script. This API has no success result.

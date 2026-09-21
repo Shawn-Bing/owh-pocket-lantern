@@ -46,8 +46,9 @@ inline std::string diagnosticReport(const Config &c) {
       << "mode=" << (c.demo ? "demo" : "game") << "\n"
       << "dry_run=" << c.dryRun << "\nhold_shift=" << c.holdShift
       << "\nauto_recover=" << c.autoRecover << "\n"
-      << "pulse_shift=" << c.pulseShift << "\nbackground_pulse=" << c.backgroundPulse
-      << "\nstandby_on_input=" << c.standbyOnInput << "\n"
+      << "pulse_shift=" << c.pulseShift
+      << "\nstandby_on_input=" << c.standbyOnInput
+      << "\nstandby_seconds=" << c.standbySeconds << "\n"
       << "cn_preset=" << c.cnPreset << "\n"
       << "cn_profile_source=" << (c.cnProfileSource.empty() ? "none" : c.cnProfileSource) << "\n"
       << "cn_profile_rules=" << c.cnProfile.rules.size() << "\n"

@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
     c.launcherPath = exeDirectory() + L"\\owh-demo.exe";
     c.neacPath = L"C:\\Games\\中文目录\\OWNeacClient.exe";
     c.pulseShift = false;
-    c.backgroundPulse = false;
+    c.standbySeconds = 25;
     Step s;
     s.label = L"目标房间 / 中文";
     s.text = L"private-search-text";
@@ -95,9 +95,18 @@ int main(int argc, char **argv) {
     require(loaded.steps.size() == 1, "Template persisted");
     require(loaded.steps[0].label == s.label && loaded.steps[0].image == s.image, "Unicode/template roundtrip");
     require(loaded.token == c.token && loaded.dryRun, "Settings roundtrip");
-    require(!loaded.pulseShift && !loaded.backgroundPulse && loaded.neacPath == c.neacPath,
+    require(!loaded.pulseShift && loaded.neacPath == c.neacPath,
             "Pulse and residual process options roundtrip");
-    require(Config{}.pulseShift && Config{}.backgroundPulse, "New configurations use background pulses");
+    require(loaded.standbySeconds == 25, "Standby takeover delay roundtrip");
+    require(Config{}.pulseShift && Config{}.standbyOnInput, "New configurations pulse and stand by");
+    require(Config{}.standbySeconds == 10, "Standby takeover delay defaults to ten seconds");
+    // A settings file is user input: an out-of-range delay must not be able to
+    // disable the standby guard or make it fire on every keystroke.
+    writeIni(dir + L"\\settings.ini", L"agent", L"standby_seconds", L"0");
+    require(loadConfig(dir, true).standbySeconds == StandbySecondsMin, "Standby delay clamped up");
+    writeIni(dir + L"\\settings.ini", L"agent", L"standby_seconds", L"99999");
+    require(loadConfig(dir, true).standbySeconds == StandbySecondsMax, "Standby delay clamped down");
+    saveConfig(dir, c);
     require(Config{}.cnPreset && !loaded.cnPreset, "CN preset defaults on and stays disabled in demo");
     c.cnPreset = false;
     saveConfig(dir, c);
@@ -137,13 +146,14 @@ int main(int argc, char **argv) {
     input.enable(true, 2);
     auto foregroundWindow = GetForegroundWindow();
     require(!input.hold(foregroundWindow, 1), "Old generation cannot hold Shift");
-    require(!input.pulse(foregroundWindow, 1, true), "Old generation cannot pulse in background");
+    require(!input.pulse(foregroundWindow, 1), "Old generation cannot pulse");
     require(!input.click(foregroundWindow, {.5, .5}, 1), "Old generation cannot click");
     require(!input.press(foregroundWindow, VK_RETURN, 1), "Old generation cannot press keys");
     require(!input.text(foregroundWindow, L"must never be typed", 1), "Old generation cannot type");
     input.enable(false, 3);
+    input.holdWindow(Millis(0)); // Clamped, and never sends while stopped.
     require(!input.hold(foregroundWindow, 3), "Stopped input must stay disabled");
-    require(!input.pulse(foregroundWindow, 3, true), "Stopped background pulses stay disabled");
+    require(!input.pulse(foregroundWindow, 3), "Stopped pulses stay disabled");
     // Only this test's console child is terminated; no desktop input or game process is touched.
     wchar_t executable[32768]{};
     GetModuleFileNameW(nullptr, executable, 32768);

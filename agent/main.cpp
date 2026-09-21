@@ -45,7 +45,8 @@ enum {
   NetStatus,
   Diagnose,
   ShiftMode,
-  BackgroundPulse,
+  Standby,
+  StandbySeconds,
   NeacPath,
   NeacBrowse,
   CnPreset,
@@ -428,7 +429,7 @@ void worker() {
         lastProcessScan = 0;
         publish("INPUT_BLOCKED", L"无法核对游戏进程身份，已暂停按键。", game.pid);
         return;
-      } else if (c.pulseShift) ok = input.pulse(game.window, epoch, c.backgroundPulse);
+      } else if (c.pulseShift) ok = input.pulse(game.window, epoch);
       else ok = input.hold(game.window, epoch);
       publish(c.dryRun ? "DRY_RUN" : (!ok ? "INPUT_BLOCKED" : (background ? "BACKGROUND_INPUT" : "ACTIVE")),
               c.dryRun ? (c.holdShift ? L"演练：房间会话已确认，将持续发送 Shift。"
@@ -585,8 +586,10 @@ void worker() {
       }
     }
     bool background = !foreground(target.window);
-    bool backgroundRoom = !isLauncher && room.active() && c.pulseShift && c.backgroundPulse;
-    bool backgroundCapture = !isLauncher && c.backgroundPulse;
+    // A global key event reaches whatever window has focus, so with the game in
+    // the background a pulse could only ever land in the player's own application.
+    // The helper therefore never acts -- and never spends a capture -- on a game
+    // it cannot see. Standby covers the same ground earlier and more cheaply.
     auto availability=captureAvailability(target.window,true);
     bool launcherCover=!isLauncher && background && c.cnPreset && c.autoRecover && !c.dryRun &&
         availability.code=="occluded" && launcher.pid && availability.blockerPid==launcher.pid;
@@ -600,7 +603,7 @@ void worker() {
         continue;
       }
     } else {launcherCoverSince=0;launcherCoverRetried=false;}
-    if (background && !backgroundRoom && !(backgroundCapture && unobscured(target.window))) {
+    if (background) {
       input.release();
       gate.observe(-1);
       disconnect.reset();
@@ -617,11 +620,10 @@ void worker() {
               target.pid);
       continue;
     }
-    if (!capture.grab(target.window, frame, backgroundCapture)) {
+    if (!capture.grab(target.window, frame, false)) {
       input.release();
       gate.observe(-1);
       disconnect.reset();
-      if (backgroundRoom) { continueRoom(0, background); continue; }
       publish("CAPTURE_FAILED", capture.failure().message(), target.pid);
       continue;
     }
@@ -869,7 +871,9 @@ bool syncConfig() {
   c.holdShift = checked(Hold);
   c.autoRecover = checked(Auto);
   c.pulseShift = SendMessageW(control(ShiftMode), CB_GETCURSEL, 0, 0) == 0;
-  c.backgroundPulse = false;  // 全局后台点按已移除：全局按键只会送到焦点窗口
+  c.standbyOnInput = checked(Standby);
+  c.standbySeconds = std::clamp(int(number(textOf(StandbySeconds))), StandbySecondsMin,
+                                StandbySecondsMax);
   c.cnPreset = !c.demo && checked(CnPreset);
   c.neacPath = textOf(NeacPath);
   if (!c.neacPath.empty() && !validNeacPath(c.neacPath)) {
@@ -914,7 +918,9 @@ void setRunning(bool on, bool manualRestart = false) {
   ++generation;
   restartRequested=on && manualRestart ? generation.load() : ~0u;
   if (on) {
-    input.enable(!snapshotConfig().dryRun, generation.load());
+    auto snapshot = snapshotConfig();
+    input.holdWindow(Millis(snapshot.standbySeconds) * 1000);
+    input.enable(!snapshot.dryRun, generation.load());
     running = true;
   } else {
     running = false;
@@ -1202,6 +1208,13 @@ void controls() {
   add(L"BUTTON", L"自动恢复（每小时最多 3 次）", Auto, 22, 365, 350, 26, BS_AUTOCHECKBOX);
   add(L"BUTTON", L"国服预设：最稳轮换版导航与重启", CnPreset, 405, 365, 413, 26, BS_AUTOCHECKBOX);
   SendMessageW(control(CnPreset),BM_SETCHECK,c.cnPreset?BST_CHECKED:BST_UNCHECKED,0);
+  // Standby sits on the same row as the Shift controls, which stop at x=385.
+  add(L"BUTTON", L"你在用电脑时待机", Standby, 405, 329, 200, 26, BS_AUTOCHECKBOX);
+  add(L"STATIC", L"停止操作", 0, 612, 333, 72, 22);
+  add(L"EDIT", std::to_wstring(c.standbySeconds), StandbySeconds, 686, 329, 56, 26,
+      ES_AUTOHSCROLL | ES_NUMBER | WS_TABSTOP);
+  add(L"STATIC", L"秒后接管", 0, 748, 333, 72, 22);
+  SendMessageW(control(Standby), BM_SETCHECK, c.standbyOnInput ? BST_CHECKED : BST_UNCHECKED, 0);
   edit(L"OWNeac 路径", NeacPath, c.neacPath, 399, 570);
   add(L"BUTTON", L"浏览", NeacBrowse, 726, 399, 92, 26);
   SendMessageW(control(Hold), BM_SETCHECK, c.holdShift ? BST_CHECKED : BST_UNCHECKED, 0);
@@ -1230,7 +1243,7 @@ void controls() {
       0, 22, 749, 800, 26);
   settingsIds = {Save,    Browse, Record, Remove, GameExe, Launcher,  Args,  Server, Token,
                  Machine, Dry,    Hold,   Auto,   Scope,   ActionBox, Label, TextArg,
-                 ShiftMode, NeacPath, NeacBrowse, CnPreset};
+                 ShiftMode, NeacPath, NeacBrowse, CnPreset, Standby, StandbySeconds};
   refreshSteps();
 }
 void refreshStatus() {
