@@ -228,7 +228,19 @@ void worker() {
   Frame frame;
   StepGate gate;
   RoomSession room;
-  ContinuousEvidence disconnect;
+  // The recovery page has to stay on screen for a minute and a half before the
+  // helper restarts the game underneath the player, and that countdown used to
+  // be impossible to finish. Standby is armed by any mouse movement and the
+  // standby branch cleared this evidence outright, so a player sitting at the
+  // computer watching "正在搜索游戏服务器" reset the countdown every few seconds
+  // and the timeout never fired once, in any log. Taking the computer back is
+  // not the page changing, and neither is a locked desktop or the game sitting
+  // behind another window, so none of those clear it any more. What has to
+  // survive them instead is the gap: those are ticks that never captured, so
+  // evidence they interrupt may only be picked up again inside five minutes --
+  // long enough for a player coming and going, short enough that a page left
+  // behind during a real absence is not acted on.
+  ContinuousEvidence disconnect{5 * 60 * 1000};
   CNJoinGate cnJoin;
   RecoveryBudget budget;
   unsigned epoch = ~0u;
@@ -294,7 +306,6 @@ void worker() {
     if (!interactiveDesktop()) {
       input.release();
       gate.observe(-1);
-      disconnect.reset();
       if (!desktopPaused) desktopPaused = now;
       publish("WAITING_DESKTOP", L"等待返回普通桌面；如有 NeacProtect 管理员授权，请手动处理。",
               game.pid);
@@ -326,7 +337,6 @@ void worker() {
     if (c.standbyOnInput && input.playerBusy() && !foreground(game.window)) {
       input.release();
       gate.observe(-1);
-      disconnect.reset();
       if (!standbySince)
         standbySince = now;
       publish("STANDBY",
@@ -657,7 +667,6 @@ void worker() {
     if (background) {
       input.release();
       gate.observe(-1);
-      disconnect.reset();
       // A window owned by a higher-integrity process can never be activated or
       // receive our input, so asking the user to click it would be misleading.
       bool uipi = outranks(target);

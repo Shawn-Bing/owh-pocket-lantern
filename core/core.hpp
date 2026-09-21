@@ -178,19 +178,29 @@ public:
     // Missing HUD during spectating/loading/results does not end an established session.
   }
 };
+// "This page has been on screen for that long", counted from the observations
+// themselves. Two things end a run of evidence: a frame that is not the page,
+// and a gap between observations long enough that the helper cannot claim it was
+// watching. The gap is needed because a tick that never captured -- standby, a
+// locked desktop, the game behind another window -- is not an observation, and
+// counting that time would let evidence pile up while nothing was ever checked.
+// How long a gap still counts as "watching" therefore has to be decided per use:
+// the default covers a tick that was merely slow, while a gate whose page the
+// player may sit and stare at passes something much longer.
 class ContinuousEvidence {
-  Millis start_{}, last_{};
+  Millis start_{}, last_{}, gap_;
   bool tracking_{};
 public:
+  explicit ContinuousEvidence(Millis gap = 2500) : gap_(gap) {}
   void reset() { tracking_ = false; }
   void observe(bool present, Millis now) {
     if (!present) { reset(); return; }
-    if (!tracking_ || now < last_ || now - last_ > 2500) start_ = now;
+    if (!tracking_ || now < last_ || now - last_ > gap_) start_ = now;
     tracking_ = true;
     last_ = now;
   }
   bool elapsed(Millis now, Millis duration) const {
-    return tracking_ && now >= last_ && now - last_ <= 2500 && now - start_ >= duration;
+    return tracking_ && now >= last_ && now - last_ <= gap_ && now - start_ >= duration;
   }
   Millis deadline(Millis duration) const { return tracking_ ? start_ + duration : 0; }
 };

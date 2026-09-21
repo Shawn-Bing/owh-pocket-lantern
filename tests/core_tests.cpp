@@ -103,7 +103,37 @@ int main() {
   errorTime.observe(true, 200000);
   require(!errorTime.elapsed(200000, 90000), "capture gap cannot count as error duration");
   errorTime.reset();
-  require(!errorTime.elapsed(300000, 90000), "desktop pause resets disconnect evidence");
+  require(!errorTime.elapsed(300000, 90000), "an explicit reset clears the evidence");
+  // The disconnect gate is the one caller that has to survive the player taking
+  // the computer back. Standby, a locked desktop and the game sitting behind
+  // another window all stop the loop before it captures, and none of them says
+  // the page changed -- clearing the evidence there is what made the ninety
+  // second timeout unfinishable, because standby is armed by any mouse movement.
+  ContinuousEvidence stuck{5 * 60 * 1000};
+  for (Millis t = 1000; t <= 91000; t += 1000) stuck.observe(true, t);
+  require(stuck.elapsed(91000, 90000), "a page the player is watching still times out");
+  // Forty seconds of standby in the middle: the countdown is interrupted, but it
+  // is not restarted, so the deadline arrives on wall clock as the player expects.
+  ContinuousEvidence paused{5 * 60 * 1000};
+  for (Millis t = 1000; t <= 30000; t += 1000) paused.observe(true, t);
+  paused.observe(true, 70000);
+  require(!paused.elapsed(70000, 90000), "forty seconds of standby is not ninety seconds of page");
+  require(paused.elapsed(95000, 90000), "standby interrupts the countdown without restarting it");
+  require(paused.deadline(90000) == 91000, "the deadline stays anchored to the first sighting");
+  // Past the gap the helper was not watching for long enough to claim the page
+  // was there throughout, so the run starts over rather than firing at once.
+  ContinuousEvidence stale{5 * 60 * 1000};
+  for (Millis t = 1000; t <= 30000; t += 1000) stale.observe(true, t);
+  const Millis back = 30000 + 5 * 60 * 1000 + 1000;
+  stale.observe(true, back);
+  require(!stale.elapsed(back, 90000), "an absence longer than the gap starts the run over");
+  // The default gap still refuses to count a slow or missed tick, which is what
+  // every other caller relies on.
+  ContinuousEvidence strict;
+  strict.observe(true, 1000);
+  strict.observe(true, 5000);
+  strict.observe(true, 90000);
+  require(!strict.elapsed(90000, 90000), "the default gap restarts the run after a missed tick");
   RecoveryBudget budget;
   require(budget.take(10000), "first recovery");
   require(!budget.take(20000), "restart cooldown");
