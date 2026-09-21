@@ -111,6 +111,15 @@ int main() {
   require(budget.take(100000), "third recovery");
   require(!budget.take(500000), "hourly restart cap");
   require(budget.take(3610000), "budget replenishes after one hour");
+  // The window exists so that pressing 开始 with Battle.net already open and no
+  // game running does not cost thirty seconds of doing nothing; the long wait is
+  // only owed to a client that might be restarting itself.
+  require(missingGameGrace(false, false) == 3000, "A cold start does not wait out the restart window");
+  require(missingGameGrace(false, true) == 3000, "A cold start stays prompt inside a recovery cycle");
+  require(missingGameGrace(true, false) == 30000,
+          "A client that vanished mid-session may be restarting itself");
+  require(missingGameGrace(true, true) == 3000,
+          "A budgeted recovery cycle does not wait out the restart window");
   Point card{.1833, .6815};
   CNJoinGate join;
   CNObservation selected;
@@ -125,24 +134,62 @@ int main() {
   join.acted(CNPage::Browser, true, 3000);
   require(join.prepare(selected, 8000, card).page == CNPage::Join,
           "Fresh confirmed selection allows joining");
-  join.acted(CNPage::Join, false, 8000);
-  require(join.prepare(selected, 9000, card).page == CNPage::Browser,
-          "Even failed join consumes selection evidence");
-  join.acted(CNPage::Browser, true, 10000);
-  require(join.prepare(selected, 25001, card).page == CNPage::Browser,
-          "Stale selection cannot authorize joining");
+  // A landed join click opens the burst window and -- unlike before -- keeps the
+  // selection. Clearing it here is what made every round start over at the card
+  // and produced the seven-second loop that never left the lobby.
+  join.acted(CNPage::Join, true, 8000);
+  require(join.bursting(8000) && join.bursting(8000 + CNJoinGate::BurstWindow - 1),
+          "A landed join click opens a five second burst window");
+  require(join.prepare(selected, 8200, card).page == CNPage::Join,
+          "Inside the burst the join step is kept rather than rewritten to the card");
+  require(!join.observe(CNPage::Join, 8400).joined,
+          "Still looking at the join page is not evidence of having joined");
+  require(!join.observe(CNPage::Browser, 8600).joined,
+          "Still looking at the browse page is not evidence of having joined");
+  require(join.bursting(8600), "The window stays open while the page does not change");
+  // A window that closes with the page unchanged is one attempt spent. Five of
+  // those is where the helper stops and says so rather than clicking all night.
+  Millis burst = 8000;
+  for (int spent = 0; spent < CNJoinGate::BurstAttempts - 1; ++spent) {
+    require(!join.observe(CNPage::Join, burst + CNJoinGate::BurstWindow).joined,
+            "An expired window is not a join");
+    require(!join.gaveUp(), "Fewer than five spent bursts is not giving up");
+    require(!join.bursting(burst + CNJoinGate::BurstWindow),
+            "The window is closed once it expires");
+    burst += CNJoinGate::BurstWindow;
+    join.acted(CNPage::Join, true, burst);
+  }
+  join.observe(CNPage::Join, burst + CNJoinGate::BurstWindow);
+  require(join.gaveUp(), "Five bursts without the page ever changing gives up");
+  require(!join.bursting(burst + CNJoinGate::BurstWindow), "Giving up leaves the burst closed");
+  // Leaving the screens is the evidence, and it clears the count so a later room
+  // in the same run does not inherit the previous one's failures.
+  join.acted(CNPage::Join, true, burst + CNJoinGate::BurstWindow + 1);
+  require(join.observe(CNPage::None, burst + CNJoinGate::BurstWindow + 200).joined,
+          "Leaving the join and browse screens is the evidence that counts");
+  require(!join.gaveUp(), "A confirmed join clears the spent burst count");
+  require(!join.bursting(burst + CNJoinGate::BurstWindow + 200),
+          "A confirmed join ends the burst immediately");
+  // A failed click never reached the game, so it must not consume the window or
+  // be mistaken for a join; the selection stays valid and the next tick retries.
   join.acted(CNPage::Browser, true, 30000);
+  join.acted(CNPage::Join, false, 30100);
+  require(!join.bursting(30100), "A click that never landed opens no window");
+  require(join.prepare(selected, 30200, card).page == CNPage::Join,
+          "A click that never landed keeps the selection it did not use");
+  require(!join.observe(CNPage::Join, 30300).joined, "A click that never landed is not a join");
+  join.acted(CNPage::Browser, true, 31000);
   CNObservation home;
   home.page = CNPage::Home;
-  join.prepare(home, 31000, card);
-  require(join.prepare(selected, 32000, card).page == CNPage::Browser,
+  join.prepare(home, 32000, card);
+  require(join.prepare(selected, 33000, card).page == CNPage::Browser,
           "Leaving browser revokes selection");
-  join.acted(CNPage::Browser, true, 33000);
+  join.acted(CNPage::Browser, true, 34000);
   join.reset();
-  require(join.prepare(selected, 34000, card).page == CNPage::Browser,
+  require(join.prepare(selected, 35000, card).page == CNPage::Browser,
           "Stop or process replacement revokes selection");
-  join.acted(CNPage::Browser, true, 35000);
-  require(join.prepare(selected, 34000, card).page == CNPage::Browser,
+  join.acted(CNPage::Browser, true, 36000);
+  require(join.prepare(selected, 35000, card).page == CNPage::Browser,
           "Clock rollback revokes selection");
   require(jsonEscape("a\"\n\\") == "a\\\"\\u000a\\\\", "telemetry JSON escaping");
   // The preset is data now, so the parser sits on the recovery path: a profile

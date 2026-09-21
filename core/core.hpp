@@ -147,6 +147,18 @@ inline Match match(const Frame &f, const std::vector<Step> &steps, bool launcher
     result.index = -1;
   return result;
 }
+// How long the helper waits before concluding the game really is gone.
+// A cold start -- 开始 pressed with nothing running -- has nothing to wait for,
+// so it only gets long enough to cover a client that was double-clicked a moment
+// earlier and has not reached the process list yet; anything longer just delays
+// the launch the user asked for, measured at 73 seconds from 开始 to Battle.net
+// appearing. A game that vanished mid-session is a different situation: it may
+// be restarting itself, and killing OWNeacClient.exe underneath a client that is
+// mid-launch is what turns a restart into a launch failure. Only that case keeps
+// the long window.
+inline Millis missingGameGrace(bool sawGame, bool cycleBudgeted) {
+  return (sawGame && !cycleBudgeted) ? 30000 : 3000;
+}
 class RoomSession {
   bool active_{};
 public:
@@ -222,6 +234,14 @@ public:
     }
     ++attempts_;
     lastAt_ = now;
+  }
+  // A burst of clicks on one button is one attempt, not one attempt per click.
+  // The join path deliberately spends twenty-five clicks inside five seconds, so
+  // without this the next burst would begin already exhausted and the helper
+  // would publish "等待页面变化" forever instead of trying again.
+  void restartAttempts() {
+    attempts_ = 0;
+    lastAt_ = 0;
   }
   // Entering a different, verified page completes the previous action sequence.
   void arrived(int index) {

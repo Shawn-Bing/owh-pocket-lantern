@@ -240,6 +240,11 @@ void worker() {
   Config c;
   bool blocked{}, cycleBudgeted{}, waitingGame{}, activationPending{}, cleanupChecked{};
   bool launcherCoverRetried{};
+  // Whether this run has ever seen the game process. It is what separates a
+  // cold start -- 开始 pressed with nothing running -- from a client that
+  // vanished mid-session and may be restarting itself. The two need very
+  // different patience, and the old code gave both the long one.
+  bool sawGame{};
   int unmatchedSaved{};
   Millis launcherCoverSince{};
   for (;;) {
@@ -272,13 +277,20 @@ void worker() {
       waitingGame = false;
       activationPending = true;
       cleanupChecked = false;
+      sawGame = false;
       tickAt = 0;
       launcherCoverRetried=false;
       launcherCoverSince=0;
     }
     if (now < tickAt)
       continue;
-    tickAt = now + 1000;
+    // A join burst needs five clicks a second, and this loop is what paces them:
+    // one iteration is one click. Outside a burst the cycle stays at one second,
+    // because it is a full capture and recognition and running it faster only
+    // re-reads a screen that has not changed. Inside one it drops to the burst
+    // interval, which also means the page is still recognised on every click --
+    // that is how the burst notices it has been left and stops immediately.
+    tickAt = now + (cnJoin.bursting(now) ? CNJoinGate::BurstInterval : 1000);
     if (!interactiveDesktop()) {
       input.release();
       gate.observe(-1);
@@ -354,6 +366,8 @@ void worker() {
     }
     if (now - lastProcessScan >= 2000 || lastProcessScan == 0) {
       auto discovered = findProcess(c.gameExe, c.gameClass);
+      auto discoveredLauncher =
+          c.demo ? Process{} : findProcess(L"Battle.net.exe", L"Chrome_WidgetWin_0");
       if (discovered.pid != game.pid || discovered.created != game.created) {
         if (game.pid || cycleBudgeted || launchDeadline)
           activationPending = true;
@@ -366,8 +380,17 @@ void worker() {
         typedPage = -1;
         cleanupChecked = false;
       }
+      // Battle.net can appear on its own -- opened by the recovery path, or
+      // restored from the tray once the game exits. When it does, nothing above
+      // asks for the foreground, because that check only ever watched the game.
+      // A click on its Play button is a foreground-only event, so without this
+      // the helper sat publishing "请把战网窗口置于前台" and waited for a human to
+      // alt-tab, which is the opposite of what it is for.
+      if (discoveredLauncher.pid && discoveredLauncher.pid != launcher.pid &&
+          discoveredLauncher.window)
+        activationPending = true;
       game = discovered;
-      launcher = c.demo ? Process{} : findProcess(L"Battle.net.exe", L"Chrome_WidgetWin_0");
+      launcher = discoveredLauncher;
       lastProcessScan = now;
     }
     auto recover = [&](const std::wstring &reason, bool manual = false) {
@@ -465,6 +488,7 @@ void worker() {
       continue;
     }
     if (game.pid) {
+      sawGame = true;
       missingSince = 0;
       launchDeadline = 0;
       waitingGame = false;
@@ -507,11 +531,24 @@ void worker() {
         continue;
       }
       if (!waitingGame && !cleanupChecked && !c.demo) {
-        // Allow a manually started client to finish launching before considering it stale.
-        Millis grace = cycleBudgeted ? 3000 : 30000;
+        // The long grace protects a client that is restarting itself: killing
+        // OWNeacClient.exe underneath a game that is mid-launch is what turns a
+        // restart into a launch failure, so that case is worth waiting out.
+        // A cold start has nothing to protect -- the user pressed 开始 with no
+        // game running -- and the same wait only delays the launch they just
+        // asked for, measured at 73 seconds from 开始 to Battle.net appearing.
+        // The short grace is still kept there: it covers the other reading of
+        // "no game yet", where they double-clicked the game a moment before
+        // pressing 开始 and it has not reached the process list.
+        const Millis grace = missingGameGrace(sawGame, cycleBudgeted);
         if (now - missingSince < grace) {
-          publish("STARTING", L"未发现游戏，等待进程退出或启动完成，再核对残留进程。", 0, 0,
-                  missingSince + grace);
+          // Say what is actually happening. The old text claimed the helper was
+          // waiting for a process to exit or finish launching, which reads like
+          // work in progress while it was in fact doing nothing at all.
+          publish("STARTING",
+                  sawGame ? L"未发现游戏，等待进程退出或启动完成，再核对残留进程。"
+                          : L"未发现游戏，正在启动战网…",
+                  0, 0, missingSince + grace);
           continue;
         }
         auto result = cleanupNeac(c, running, generation, epoch);
@@ -658,7 +695,23 @@ void worker() {
     if (c.cnPreset && !c.demo)
       builtin=isLauncher ? recognizeCNLauncher(frame,GetDpiForWindow(target.window)/96.0,c.cnProfile.launcher,&launcherScore)
                          : recognizeCNGame(frame,c.cnProfile.rules,c.cnProfile.join,&gameScore);
+    // Read the evidence before anything else touches the gate. `prepare` below
+    // resets it the moment the page is neither browse nor join, so asking it
+    // second would throw away the very observation that confirms the join --
+    // and that is precisely the case that matters, arriving in the room.
+    const CNPage observedPage = builtin.page;
+    const auto joinState=cnJoin.observe(observedPage,now);
     builtin=cnJoin.prepare(std::move(builtin),now,cnCardClick(c.cnProfile));
+    // Evidence, not intention. The join is only real once the helper is looking
+    // at something other than the browse or join screens -- the lobby, the map
+    // intro, spectating, or a screen it cannot name yet. The click on its own
+    // proves nothing: a custom lobby can fill in the instant between the capture
+    // and the click, and treating the click as success is what let the helper
+    // announce "已确认加入房间" twenty times without ever leaving the lobby.
+    if (joinState.joined && !c.dryRun) {
+      room.joined();
+      log(L"已离开浏览/加入画面，确认进入房间。");
+    }
     bool useBuiltin=builtin && (builtin.step.action==Action::Restart ||
         builtin.step.action==Action::Ignore || (m.index<0 && !m.ambiguous) ||
         (m.index>=0 && c.steps[m.index].action==Action::Ready && builtin.step.action!=Action::Ready));
@@ -751,8 +804,30 @@ void worker() {
     // the lobby may have filled in that instant, and the normal 5s/3 attempts
     // budget would stop and demand a manual restart instead of just asking again.
     const bool joining = useBuiltin && builtin.page == CNPage::Join;
-    const Millis cooldown = joining ? 1500 : 5000;
-    const int maximum = joining ? 8 : 3;
+    const bool bursting = useBuiltin && cnJoin.bursting(now);
+    // Inside a burst the pacing is the burst's, not the navigation default.
+    // Outside one nothing changes: a navigation button that did nothing still
+    // gets five seconds and three tries.
+    const Millis cooldown = bursting ? CNJoinGate::BurstInterval : (joining ? 1500 : 5000);
+    const int maximum = bursting ? CNJoinGate::BurstClicks : (joining ? 8 : 3);
+    // A burst is one attempt, not twenty-five. The budget is cleared whenever a
+    // window is not running, and also the instant a window has spent all its
+    // clicks -- otherwise that twenty-fifth click would be counted as the whole
+    // allowance and the next attempt would start already exhausted.
+    if (joining && (!bursting || gate.exhausted(m.index, CNJoinGate::BurstClicks)))
+      gate.restartAttempts();
+    // Every burst spent without the screen ever changing. Stopping here is the
+    // point: the join button may simply be broken, and a helper that keeps
+    // clicking while reporting success is worse than one that says it is stuck.
+    if (joining && cnJoin.gaveUp()) {
+      publish("NEEDS_USER",
+              L"连续 " + std::to_wstring(CNJoinGate::BurstAttempts) +
+                  L" 轮快速点击「自动加入」后仍停在大厅：房间可能已被占满，或加入功能当前不可用。"
+                  L"已停止操作，请停止后重新开始。",
+              target.pid, m.score);
+      blocked = true;
+      continue;
+    }
     if (!gate.cooldownReady(now, cooldown)) {
       publish("NAVIGATING", L"等待页面变化：" + s.label, target.pid, m.score);
       continue;
@@ -813,14 +888,12 @@ void worker() {
     // Partial SendInput failures are attempts too: never retry them every second forever.
     gate.acted(m.index, now);
     if (useBuiltin) cnJoin.acted(builtin.page,ok,now);
-    // The join click is itself the evidence of being in a room: the lobby, the
-    // map intro, spectating and the results screen all follow it and none shows
-    // the HUD the Ready template was recorded from. Without this the pulses only
-    // start once the first match HUD appears, which can be minutes later.
-    if (useBuiltin && builtin.page == CNPage::Join && !c.dryRun) {
-      room.joined();
-      log(L"已确认加入房间，立即开始房间会话。");
-    }
+    // That click may have just opened a burst. The tick length was decided at the
+    // top of the loop, before the burst existed, so re-pace it here or the second
+    // click waits out the whole navigation second and the window loses a fifth of
+    // its clicks.
+    if (useBuiltin && cnJoin.bursting(now))
+      tickAt = now + CNJoinGate::BurstInterval;
     if (!ok) {
       publish("INPUT_BLOCKED",
               outranks(target) ? L"输入被 Windows 拒绝：目标以更高权限运行（UIPI）。"

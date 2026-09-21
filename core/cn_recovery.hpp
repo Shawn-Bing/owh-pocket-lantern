@@ -62,30 +62,108 @@ struct CNObservation {
   explicit operator bool() const { return page != CNPage::None; }
   int key() const { return 100 + int(page); }
 };
+// Clicking 自动加入 is not proof of having joined. A custom lobby can fill in the
+// instant between the capture and the click, and the old code treated the click
+// itself as success -- so the helper logged "已确认加入房间" twenty times in a row
+// while never once leaving the browse page, and a failed join looked exactly
+// like a working one apart from the room nobody was in.
+//
+// A click therefore opens a burst window: the same coordinate, every 200ms, for
+// five seconds. Custom lobbies are taken within seconds of appearing, so one
+// decisive click is routinely too slow, and a capture-confirm-decide round trip
+// per attempt spends most of its time re-reading a page that has not changed.
+// Leaving the browse/join screens is the only evidence that counts, and it ends
+// the window immediately.
 class CNJoinGate {
+public:
+  // Five clicks a second for five seconds: fast enough to beat another player
+  // to a lobby that has just appeared, slow enough that the game registers each
+  // click as its own event rather than coalescing them.
+  static constexpr Millis BurstInterval = 200;
+  static constexpr Millis BurstWindow = 5000;
+  static constexpr int BurstClicks = 25;
+  // A burst is one attempt, so this is how many attempts the helper makes
+  // before it stops and says why, rather than spinning for the rest of the night
+  // while claiming it had joined.
+  static constexpr int BurstAttempts = 5;
+  // What one tick's observation says about a burst in flight.
+  struct State {
+    bool joined{}; // the join screens are gone -- the only evidence that counts
+  };
+
+private:
   Millis selectedAt_{};
   bool selected_{};
+  Millis burstUntil_{};
+  int failedBursts_{};
+
 public:
-  void reset() {selected_=false;}
+  void reset() { *this = CNJoinGate{}; }
+  bool bursting(Millis now) const { return burstUntil_ != 0 && now < burstUntil_; }
+  bool gaveUp() const { return failedBursts_ >= BurstAttempts; }
+  // Called once per tick with the page *as recognised*, before `prepare` is
+  // allowed to rewrite it: whether the join worked is a question about what is
+  // on screen, not about what the helper decided to click.
+  State observe(CNPage page, Millis now) {
+    State state;
+    if (!burstUntil_)
+      return state;
+    if (page != CNPage::Join && page != CNPage::Browser) {
+      burstUntil_ = 0;
+      failedBursts_ = 0;
+      selected_ = false;
+      state.joined = true;
+      return state;
+    }
+    if (now >= burstUntil_) {
+      // The window closed with the page exactly as it was: one attempt spent.
+      burstUntil_ = 0;
+      ++failedBursts_;
+    }
+    return state;
+  }
   // `card` is the target-card click taken from the profile's Browser rule. It
   // used to be duplicated as a literal here, so moving the card silently left
   // this step pointing at the old position.
   CNObservation prepare(CNObservation observation, Millis now, Point card) {
-    if (selected_ && (now<selectedAt_ || now-selectedAt_>15000)) reset();
-    if (observation && observation.page!=CNPage::Browser && observation.page!=CNPage::Join) reset();
+    if (selected_ && (now < selectedAt_ || now - selectedAt_ > 15000))
+      reset();
+    if (observation && observation.page != CNPage::Browser && observation.page != CNPage::Join)
+      reset();
+    // Inside the window the join button is the only thing worth aiming at.
+    // Re-running the "select the target card first" correction would swap the
+    // join step for a card click, and the burst would spend its whole five
+    // seconds clicking the card instead of the button that enters the room.
+    if (bursting(now))
+      return observation;
     // A cyan border can mean hover, while Join still points to a different
     // selected card. Always select the verified target ourselves first.
-    if (observation.page==CNPage::Join && !selected_) {
-      observation.page=CNPage::Browser;
-      observation.step.label=L"先选中最稳轮换版";
-      observation.step.action=Action::Click;
-      observation.step.click=card;
+    if (observation.page == CNPage::Join && !selected_) {
+      observation.page = CNPage::Browser;
+      observation.step.label = L"先选中最稳轮换版";
+      observation.step.action = Action::Click;
+      observation.step.click = card;
     }
     return observation;
   }
   void acted(CNPage page, bool success, Millis now) {
-    if (page==CNPage::Browser) {selected_=success;selectedAt_=now;}
-    if (page==CNPage::Join) reset();
+    if (page == CNPage::Browser) {
+      selected_ = success;
+      selectedAt_ = now;
+    }
+    if (page == CNPage::Join) {
+      if (!success) {
+        burstUntil_ = 0;
+        return;
+      }
+      if (!bursting(now))
+        burstUntil_ = now + BurstWindow;
+      // `selected_` is deliberately kept across the burst. Clearing it here is
+      // what made every round start over by clicking the card again, which is
+      // the seven-second loop this replaced.
+      selected_ = true;
+      selectedAt_ = now;
+    }
   }
 };
 inline double colorFraction(const Frame &f, Rect roi, bool cyan) {
