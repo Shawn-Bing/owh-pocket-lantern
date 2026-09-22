@@ -1117,43 +1117,73 @@ inline bool processIds(const wchar_t *name, std::vector<DWORD> &ids) {
   return GetLastError() == ERROR_NO_MORE_FILES;
 }
 enum class CleanupResult { Clear, NeedsPath, Denied, Cancelled, GamePresent };
+// Every refusal used to look identical: one message covering path, permission
+// and timing alike. The log could therefore say that the stale process could
+// not be verified, but never which check refused it -- the one question that
+// actually decides what to do about it. `why` carries the specific check, and
+// the error code is read before anything else can overwrite it.
 inline CleanupResult cleanupNeac(const Config &c, const std::atomic<bool> &running,
-                                  const std::atomic<unsigned> &generation, unsigned epoch) {
+                                  const std::atomic<unsigned> &generation, unsigned epoch,
+                                  std::wstring *why = nullptr) {
+  auto deny = [&](std::wstring text) {
+    if (why) *why = std::move(text);
+    return CleanupResult::Denied;
+  };
   auto active = [&] { return running && generation.load() == epoch && interactiveDesktop(); };
   if (!active()) return CleanupResult::Cancelled;
   if (c.demo) return CleanupResult::Clear;
   std::vector<DWORD> games, clients;
-  if (!processIds(L"Overwatch.exe", games)) return CleanupResult::Denied;
+  if (!processIds(L"Overwatch.exe", games)) return deny(L"无法枚举 Overwatch.exe 进程");
   if (!games.empty()) return CleanupResult::GamePresent;
-  if (!processIds(L"OWNeacClient.exe", clients)) return CleanupResult::Denied;
+  if (!processIds(L"OWNeacClient.exe", clients)) return deny(L"无法枚举 OWNeacClient.exe 进程");
   if (clients.empty()) return CleanupResult::Clear;
   if (_wcsicmp(c.gameExe.c_str(), L"Overwatch.exe") || !validNeacPath(c.neacPath))
     return CleanupResult::NeedsPath;
   for (auto pid : clients) {
+    const auto id = std::to_wstring(pid);
     Handle query(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid));
-    if (!query.h) return CleanupResult::Denied;
+    if (!query.h) {
+      const DWORD error = GetLastError();
+      return deny(L"查询 PID " + id + L" 被拒绝（错误 " + std::to_wstring(error) + L"）");
+    }
     auto created = processCreation(query.h);
     auto path = fullProcessPath(query.h);
     // Unknown or different installation: stop instead of terminating by basename alone.
-    if (!created || !exactExecutable(path, c.neacPath)) return CleanupResult::Denied;
+    if (!created || !exactExecutable(path, c.neacPath))
+      return deny(L"PID " + id + L" 路径不符：实际「" + path + L"」，配置「" + c.neacPath + L"」");
     if (c.dryRun) continue;
     Handle target(OpenProcess(SYNCHRONIZE | PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION,
                                FALSE, pid));
-    if (!target.h || processCreation(target.h) != created ||
-        !exactExecutable(fullProcessPath(target.h), c.neacPath)) return CleanupResult::Denied;
-    if (!processIds(L"Overwatch.exe", games)) return CleanupResult::Denied;
+    if (!target.h) {
+      // The usual cause by far: the helper is not elevated, so Windows refuses
+      // PROCESS_TERMINATE on a process that is.
+      const DWORD error = GetLastError();
+      return deny(L"打开 PID " + id + L" 的终止句柄被拒绝（错误 " + std::to_wstring(error) +
+                  L"）——助手多半没有以管理员身份运行");
+    }
+    if (processCreation(target.h) != created ||
+        !exactExecutable(fullProcessPath(target.h), c.neacPath))
+      return deny(L"PID " + id + L" 在核验期间已被替换，未终止");
+    if (!processIds(L"Overwatch.exe", games)) return deny(L"无法再次枚举 Overwatch.exe 进程");
     if (!games.empty()) return CleanupResult::GamePresent;
     if (!active()) return CleanupResult::Cancelled;
-    if (!TerminateProcess(target.h, 0)) return CleanupResult::Denied;
+    if (!TerminateProcess(target.h, 0)) {
+      const DWORD error = GetLastError();
+      return deny(L"结束 PID " + id + L" 被拒绝（错误 " + std::to_wstring(error) + L"）");
+    }
     bool exited = false;
     for (int i = 0; i < 25; ++i) {
       if (WaitForSingleObject(target.h, 200) == WAIT_OBJECT_0) { exited = true; break; }
       if (!active()) return CleanupResult::Cancelled;
     }
-    if (!exited) return CleanupResult::Denied;
+    if (!exited) return deny(L"PID " + id + L" 在 5 秒内没有退出");
   }
-  if (!c.dryRun && (!processIds(L"OWNeacClient.exe", clients) || !clients.empty()))
-    return CleanupResult::Denied;
+  if (!c.dryRun) {
+    if (!processIds(L"OWNeacClient.exe", clients)) return deny(L"结束后无法重新枚举 OWNeacClient.exe");
+    if (!clients.empty())
+      return deny(L"结束后重新枚举又出现了 OWNeacClient.exe（PID " +
+                  std::to_wstring(clients.front()) + L"），可能被守护进程重新拉起");
+  }
   return CleanupResult::Clear;
 }
 inline int heartbeat(const Config &c, const std::string &json) {

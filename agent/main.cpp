@@ -251,6 +251,7 @@ void worker() {
   Process game{}, launcher{};
   Config c;
   bool blocked{}, cycleBudgeted{}, waitingGame{}, activationPending{}, cleanupChecked{};
+  Millis neacRetrySince{};
   bool launcherCoverRetried{};
   // Whether this run has ever seen the game process. It is what separates a
   // cold start -- 开始 pressed with nothing running -- from a client that
@@ -289,6 +290,7 @@ void worker() {
       waitingGame = false;
       activationPending = true;
       cleanupChecked = false;
+      neacRetrySince = 0;
       sawGame = false;
       tickAt = 0;
       launcherCoverRetried=false;
@@ -389,6 +391,7 @@ void worker() {
         hungSince = windowSince = 0;
         typedPage = -1;
         cleanupChecked = false;
+        neacRetrySince = 0;
       }
       // Battle.net can appear on its own -- opened by the recovery path, or
       // restored from the tray once the game exits. When it does, nothing above
@@ -459,6 +462,7 @@ void worker() {
       launchDeadline = 0;
       activationPending = true;
       waitingGame = cleanupChecked = false;
+      neacRetrySince = 0;
       launcherCoverRetried=false;
       launcherCoverSince=0;
     };
@@ -569,18 +573,46 @@ void worker() {
                   0, 0, missingSince + grace);
           continue;
         }
-        auto result = cleanupNeac(c, running, generation, epoch);
+        std::wstring neacWhy;
+        auto result = cleanupNeac(c, running, generation, epoch, &neacWhy);
         if (result == CleanupResult::Cancelled) continue;
         if (result == CleanupResult::GamePresent) { lastProcessScan = 0; continue; }
-        if (result != CleanupResult::Clear) {
-          publish(result == CleanupResult::NeedsPath ? "NEEDS_CONFIG" : "NEEDS_USER",
-                  result == CleanupResult::NeedsPath
-                      ? L"检测到残留 OWNeacClient.exe，请停止后填写其完整路径。"
-                      : L"无法核验或结束残留 OWNeacClient.exe（路径/权限）。请手动处理后停止、重新开始。");
+        if (result == CleanupResult::NeedsPath) {
+          publish("NEEDS_CONFIG", L"检测到残留 OWNeacClient.exe，请停止后填写其完整路径。");
           blocked = true;
           continue;
         }
+        if (result != CleanupResult::Clear) {
+          // A stale OWNeacClient.exe normally exits on its own a few seconds
+          // after the game does, and a refusal is often only that race: the
+          // handle was opened while the process was already on its way out.
+          // Handing it straight to the player cost the whole session -- at
+          // 14:07:42 the helper announced it could not verify the process, set
+          // blocked and then sat idle for an hour, with nothing wrong that
+          // waiting a few seconds would not have fixed. Keep asking for a
+          // minute; only then hand it over, and say which check refused.
+          if (!neacRetrySince) neacRetrySince = now;
+          if (now - neacRetrySince < 60000) {
+            publish("NEAC_RETRY",
+                    L"残留 OWNeacClient.exe 尚未结束，继续确认：" + neacWhy, 0, 0,
+                    neacRetrySince + 60000);
+            continue;
+          }
+          // Still refusing after a minute of asking. This check is only a
+          // precaution -- do not launch the game on top of a leftover
+          // anti-cheat client -- and it is one that waiting can never satisfy
+          // when that process runs protected, which is the normal state for the
+          // user-mode half of an anti-cheat driver: even an administrator is
+          // refused a handle to it. Refusing to continue is what left the game
+          // closed and the helper idle for hours. Launch anyway, say why, and
+          // let the 120 second launch deadline report it if the leftover really
+          // does block the start.
+          log(L"残留进程无法核验或结束（" + neacWhy + L"），仍继续启动游戏。");
+          publish("NEAC_SKIPPED",
+                  L"无法结束残留 OWNeacClient.exe（" + neacWhy + L"），仍继续启动游戏。");
+        }
         cleanupChecked = true;
+        neacRetrySince = 0;
         log(c.dryRun ? L"演练：残留进程检查通过，未结束任何进程。"
                      : L"游戏已退出，残留进程清理检查通过。");
       }
