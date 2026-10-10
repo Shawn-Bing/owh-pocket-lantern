@@ -32,6 +32,20 @@ const MonitorState = (() => {
     if (!reading || typeof reading.value !== "number" || !Number.isFinite(reading.value)) return {value:null, reason:reading?.reason || "sensor_unavailable", source:reading?.source || "", sensor:reading?.sensor || ""};
     return reading;
   }
-  return {evaluate, sensor, transport, elapsed};
+  function alert(agent, elapsedMS, connected) {
+    const a=agent.alert;
+    if (!connected || !finite(elapsedMS) || elapsedMS > 20000) return {text:"告警待同步（服务器未连接或快照过期）",className:"alert-pending"};
+    if (!a?.enabled) {
+      const reasons={legacy_protocol:"旧协议未上报运行状态",dry_run:"演练模式不启用告警",assistant_stopped:"助手已停止",awaiting_fresh_running_heartbeat:"等待新的运行心跳"};
+      return {text:"告警未启用："+(reasons[a?.reason]||"等待状态同步"),className:"alert-inactive"};
+    }
+    if (a.kind==="NONE") return {text:"上次同步：对局证据有效 · 无连续异常",className:"alert-inactive"};
+    const kinds={OUT_OF_MATCH:a.reason==="game_process_absent"?"上次同步：游戏进程不存在":"上次同步：已确认不在局内",UNVERIFIED:"上次同步：无法验证局内",OFFLINE:"上次同步：主机心跳失联"};
+    const seconds=Math.floor((finite(a.duration_ms)?a.duration_ms:0)/1000+elapsedMS/1000);
+    const thresholdSeconds=(finite(a.threshold_ms)?a.threshold_ms:300000)/1000;
+    const threshold=thresholdSeconds>=60?`${Math.floor(thresholdSeconds/60)} 分钟${thresholdSeconds%60?` ${thresholdSeconds%60} 秒`:""}`:`${thresholdSeconds} 秒`;
+    return {text:(a.reached?"异常告警 · ":"异常计时 · ")+(kinds[a.kind]||"上次同步：状态未知")+`；连续未确认局内 ${Math.floor(seconds/60)} 分 ${seconds%60} 秒（阈值 ${threshold}）`,className:a.reached?"alert-reached":"alert-timing"};
+  }
+  return {evaluate, sensor, transport, elapsed, alert};
 })();
 if (typeof module !== "undefined" && module.exports) module.exports = MonitorState;

@@ -51,3 +51,29 @@ vm.runInContext('render(fixture);connection("实时连接",true)',context);asser
 vm.runInContext('disconnect()',context);assert.equal(get("healthy").textContent,"0");
 assert.equal(get("dashboard").hidden,true);
 console.log("Monitor browser tests passed: TTL, transport, sleep, v1, sensors, disconnect, replay, logout");
+
+// Alert display never treats an old cached alert as live after disconnect.
+const alertAgent=clone(agent);
+alertAgent.alert={enabled:true,episode_id:"episode-1",kind:"OUT_OF_MATCH",reason:"visually_out_of_match",duration_ms:300000,type_duration_ms:1000,threshold_ms:300000,reached:true};
+assert.match(monitor.alert(alertAgent,0,true).text,/连续未确认局内 5 分/);
+assert.doesNotMatch(monitor.alert(alertAgent,0,true).text,/不在局内已/);
+assert.equal(monitor.alert(alertAgent,0,false).className,"alert-pending");
+assert.equal(monitor.alert(alertAgent,20001,true).className,"alert-pending");
+for(const reason of ["legacy_protocol","dry_run","assistant_stopped","awaiting_fresh_running_heartbeat"]){
+ const a=clone(alertAgent);a.alert={enabled:false,reason};assert.equal(monitor.alert(a,0,true).className,"alert-inactive");
+}
+wall+=1000;perf+=1000;
+context.alertFixture=clone(snapshot);context.alertFixture.now=new Date(wall).toISOString();context.alertFixture.agents=[alertAgent];
+vm.runInContext('render(alertFixture);connection("实时连接",true)',context);
+assert.match(get("agents").children[0].querySelector(".alert-detail").textContent,/异常告警/);
+vm.runInContext('connection("连接中断",false)',context);
+assert.match(get("agents").children[0].querySelector(".alert-detail").textContent,/告警待同步/);
+console.log("Alert browser tests passed: mixed duration, disconnect, expiry, stop, dry-run, legacy and actual rendering");
+
+// Alert type describes the last server sync; local short TTL never becomes a current visual claim.
+assert.equal(monitor.evaluate(alertAgent,snapshot,15001,true).state,"UNVERIFIED");
+assert.match(monitor.alert(alertAgent,15001,true).text,/上次同步：已确认不在局内/);
+assert.doesNotMatch(monitor.alert(alertAgent,15001,true).text,/当前已确认/);
+
+const noneAlert=clone(alertAgent);noneAlert.alert.kind="NONE";assert.match(monitor.alert(noneAlert,15001,true).text,/上次同步：对局证据有效/);
+for(const [ms,label] of [[2000,"阈值 2 秒"],[90000,"阈值 1 分钟 30 秒"],[300000,"阈值 5 分钟"]]){const a=clone(alertAgent);a.alert.threshold_ms=ms;assert.ok(monitor.alert(a,0,true).text.includes(label))}

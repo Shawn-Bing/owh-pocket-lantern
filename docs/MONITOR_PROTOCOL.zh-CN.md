@@ -127,3 +127,28 @@ tailscale serve --bg 8765
 - `node browser_test.cjs`：纯 JS freshness 及实际 app 假 DOM 渲染，覆盖断线、睡眠、旧快照、注销及硬件失败。
 - `TestCPPV2WireContract`：执行真实 `telemetry-v2-tests.exe --fixture`，从 C++ 生成整条 Heartbeat 经 Go POST、GET、SSE 和持久化重启验证。可用 `OWH_V2_PROTOCOL_FIXTURE` 显式指定；普通测试默认探测 `../build/windows/telemetry-v2-tests.exe`，缺失时明确 skip。
 - P0 的全部状态和编译客户端协议检查保留。Windows race runtime 先前因 TSan 地址空间分配 error 87 无法启动，本轮不声称 race 验证通过。
+
+## P2.5 连续异常告警
+
+每台 Agent 的 GET/SSE 新增只读 `alert`，不修改 v2 输入或 P1 观察器。默认阈值 5 分钟，服务器可用 `-alert-after 5m` 配置（1 秒–24 小时）。
+
+| 字段 | 含义 |
+|---|---|
+| enabled | 本次服务器运行中是否已由可信 v2 心跳建立预期挂机运行 |
+| episode_id | 不透明去重 ID；可信 IN_MATCH 解除后再次异常会产生新 ID |
+| kind | NONE / OUT_OF_MATCH / UNVERIFIED / OFFLINE |
+| reason | 稳定机器可读原因 |
+| duration_ms | 本轮连续未确认局内总时长，跨类型切换继续累计 |
+| type_duration_ms | 当前类型持续时长，不把未知时间说成明确局外 |
+| threshold_ms | 配置阈值，默认 300000 |
+| reached | 本轮是否已达到阈值 |
+
+这里 OFFLINE **仅指主机超过 90 秒无心跳**。P1 observation.OFFLINE 的游戏进程不存在，在主机在线且进程事实新鲜时归入 OUT_OF_MATCH，reason=game_process_absent。时长均为 JSON number，ID 为字符串。
+
+手动 stop、v1 覆盖、dry_run、新助手实例或开始/停止 revision 变化会清除原预期。v1 兼容但缺少独立 running，不能猜测启用告警；演练明确禁用。同一运行 revision 内自动恢复造成游戏 PID/session 变化不重置累计。已建立同代运行预期后，客户端 UTC 异常使观察变为 UNVERIFIED 仍继续计时，不视为手动停止；新的不可信代次则等待可信心跳。
+
+服务端每秒推进告警，无查看者也按已知证据 deadline 开始计时。GET/SSE 共用锁内状态，查询和网页刷新不重置计时。覆盖旧快照前先推进旧事实，长空档后的新 IN_MATCH 不会抹掉已达阈值历史。运行期间优先使用 receipt 的 Go 单调时钟；不可用时的时钟回退保守清除，需新可信运行心跳。
+
+最近事件新增 `alert_event`（started / kind_changed / threshold_reached / resolved）、`alert_kind`、`alert_id`，通过现有 SSE snapshot 推送，仍受 200 条上限约束。每个 episode 只发一次 threshold_reached。持久化只保留历史事件，**不恢复运行预期和计时**，重启后等待新合法心跳。
+
+网页断线或快照停滞显示“告警待同步”，不将缓存告警视为实时；类型明确标注“上次同步”，本地主状态到期后不继续断言当前视觉事实。文案分别说明上次类型与连续未确认局内总时长。没有 OS 通知、外部推送或远程控制。

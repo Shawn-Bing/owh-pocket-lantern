@@ -348,7 +348,11 @@ func remaining(sent, tick, ttl, transport, elapsed uint64) uint64 {
 }
 func deriveAgent(cached Agent, now time.Time) Agent {
 	a := cloneAgent(cached)
-	age := now.Sub(a.Seen)
+	seenAt := a.Seen
+	if a.receipt != nil {
+		seenAt = a.receipt.at
+	}
+	age := now.Sub(seenAt)
 	m := &MonitorView{State: "UNVERIFIED", Reason: "legacy_protocol", HostOnline: age >= 0 && age <= 90*time.Second}
 	a.Monitor = m
 	if a.V2 == nil {

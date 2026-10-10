@@ -45,6 +45,7 @@ type Agent struct {
 	Heartbeat
 	Seen    time.Time    `json:"seen"`
 	Monitor *MonitorView `json:"monitor,omitempty"`
+	Alert   *AlertView   `json:"alert,omitempty"`
 	receipt *receipt
 }
 type Event struct {
@@ -53,6 +54,9 @@ type Event struct {
 	Detail     string    `json:"detail"`
 	At         time.Time `json:"at"`
 	MatchState string    `json:"match_state,omitempty"`
+	AlertEvent string    `json:"alert_event,omitempty"`
+	AlertKind  string    `json:"alert_kind,omitempty"`
+	AlertID    string    `json:"alert_id,omitempty"`
 }
 type Snapshot struct {
 	Agents       []Agent   `json:"agents"`
@@ -69,17 +73,22 @@ type Server struct {
 	dirty                          bool
 	now                            func() time.Time
 	guards                         map[string]protocolGuard
+	alerts                         map[string]alertEpisode
+	alertAfter                     time.Duration
 }
 
 func NewServer(agentToken, viewToken, dir string) *Server {
-	return &Server{agents: map[string]Agent{}, subscribers: map[chan struct{}]struct{}{}, agentToken: agentToken, viewToken: viewToken, dataDir: dir, now: time.Now, guards: map[string]protocolGuard{}}
+	return &Server{agents: map[string]Agent{}, subscribers: map[chan struct{}]struct{}{}, agentToken: agentToken, viewToken: viewToken, dataDir: dir, now: time.Now, guards: map[string]protocolGuard{}, alerts: map[string]alertEpisode{}, alertAfter: 5 * time.Minute}
 }
 func (s *Server) snapshot() Snapshot { s.mu.Lock(); defer s.mu.Unlock(); return s.snapshotLocked() }
 func (s *Server) snapshotLocked() Snapshot {
 	now := s.now()
+	s.refreshAlertsLocked(now)
 	x := Snapshot{Agents: make([]Agent, 0, len(s.agents)), Events: append([]Event{}, s.events...), Now: now.UTC(), OfflineAfter: 90}
 	for _, a := range s.agents {
-		x.Agents = append(x.Agents, deriveAgent(a, now))
+		derived := deriveAgent(a, now)
+		derived.Alert = s.alertViewLocked(a, now)
+		x.Agents = append(x.Agents, derived)
 	}
 	sort.Slice(x.Agents, func(i, j int) bool { return x.Agents[i].Machine < x.Agents[j].Machine })
 	return x
@@ -145,9 +154,11 @@ func (s *Server) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		reply(w, 409, map[string]string{"error": err.Error()})
 		return
 	}
+	s.refreshAlertsLocked(now)
 	received := anchoredReceipt(s.guards[h.Machine], &guard, h.V2, now)
 	s.guards[h.Machine] = guard
 	s.agents[h.Machine] = Agent{Heartbeat: h, Seen: now.UTC(), receipt: received}
+	s.acceptAlertHeartbeatLocked(s.agents[h.Machine], now)
 	if !exists || previous.State != h.State || previous.Detail != h.Detail || previous.DryRun != h.DryRun || deriveAgent(previous, now).Monitor.State != deriveAgent(s.agents[h.Machine], now).Monitor.State {
 		s.events = append(s.events, Event{Machine: h.Machine, State: h.State, Detail: h.Detail, At: now.UTC(), MatchState: deriveAgent(s.agents[h.Machine], now).Monitor.State})
 		if len(s.events) > 200 {
@@ -331,6 +342,7 @@ func (s *Server) load() error {
 			return fmt.Errorf("invalid persisted agent")
 		}
 		a.Monitor = nil
+		a.Alert = nil
 		a.receipt = nil
 		s.agents[a.Machine] = a
 		if a.V2 != nil {
@@ -385,7 +397,11 @@ func token(dir, name, env string) (string, error) {
 func main() {
 	listen := flag.String("listen", "127.0.0.1:8765", "HTTP listen address; use a TLS reverse proxy for remote access")
 	dir := flag.String("data", "owh-server-data", "state and token directory")
+	alertAfter := flag.Duration("alert-after", 5*time.Minute, "continuous non-match alert threshold (1s to 24h)")
 	flag.Parse()
+	if *alertAfter < time.Second || *alertAfter > 24*time.Hour {
+		log.Fatal("alert-after must be between 1s and 24h")
+	}
 	if err := os.MkdirAll(*dir, 0700); err != nil {
 		log.Fatal(err)
 	}
@@ -401,6 +417,7 @@ func main() {
 		log.Fatal("agent and viewer tokens must differ")
 	}
 	s := NewServer(a, v, *dir)
+	s.alertAfter = *alertAfter
 	if err = s.load(); err != nil {
 		log.Fatalf("cannot load saved state: %v (keep a backup before repairing)", err)
 	}
@@ -410,12 +427,18 @@ func main() {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
+		alertTick := time.NewTicker(time.Second)
+		defer alertTick.Stop()
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
+			case <-alertTick.C:
+				s.mu.Lock()
+				s.refreshAlertsLocked(s.now())
+				s.mu.Unlock()
 			case <-ticker.C:
 				if err := s.save(); err != nil {
 					log.Printf("save failed: %v", err)

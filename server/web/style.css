@@ -4,3 +4,5 @@
 
 .card-state>.state-label,.event .event-state{color:var(--muted)}
 .match-label{margin-top:12px;font-weight:600;font-size:13px}.match-in_match{color:var(--mint)}.match-out_of_match{color:#f09a91}.match-unverified{color:var(--amber)}.match-offline{color:var(--muted)}.match-detail{font-size:11px;color:var(--muted);overflow-wrap:anywhere}.hardware{padding:0 20px 15px}.sensor{font-size:11px;color:#acbaca;overflow-wrap:anywhere;margin-top:4px}
+
+.alert-detail{font-size:12px;line-height:1.6;margin-top:7px}.alert-inactive{color:var(--muted)}.alert-timing{color:#b7791f}.alert-reached{color:#dc3545;font-weight:600}.alert-pending{color:#8895a7}
