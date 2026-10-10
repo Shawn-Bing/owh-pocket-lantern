@@ -22,3 +22,7 @@
 自动测试使用本程序创建的独立隐藏窗口，覆盖消息顺序与扫描码、左右键配对、停止释放、代次取消、进程身份变化、窗口销毁、无 OS 焦点切换、关闭全局输入及界面布局。没有向真实游戏发送测试输入。
 
 Microsoft 说明：窗口消息与 Raw Input 是不同输入通路，PostMessage 成功不能证明游戏处理了输入：[Raw Input Overview](https://learn.microsoft.com/en-us/windows/win32/inputdev/about-raw-input)、[PostMessageW](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-postmessagew)。
+
+## 远程状态含义（P0 审计）
+
+`ACTIVE` 是原自动化会话状态，不能单独证明当前仍在对局内；`BACKGROUND_UNVERIFIED` 也不包含有效截图确认。最小化期间暂停 OCR 的行为保留。P0 已修复服务器漏收 `STANDBY`、`MATCHMAKING`、`WAITING_PAGE`、`WAITING_GAME_EXIT`、`IDLE`、`NEAC_RETRY` 的问题，避免这些状态被 HTTP 400 拒绝而留下旧快照。独立对局观察和证据过期规则由 P1 接入，详见 [P0 协议审计](P0_PROTOCOL_AUDIT.zh-CN.md)。

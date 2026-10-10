@@ -66,13 +66,6 @@ type Server struct {
 	now                            func() time.Time
 }
 
-var states = map[string]bool{}
-
-func init() {
-	for _, s := range strings.Fields("STOPPED DETECTING DRY_RUN ACTIVE BACKGROUND_INPUT BACKGROUND_UNVERIFIED BACKGROUND_INPUT_BLOCKED WAITING_DESKTOP INPUT_BLOCKED RECOVERING NEEDS_USER BACKOFF STARTING WINDOW_HUNG GAME_NOT_RUNNING NEEDS_CONFIG WAITING_WINDOW WAITING_FOCUS CAPTURE_FAILED NEEDS_CALIBRATION AMBIGUOUS UNKNOWN CONFIRMING LOGIN_STUCK NAVIGATING") {
-		states[s] = true
-	}
-}
 func NewServer(agentToken, viewToken, dir string) *Server {
 	return &Server{agents: map[string]Agent{}, subscribers: map[chan struct{}]struct{}{}, agentToken: agentToken, viewToken: viewToken, dataDir: dir, now: time.Now}
 }

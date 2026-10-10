@@ -6,6 +6,7 @@
 #include "agent/failure_log.hpp"
 #include "agent/window_layout.hpp"
 #include "core/cn_recovery.hpp"
+#include "core/automation_state.hpp"
 #include <commctrl.h>
 #include <condition_variable>
 #include <iomanip>
@@ -212,8 +213,9 @@ void countRecovery(const std::wstring &what) {
   }
   log(L"恢复计数 " + std::to_wstring(n) + L"：" + what);
 }
-void publish(const char *state, const std::wstring &detail, DWORD pid = 0, double score = 0,
+void publish(AutomationState value, const std::wstring &detail, DWORD pid = 0, double score = 0,
              Millis next = 0) {
+  const auto *state = automationStateName(value);
   bool changed;
   {
     std::lock_guard lock(statusMutex);
@@ -370,7 +372,7 @@ void worker() {
       input.release();
       gate.observe(-1);
       if (!desktopPaused) desktopPaused = now;
-      publish("WAITING_DESKTOP", L"等待返回普通桌面；如有 NeacProtect 管理员授权，请手动处理。",
+      publish(AutomationState::WAITING_DESKTOP, L"等待返回普通桌面；如有 NeacProtect 管理员授权，请手动处理。",
               game.pid);
       continue;
     }
@@ -404,11 +406,11 @@ void worker() {
       if (!sameProcess(bound,c.gameExe) || !IsWindow(bound.window)) {
         backgroundInput.stop();foregroundUse=false;input.blockForeground(false);
         blocked=true;
-        publish("NEEDS_USER",L"后台目标进程或窗口已变化，已停止后台按键；请重新确认游戏后开始。",bound.pid);
+        publish(AutomationState::NEEDS_USER,L"后台目标进程或窗口已变化，已停止后台按键；请重新确认游戏后开始。",bound.pid);
         continue;
       }
       if (foreground(bound.window) && now-backgroundEnteredAt<1000) {
-        publish("WAITING_FOCUS",L"正在开启前台使用，等待游戏最小化。",bound.pid);continue;
+        publish(AutomationState::WAITING_FOCUS,L"正在开启前台使用，等待游戏最小化。",bound.pid);continue;
       }
       if (foreground(bound.window)) {
         backgroundInput.stop();foregroundUse=false;input.blockForeground(false);
@@ -423,7 +425,7 @@ void worker() {
             backgroundNext=now+stroke.duration+20+1000;
           }
         }
-        publish(c.dryRun ? "DRY_RUN" : (!backgroundOkay ? "BACKGROUND_INPUT_BLOCKED" : "BACKGROUND_UNVERIFIED"),
+        publish(c.dryRun ? AutomationState::DRY_RUN : (!backgroundOkay ? AutomationState::BACKGROUND_INPUT_BLOCKED : AutomationState::BACKGROUND_UNVERIFIED),
           c.dryRun ? L"前台使用演练：已暂停 OCR，不发送后台按键。"
           : !backgroundOkay ? L"后台消息发送失败，Windows 错误 "+std::to_wstring(backgroundInput.error())+L"；切回游戏检查。"
           : !c.holdShift ? L"前台使用：已暂停 OCR 和按键，游戏可最小化；切回游戏后恢复检测。"
@@ -467,7 +469,7 @@ void worker() {
       gate.observe(-1);
       if (!standbySince)
         standbySince = now;
-      publish("STANDBY",
+      publish(AutomationState::STANDBY,
               L"你正在使用电脑，助手待机中；不发按键、不检测，停手约 " +
                   durationText(c.standbySeconds) + L"后自动恢复并切回游戏（" +
                   input.activityText() + L"）。",
@@ -496,7 +498,7 @@ void worker() {
     // Saying so up front is far cheaper than debugging a run that clicks into the
     // void, which is exactly what this cost twice.
     if (game.pid && outranks(game)) {
-      publish("NEEDS_USER",
+      publish(AutomationState::NEEDS_USER,
               L"游戏以管理员权限运行，助手是普通权限，Windows 会丢弃助手发送的全部按键和点击。"
               L"请关闭助手，以管理员身份重新运行后再开始。",
               game.pid);
@@ -552,47 +554,47 @@ void worker() {
       cnJoin.reset();
       if (!running || foregroundUse || epoch != generation.load()) return;
       if (exitWait.active()) {
-        publish("WAITING_GAME_EXIT",L"游戏终止请求已接受，仍在等待进程退出；未重复终止或启动。",pendingGameExit.pid);
+        publish(AutomationState::WAITING_GAME_EXIT,L"游戏终止请求已接受，仍在等待进程退出；未重复终止或启动。",pendingGameExit.pid);
         return;
       }
       std::error_code neacError,launcherError;
       if (!c.demo && ((!c.cnPreset && !c.semanticRecognition && std::none_of(c.steps.begin(),c.steps.end(),[](const Step &s){return s.launcher && s.action==Action::Launch;})) ||
           !validNeacPath(c.neacPath) || !std::filesystem::is_regular_file(c.neacPath,neacError) ||
           (!launcher.pid && !std::filesystem::is_regular_file(c.launcherPath,launcherError)))) {
-        publish("NEEDS_CONFIG", SimpleEdition ? L"无法自动核验游戏或战网安装路径。请先从战网启动一次游戏后重试，或在开发版保存正确路径。游戏尚未关闭。" : L"重启前请填写 OWNeacClient.exe 完整路径和启动器，并启用本地 OCR、国服预设或录制战网启动按钮。游戏尚未关闭。",game.pid);
+        publish(AutomationState::NEEDS_CONFIG, SimpleEdition ? L"无法自动核验游戏或战网安装路径。请先从战网启动一次游戏后重试，或在开发版保存正确路径。游戏尚未关闭。" : L"重启前请填写 OWNeacClient.exe 完整路径和启动器，并启用本地 OCR、国服预设或录制战网启动按钮。游戏尚未关闭。",game.pid);
         blocked=true;
         return;
       }
       if (c.dryRun) {
-        publish("DRY_RUN", L"演练：将恢复游戏。" + reason, game.pid);
+        publish(AutomationState::DRY_RUN, L"演练：将恢复游戏。" + reason, game.pid);
         if (manual) blocked=true;
         return;
       }
       if (!c.autoRecover && !manual) {
-        publish("NEEDS_USER", L"自动恢复已关闭。" + reason, game.pid);
+        publish(AutomationState::NEEDS_USER, L"自动恢复已关闭。" + reason, game.pid);
         return;
       }
       if (!budget.available(now)) {
-        publish("BACKOFF", L"恢复冷却中；次数不限，到期继续恢复。", game.pid, 0, budget.retryAt());
+        publish(AutomationState::BACKOFF, L"恢复冷却中；次数不限，到期继续恢复。", game.pid, 0, budget.retryAt());
         return;
       }
       if (!budget.take(now))
         return;
       cycleBudgeted = true;
       countRecovery(L"游戏缺失或卡死，正在执行恢复。" + reason);
-      publish("RECOVERING", reason, game.pid);
+      publish(AutomationState::RECOVERING, reason, game.pid);
       if (game.pid) {
         const auto ended=terminateGameDetailed(game,c.gameExe,running,generation,epoch);
         if (ended.result==GameTermination::Cancelled) return;
         if (ended.result==GameTermination::Pending) {
           pendingGameExit=game;exitWait.begin(GetTickCount64());
           log(L"游戏退出请求已接受但尚未完成：PID "+std::to_wstring(game.pid)+L"，继续等待，不启动战网游戏。");
-          publish("WAITING_GAME_EXIT",L"游戏终止请求已接受，等待进程实际退出；尚未清理反作弊或重新启动。",game.pid);
+          publish(AutomationState::WAITING_GAME_EXIT,L"游戏终止请求已接受，等待进程实际退出；尚未清理反作弊或重新启动。",game.pid);
           return;
         }
         if (ended.result==GameTermination::IdentityChanged) {lastProcessScan=0;return;}
         if (ended.result==GameTermination::Denied) {
-          publish("NEEDS_USER",L"游戏退出失败：PID "+std::to_wstring(game.pid)+L"，阶段「"+ended.phase+
+          publish(AutomationState::NEEDS_USER,L"游戏退出失败：PID "+std::to_wstring(game.pid)+L"，阶段「"+ended.phase+
                   L"」，Windows 错误 "+std::to_wstring(ended.error)+L"；游戏仍未确认退出，未清理或重新启动。",game.pid);
           blocked=true;return;
         }
@@ -604,7 +606,7 @@ void worker() {
       if (c.mode != WorkflowMode::CustomRoom || !room.active() || !running || foregroundUse || epoch != generation.load()) return;
       if (background && c.holdShift && !c.pulseShift) {
         input.release();
-        publish("WAITING_FOCUS", L"持续按住模式只在前台工作；游戏回到前台后继续。", game.pid, score);
+        publish(AutomationState::WAITING_FOCUS, L"持续按住模式只在前台工作；游戏回到前台后继续。", game.pid, score);
         return;
       }
       // The pulse is a global event addressed to whatever window has focus, so
@@ -613,7 +615,7 @@ void worker() {
       // fallback for the transition second, where standby has not yet engaged.
       if (c.standbyOnInput && c.pulseShift && input.playerBusy()) {
         input.release();
-        publish("STANDBY",
+        publish(AutomationState::STANDBY,
                 L"你正在使用电脑，助手待机中（" + input.activityText() + L"）。", game.pid, score);
         return;
       }
@@ -623,11 +625,11 @@ void worker() {
         input.release();
         room.reset();
         lastProcessScan = 0;
-        publish("INPUT_BLOCKED", L"无法核对游戏进程身份，已暂停按键。", game.pid);
+        publish(AutomationState::INPUT_BLOCKED, L"无法核对游戏进程身份，已暂停按键。", game.pid);
         return;
       } else if (c.pulseShift) ok = input.pulse(game.window, epoch);
       else ok = input.hold(game.window, epoch);
-      publish(c.dryRun ? "DRY_RUN" : (!ok ? "INPUT_BLOCKED" : (background ? "BACKGROUND_INPUT" : "ACTIVE")),
+      publish(c.dryRun ? AutomationState::DRY_RUN : (!ok ? AutomationState::INPUT_BLOCKED : (background ? AutomationState::BACKGROUND_INPUT : AutomationState::ACTIVE)),
               c.dryRun ? (c.holdShift ? L"演练：房间会话已确认，将持续发送 Shift。"
                                      : L"演练：房间会话已确认，仅监控。")
                        : (!ok ? L"Shift 本次未发送；检查手动按键、游戏身份或权限。"
@@ -645,11 +647,11 @@ void worker() {
         finishGameExit();continue;
       }
       if (state==GameExitWait::State::Expired) {
-        publish("NEEDS_USER",L"游戏终止请求已接受，但终止后等待 120 秒仍未确认退出（PID "+
+        publish(AutomationState::NEEDS_USER,L"游戏终止请求已接受，但终止后等待 120 秒仍未确认退出（PID "+
                 std::to_wstring(pendingGameExit.pid)+L"）；未重新启动，处理后点重启游戏。",pendingGameExit.pid);
         exitWait.reset();pendingGameExit={};blocked=true;continue;
       }
-      publish("WAITING_GAME_EXIT",L"游戏退出尚未完成；继续核验进程，未重复发送终止请求或启动游戏。",pendingGameExit.pid);
+      publish(AutomationState::WAITING_GAME_EXIT,L"游戏退出尚未完成；继续核验进程，未重复发送终止请求或启动游戏。",pendingGameExit.pid);
       continue;
     }
     if (requestedRestart) {
@@ -670,7 +672,7 @@ void worker() {
         input.release();
         if (!windowSince)
           windowSince = now;
-        publish("STARTING", L"进程已存在，等待游戏窗口。", game.pid);
+        publish(AutomationState::STARTING, L"进程已存在，等待游戏窗口。", game.pid);
         if (now - windowSince > 120000)
           recover(L"游戏进程存在，但 120 秒未出现主窗口。");
         continue;
@@ -680,7 +682,7 @@ void worker() {
         input.release();
         if (!hungSince)
           hungSince = now;
-        publish("WINDOW_HUNG", L"窗口暂未响应，连续确认中。", game.pid);
+        publish(AutomationState::WINDOW_HUNG, L"窗口暂未响应，连续确认中。", game.pid);
         if (now - hungSince > 30000)
           recover(L"游戏窗口连续 30 秒没有响应。");
         continue;
@@ -694,7 +696,7 @@ void worker() {
       if (!missingSince)
         missingSince = now;
       if (!c.autoRecover && !cycleBudgeted) {
-        publish("GAME_NOT_RUNNING", L"未发现游戏；自动恢复已关闭。");
+        publish(AutomationState::GAME_NOT_RUNNING, L"未发现游戏；自动恢复已关闭。");
         continue;
       }
       if (waitingGame && !c.demo) {
@@ -702,14 +704,14 @@ void worker() {
           if (!neacLaunchRequiresUser(failure->code) &&
               c.autoRecover && !c.dryRun) {
             if (!budget.available(now)) {
-              publish("BACKOFF",L"反作弊启动失败（错误 "+std::to_wstring(failure->code)+L"），冷却后继续恢复，次数不限。",
+              publish(AutomationState::BACKOFF,L"反作弊启动失败（错误 "+std::to_wstring(failure->code)+L"），冷却后继续恢复，次数不限。",
                       failure->loaderPid,0,budget.retryAt());continue;
             }
             recover(L"反作弊启动失败（错误 "+std::to_wstring(failure->code)+L"）；核验残留后继续恢复，次数不限。");
             continue;
           }
           // Re-clicking cannot grant denied or cancelled authorization.
-          publish("NEEDS_USER",neacLaunchFailureText(*failure),failure->loaderPid);
+          publish(AutomationState::NEEDS_USER,neacLaunchFailureText(*failure),failure->loaderPid);
           log(L"已从当前启动的 NeacLoader.log 确认失败；停止本轮等待和自动重试。");
           waitingGame=false;launchDeadline=0;launchMonitor.reset();blocked=launchFailurePaused=true;continue;
         }
@@ -717,13 +719,13 @@ void worker() {
       if (launchDeadline && now>=launchDeadline) {
         if (c.autoRecover && !c.dryRun) {
           if (!budget.available(now)) {
-            publish("BACKOFF",L"游戏启动超时，等待恢复冷却后清理反作弊残留并重试。",0,0,budget.retryAt());
+            publish(AutomationState::BACKOFF,L"游戏启动超时，等待恢复冷却后清理反作弊残留并重试。",0,0,budget.retryAt());
             continue;
           }
           recover(L"启动后 120 秒未发现游戏：重新核验 NeacLoader / OWNeacClient 残留并继续重试（次数不限）。");
           continue;
         }
-        publish("NEEDS_USER",L"游戏启动超时；自动恢复未开启或当前为演练，请检查战网登录、更新或授权。");
+        publish(AutomationState::NEEDS_USER,L"游戏启动超时；自动恢复未开启或当前为演练，请检查战网登录、更新或授权。");
         blocked=true;continue;
       }
       if (!waitingGame && !cleanupChecked && !c.demo) {
@@ -741,7 +743,7 @@ void worker() {
           // Say what is actually happening. The old text claimed the helper was
           // waiting for a process to exit or finish launching, which reads like
           // work in progress while it was in fact doing nothing at all.
-          publish("STARTING",
+          publish(AutomationState::STARTING,
                   sawGame ? L"未发现游戏，等待进程退出或启动完成，再核对残留进程。"
                           : L"未发现游戏，正在启动战网…",
                   0, 0, missingSince + grace);
@@ -752,7 +754,7 @@ void worker() {
         if (result == CleanupResult::Cancelled) continue;
         if (result == CleanupResult::GamePresent) { lastProcessScan = 0; continue; }
         if (result == CleanupResult::NeedsPath) {
-          publish("NEEDS_CONFIG", L"检测到 NeacLoader / OWNeacClient 残留，请停止后填写 OWNeacClient.exe 完整路径。");
+          publish(AutomationState::NEEDS_CONFIG, L"检测到 NeacLoader / OWNeacClient 残留，请停止后填写 OWNeacClient.exe 完整路径。");
           blocked = true;
           continue;
         }
@@ -760,11 +762,11 @@ void worker() {
           if (!neacRetrySince) neacRetrySince=GetTickCount64();
           const auto checkedAt=GetTickCount64();
           if (checkedAt-neacRetrySince<15000) {
-            publish("NEAC_RETRY",L"反作弊加载器/客户端残留尚未清理，暂不启动游戏："+neacWhy,
+            publish(AutomationState::NEAC_RETRY,L"反作弊加载器/客户端残留尚未清理，暂不启动游戏："+neacWhy,
                     0,0,neacRetrySince+15000);
             continue;
           }
-          publish("NEEDS_USER",L"无法清理已核验的反作弊残留，未启动游戏："+neacWhy+
+          publish(AutomationState::NEEDS_USER,L"无法清理已核验的反作弊残留，未启动游戏："+neacWhy+
                   L"。处理后可点击重启游戏再次尝试。");
           blocked=true;continue;
         }
@@ -781,20 +783,20 @@ void worker() {
           if (launcher.pid) { activationPending=true; lastProcessScan=0; continue; }
         }
         if (launchDeadline) {
-          publish("STARTING", L"等待启动器或游戏出现。", 0, 0, launchDeadline);
+          publish(AutomationState::STARTING, L"等待启动器或游戏出现。", 0, 0, launchDeadline);
           continue;
         }
         if (c.launcherPath.empty() || !std::filesystem::exists(c.launcherPath)) {
-          publish("NEEDS_CONFIG", L"未找到启动器，请选择战网 EXE 或你平时使用的快捷方式。");
+          publish(AutomationState::NEEDS_CONFIG, L"未找到启动器，请选择战网 EXE 或你平时使用的快捷方式。");
           continue;
         }
         if (c.dryRun) {
-          publish("DRY_RUN", L"演练：游戏未运行，将打开配置的启动器。");
+          publish(AutomationState::DRY_RUN, L"演练：游戏未运行，将打开配置的启动器。");
           continue;
         }
         if (!cycleBudgeted) {
           if (!budget.available(now)) {
-            publish("BACKOFF", L"启动冷却中；次数不限，到期继续恢复。", 0, 0, budget.retryAt());
+            publish(AutomationState::BACKOFF, L"启动冷却中；次数不限，到期继续恢复。", 0, 0, budget.retryAt());
             continue;
           }
           if (!budget.take(now))
@@ -806,30 +808,30 @@ void worker() {
           continue;
         const auto launched=launch(c);
         if (launched==LauncherStartResult::Failed) {
-          publish("NEEDS_USER", L"启动器启动失败，请检查路径和权限。");
+          publish(AutomationState::NEEDS_USER, L"启动器启动失败，请检查路径和权限。");
           blocked = true;
           continue;
         }
         if (launched==LauncherStartResult::AlreadyRunning) {
           activationPending=true; activationDeadline=0; lastProcessScan=0;
-          publish("STARTING",L"检测到战网已运行，正在恢复原窗口，不重复启动。");
+          publish(AutomationState::STARTING,L"检测到战网已运行，正在恢复原窗口，不重复启动。");
           continue;
         }
         waitingGame = c.demo;
         launchDeadline = now + 120000;
-        publish("STARTING", L"已启动，等待窗口。", 0, 0, launchDeadline);
+        publish(AutomationState::STARTING, L"已启动，等待窗口。", 0, 0, launchDeadline);
         continue;
       }
     }
     bool isLauncher = !game.pid;
     Process target = isLauncher ? launcher : game;
     if (isLauncher && launchDeadline && waitingGame) {
-      publish("STARTING", L"等待游戏启动；可在战网中检查更新或登录。", launcher.pid, 0,
+      publish(AutomationState::STARTING, L"等待游戏启动；可在战网中检查更新或登录。", launcher.pid, 0,
               launchDeadline);
       continue;
     }
     if (!target.window) {
-      publish("WAITING_WINDOW", L"战网已运行，等待原进程创建主窗口；若仅显示托盘图标，请打开托盘中的战网。不会重复启动。", target.pid);
+      publish(AutomationState::WAITING_WINDOW, L"战网已运行，等待原进程创建主窗口；若仅显示托盘图标，请打开托盘中的战网。不会重复启动。", target.pid);
       continue;
     }
     // Request focus once per start/recovery transition. Manual focus changes while
@@ -876,7 +878,7 @@ void worker() {
       // A window owned by a higher-integrity process can never be activated or
       // receive our input, so asking the user to click it would be misleading.
       bool uipi = outranks(target);
-      publish(uipi ? "NEEDS_USER" : "WAITING_FOCUS",
+      publish(uipi ? AutomationState::NEEDS_USER : AutomationState::WAITING_FOCUS,
               uipi ? (isLauncher ? L"战网以管理员权限运行，助手是普通权限；Windows 会阻止助手切换窗口和发送点击。"
                                    L"请以管理员身份运行助手，或让战网以普通权限运行。"
                                  : L"游戏以管理员权限运行，助手是普通权限；Windows 会阻止助手发送按键。"
@@ -890,7 +892,7 @@ void worker() {
       input.release();
       gate.observe(-1);
       disconnect.reset();
-      publish("CAPTURE_FAILED", capture.failure().message(), target.pid);
+      publish(AutomationState::CAPTURE_FAILED, capture.failure().message(), target.pid);
       continue;
     }
     // Finish the final endorsement click as a short transaction. After the
@@ -903,7 +905,7 @@ void worker() {
       input.release();gate.observe(-1);
       const bool ok=sameProcess(target,c.gameExe) && input.press(target.window,VK_ESCAPE,epoch);
       deathmatch.endorsementCloseAttempted(ok,GetTickCount64());
-      publish(ok ? "NAVIGATING" : "INPUT_BLOCKED",
+      publish(ok ? AutomationState::NAVIGATING : AutomationState::INPUT_BLOCKED,
               ok ? L"赞赏次数已用完，已按 Esc 关闭赞赏界面。"
                  : L"关闭赞赏界面未成功，等待焦点或手动按键释放后重试。",target.pid);
       continue;
@@ -912,7 +914,7 @@ void worker() {
                                     [&](auto &s) { return s.launcher == isLauncher; });
     if (!hasTemplates && (!c.cnPreset || c.demo) && !c.semanticRecognition) {
       input.release();
-      publish("NEEDS_CALIBRATION",
+      publish(AutomationState::NEEDS_CALIBRATION,
               isLauncher ? L"请校准战网启动按钮（操作选择“战网启动游戏”）。"
                          : L"请先校准大厅入口、房间导航和“到达目标房间”。",
               target.pid);
@@ -1041,7 +1043,7 @@ void worker() {
         if (saveFrameBmp(frame, path))
           log(L"未识别画面已保存：" + path.wstring());
       }
-      publish(m.ambiguous ? "AMBIGUOUS" : "UNKNOWN",
+      publish(m.ambiguous ? AutomationState::AMBIGUOUS : AutomationState::UNKNOWN,
               m.ambiguous ? L"多个页面特征过于相似，请重新圈选更独特的区域。"
                           : (c.semanticRecognition && !vision.error().empty()
                                  ? L"本地文字识别不可用：" + wide(vision.error())
@@ -1076,7 +1078,7 @@ void worker() {
     if (!confirmed) {
       if (room.active()) { continueRoom(m.score, background); continue; }
       input.release();
-      publish("CONFIRMING", L"确认页面：" + s.label, target.pid, m.score);
+      publish(AutomationState::CONFIRMING, L"确认页面：" + s.label, target.pid, m.score);
       continue;
     }
     gate.arrived(key);
@@ -1092,32 +1094,32 @@ void worker() {
     if (s.action == Action::Wait) {
       if (c.mode == WorkflowMode::Deathmatch && observedPage == CNPage::Queue && semantic.verifiedDeathmatch)
         deathmatch.matched();
-      publish(c.dryRun ? "DRY_RUN" : (observedPage == CNPage::Queue ? "MATCHMAKING" : "WAITING_PAGE"),
+      publish(c.dryRun ? AutomationState::DRY_RUN : (observedPage == CNPage::Queue ? AutomationState::MATCHMAKING : AutomationState::WAITING_PAGE),
               s.label,target.pid,m.score,cnJoin.retryAt());
       continue;
     }
     if (s.action == Action::Combat) {
       if (c.mode != WorkflowMode::Deathmatch) continue;
       if (c.dryRun || !c.holdShift) {
-        publish(c.dryRun ? "DRY_RUN" : "ACTIVE", c.dryRun ? L"演练：死斗局内将随机按键，结算后自动重新匹配。" : L"死斗已确认，仅监控。",target.pid,m.score);
+        publish(c.dryRun ? AutomationState::DRY_RUN : AutomationState::ACTIVE, c.dryRun ? L"演练：死斗局内将随机按键，结算后自动重新匹配。" : L"死斗已确认，仅监控。",target.pid,m.score);
       } else if (c.standbyOnInput && input.playerBusy()) {
         deathmatch.observe(CNPage::None,now);
-        publish("STANDBY",L"你正在操作，已暂停死斗随机按键。",target.pid,m.score);
+        publish(AutomationState::STANDBY,L"你正在操作，已暂停死斗随机按键。",target.pid,m.score);
       } else if (sameProcess(game,c.gameExe) && deathmatch.canInput(now)) {
         auto stroke = deathmatch.next(now);
         bool ok = input.tap(game.window,stroke.key,stroke.duration,epoch);
         if (ok) ok=sameProcess(game,c.gameExe) && input.tapMouse(game.window,stroke.rightClick,epoch);
-        publish(ok ? "ACTIVE" : "INPUT_BLOCKED",ok ? L"死斗局内随机按键及鼠标左右键；持续检查结算并自动重新匹配。" : L"随机按键未发送，等待焦点或手动按键释放。",target.pid,m.score);
-      } else publish("ACTIVE",L"死斗局内，等待下一次随机按键。",target.pid,m.score);
+        publish(ok ? AutomationState::ACTIVE : AutomationState::INPUT_BLOCKED,ok ? L"死斗局内随机按键及鼠标左右键；持续检查结算并自动重新匹配。" : L"随机按键未发送，等待焦点或手动按键释放。",target.pid,m.score);
+      } else publish(AutomationState::ACTIVE,L"死斗局内，等待下一次随机按键。",target.pid,m.score);
       continue;
     }
     if (s.action == Action::Restart) {
       const Millis delay=c.demo ? 5000 : GameLoginRecoveryDelay;
-      publish("LOGIN_STUCK", L"已识别恢复页面：" + s.label + L"；短暂确认后关闭并重新启动游戏。", target.pid,
+      publish(AutomationState::LOGIN_STUCK, L"已识别恢复页面：" + s.label + L"；短暂确认后关闭并重新启动游戏。", target.pid,
               m.score, disconnect.deadline(delay));
       if (disconnect.elapsed(now, delay)) {
         if (isLauncher) {
-          publish("NEEDS_USER", L"战网需要登录或验证，请处理后继续。", target.pid);
+          publish(AutomationState::NEEDS_USER, L"战网需要登录或验证，请处理后继续。", target.pid);
           continue;
         }
         recover(L"网络断线后的游戏登录/错误页面已确认，关闭游戏并重新启动。");
@@ -1125,11 +1127,11 @@ void worker() {
       continue;
     }
     if (background) {
-      publish("WAITING_FOCUS", L"已离开房间画面，暂停按键；请把游戏切回前台继续导航。", target.pid);
+      publish(AutomationState::WAITING_FOCUS, L"已离开房间画面，暂停按键；请把游戏切回前台继续导航。", target.pid);
       continue;
     }
     if (c.dryRun) {
-      publish("DRY_RUN", L"演练：" + s.label + L" → " + ActionNames[int(s.action)], target.pid,
+      publish(AutomationState::DRY_RUN, L"演练：" + s.label + L" → " + ActionNames[int(s.action)], target.pid,
               m.score);
       continue;
     }
@@ -1151,7 +1153,7 @@ void worker() {
         (joining && (!bursting || gate.exhausted(m.index, CNJoinGate::BurstClicks))))
       gate.restartAttempts();
     if (!gate.cooldownReady(now, cooldown)) {
-      publish("NAVIGATING", L"等待页面变化：" + s.label, target.pid, m.score);
+      publish(AutomationState::NAVIGATING, L"等待页面变化：" + s.label, target.pid, m.score);
       continue;
     }
     if (gate.exhausted(m.index, maximum) || (s.action == Action::Text && typedPage == m.index)) {
@@ -1162,26 +1164,26 @@ void worker() {
         const auto snapshot=std::filesystem::path(directory)/L"navigation-stalled.bmp";
         if (saveFrameBmp(frame,snapshot)) log(L"导航停滞画面已保存："+snapshot.wstring());
       }
-      publish("NEEDS_USER",
+      publish(AutomationState::NEEDS_USER,
               L"操作后页面没有变化：" + s.label + L"。为避免重复输入已暂停；停止后重新开始。",
               target.pid, m.score);
       blocked = true;
       continue;
     }
     if (!gate.canAct(m.index, now, cooldown, maximum)) {
-      publish("NAVIGATING", L"等待页面变化：" + s.label, target.pid, m.score);
+      publish(AutomationState::NAVIGATING, L"等待页面变化：" + s.label, target.pid, m.score);
       continue;
     }
     bool ok = false;
     if (s.action==Action::Launch) launchMonitor.begin(c);
     if (!sameProcess(target, isLauncher ? L"Battle.net.exe" : c.gameExe)) {
-      publish("WAITING_WINDOW", L"进程已变化，重新检测。");
+      publish(AutomationState::WAITING_WINDOW, L"进程已变化，重新检测。");
       lastProcessScan = 0;
       continue;
     }
     if (s.action == Action::Launch && !cycleBudgeted) {
       if (!budget.take(now)) {
-        publish("BACKOFF", L"启动冷却中。", target.pid, 0, budget.retryAt());
+        publish(AutomationState::BACKOFF, L"启动冷却中。", target.pid, 0, budget.retryAt());
         continue;
       }
       cycleBudgeted = true;
@@ -1192,7 +1194,7 @@ void worker() {
     // A recognised page that must never be acted on: the room session has
     // already been cleared above, so all that is left is to say so and wait.
     if (s.action == Action::Ignore) {
-      publish(observedPage == CNPage::Login ? "NEEDS_USER" : "IDLE", L"已知的非对局页面：" + s.label + L"；已释放按键。",
+      publish(observedPage == CNPage::Login ? AutomationState::NEEDS_USER : AutomationState::IDLE, L"已知的非对局页面：" + s.label + L"；已释放按键。",
               target.pid, m.score);
       continue;
     }
@@ -1238,7 +1240,7 @@ void worker() {
       tickAt = now + CNJoinGate::BurstInterval;
     if (!ok) {
       if (s.action==Action::Launch) launchMonitor.reset();
-      publish("INPUT_BLOCKED",
+      publish(AutomationState::INPUT_BLOCKED,
               outranks(target) ? L"输入被 Windows 拒绝：目标以更高权限运行（UIPI）。"
                                  L"请以管理员身份运行助手。"
                                : L"输入未成功或焦点改变，请检查窗口权限。",
@@ -1249,9 +1251,9 @@ void worker() {
       waitingGame = true;
       activationPending = true;
       launchDeadline = now + 120000;
-      publish("STARTING", L"已点击启动，等待游戏窗口。", target.pid, m.score, launchDeadline);
+      publish(AutomationState::STARTING, L"已点击启动，等待游戏窗口。", target.pid, m.score, launchDeadline);
     } else
-      publish("NAVIGATING", L"已执行：" + s.label, target.pid, m.score);
+      publish(AutomationState::NAVIGATING, L"已执行：" + s.label, target.pid, m.score);
   }
 }
 void refreshSteps() {
@@ -1398,12 +1400,12 @@ void setRunning(bool on, bool manualRestart = false, bool alreadyInRoom = false)
     learning::cancel();
   }
   if (on) {
-    publish("DETECTING", alreadyInRoom
+    publish(AutomationState::DETECTING, alreadyInRoom
       ? L"已标记当前目标对局，正在连续确认局内画面；停止手动操作后开始按键。"
       : L"正在检测游戏与页面。");
   } else {
     input.release();
-    publish("STOPPED", L"已停止，已释放本程序按下的全部按键。");
+    publish(AutomationState::STOPPED, L"已停止，已释放本程序按下的全部按键。");
   }
   for (int id : settingsIds)
     EnableWindow(control(id), !on);
@@ -1437,7 +1439,7 @@ void applyImportedProfile(const CNProfile &profile) {
   refreshSteps();
   try {
     saveConfig(directory,updated);
-    publish("STOPPED",L"页面配置已导入，旧配置已备份。可先演练检查，再开始运行。");
+    publish(AutomationState::STOPPED,L"页面配置已导入，旧配置已备份。可先演练检查，再开始运行。");
   } catch (...) {
     MessageBoxW(mainWindow,L"页面文件已导入，但运行设置保存失败。请检查本地目录权限后重新保存配置。",L"设置保存失败",MB_ICONERROR);
   }
@@ -1486,7 +1488,7 @@ void finishCalibration(HWND overlay) {
       std::lock_guard lock(configMutex);
       config = std::move(c);
     }
-    publish("STOPPED", L"校准已保存：" + s.label);
+    publish(AutomationState::STOPPED, L"校准已保存：" + s.label);
   } catch (...) {
     MessageBoxW(overlay, L"无法保存校准。", L"保存失败", MB_ICONERROR);
   }
@@ -1935,9 +1937,9 @@ LRESULT CALLBACK mainProc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
           if (backgroundInput.begin(target,current.gameExe,generation.load())) {
             foregroundUse=true;
             ShowWindowAsync(target.window,SW_MINIMIZE);
-            publish("BACKGROUND_UNVERIFIED",L"前台使用：按你指定的当前对局开启后台消息并暂停 OCR；实际效果待验证。",target.pid);
+            publish(AutomationState::BACKGROUND_UNVERIFIED,L"前台使用：按你指定的当前对局开启后台消息并暂停 OCR；实际效果待验证。",target.pid);
             wake.notify_all();
-          } else { input.blockForeground(false);publish("INPUT_BLOCKED",L"无法核验后台目标或权限，未开启前台使用。Windows 错误 "+std::to_wstring(backgroundInput.error()),target.pid); }
+          } else { input.blockForeground(false);publish(AutomationState::INPUT_BLOCKED,L"无法核验后台目标或权限，未开启前台使用。Windows 错误 "+std::to_wstring(backgroundInput.error()),target.pid); }
         }
       }
       break;
@@ -1991,7 +1993,7 @@ LRESULT CALLBACK mainProc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
       break;
     case Save:
       if (syncConfig())
-        publish("STOPPED", L"配置已保存。");
+        publish(AutomationState::STOPPED, L"配置已保存。");
       break;
     case Record:
       beginCalibration();

@@ -24,7 +24,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $buildDir 'CMakeCache.txt')) -and -n
         $Generator = 'MinGW Makefiles'
     }
 }
-$cmakeArgs = @('-S', $projectRoot, '-B', $buildDir, '-DCMAKE_BUILD_TYPE=Release')
+$cmakeArgs = @('-S', $projectRoot, '-B', $buildDir, '-DCMAKE_BUILD_TYPE=Release', ('-DOWH_GO_EXECUTABLE=' + $Go))
 if ($Generator) { $cmakeArgs += @('-G', $Generator) }
 Invoke-Checked cmake $cmakeArgs
 Invoke-Checked cmake @('--build', $buildDir, '--config', 'Release', '--parallel', '4')

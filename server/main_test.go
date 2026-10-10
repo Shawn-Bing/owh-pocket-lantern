@@ -2,10 +2,14 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
+	"regexp"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -133,5 +137,153 @@ func TestCorruptStateFailsClosed(t *testing.T) {
 	_ = os.WriteFile(dir+"/state.json", []byte("broken"), 0600)
 	if NewServer("a", "v", dir).load() == nil {
 		t.Fatal("corrupt state silently accepted")
+	}
+}
+
+// Pin every pre-P0 server wire name: the shared manifest is additive for v0.5.13.
+func TestLegacyAutomationStatesRemainAccepted(t *testing.T) {
+	for _, state := range strings.Fields("STOPPED DETECTING DRY_RUN ACTIVE BACKGROUND_INPUT BACKGROUND_UNVERIFIED BACKGROUND_INPUT_BLOCKED WAITING_DESKTOP INPUT_BLOCKED RECOVERING NEEDS_USER BACKOFF STARTING WINDOW_HUNG GAME_NOT_RUNNING NEEDS_CONFIG WAITING_WINDOW WAITING_FOCUS CAPTURE_FAILED NEEDS_CALIBRATION AMBIGUOUS UNKNOWN CONFIRMING LOGIN_STUCK NAVIGATING STANDBY MATCHMAKING WAITING_PAGE WAITING_GAME_EXIT IDLE NEAC_RETRY") {
+		if !validHeartbeat(Heartbeat{Machine: "legacy", State: state}) {
+			t.Errorf("legacy state %s was removed", state)
+		}
+	}
+	for _, state := range []string{"", "active", "ACTIVE ", "IN_MATCH", "NOT_A_STATE"} {
+		if validHeartbeat(Heartbeat{Machine: "legacy", State: state}) {
+			t.Errorf("invalid automation state %q was accepted", state)
+		}
+	}
+}
+
+func TestAutomationManifestRejectsMalformedEntries(t *testing.T) {
+	for _, manifest := range []string{"", "OWH_AUTOMATION_STATE()", "OWH_AUTOMATION_STATE(bad)", "ACTIVE", "OWH_AUTOMATION_STATE(A) extra", "OWH_AUTOMATION_STATE(A)\nOWH_AUTOMATION_STATE(A)"} {
+		t.Run(manifest, func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Fatal("malformed shared manifest did not fail closed")
+				}
+			}()
+			parseAutomationStates(manifest)
+		})
+	}
+}
+
+// This runs under CTest with the real compiled C++ enum/name serializer. Adding
+// a client state without server acceptance, or emitting a different wire name,
+// breaks the build-windows verification instead of silently losing heartbeats.
+func TestAutomationStateWireContract(t *testing.T) {
+	fixture := os.Getenv("OWH_PROTOCOL_FIXTURE")
+	if fixture == "" {
+		t.Skip("run CTest/build-windows.ps1 for the compiled C++ to Go contract")
+	}
+	output, err := exec.Command(fixture, "--wire-states").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := strings.Fields(string(output))
+	seen := make(map[string]bool)
+	for _, name := range names {
+		if seen[name] {
+			t.Fatalf("duplicate client wire state %s", name)
+		}
+		seen[name] = true
+		if !states[name] {
+			t.Errorf("C++ emits %s but Go rejects it", name)
+		}
+	}
+	if len(seen) != len(states) {
+		t.Fatalf("client/server states differ: client=%d server=%d", len(seen), len(states))
+	}
+	testAutomationStateRoundTrips(t, names)
+}
+
+func TestAllAutomationStatesRoundTrip(t *testing.T) {
+	names := make([]string, 0, len(states))
+	for state := range states {
+		names = append(names, state)
+	}
+	sort.Strings(names)
+	testAutomationStateRoundTrips(t, names)
+}
+
+func testAutomationStateRoundTrips(t *testing.T, names []string) {
+	t.Helper()
+	for _, state := range names {
+		t.Run(state, func(t *testing.T) {
+			dir := t.TempDir()
+			s := NewServer("a", "v", dir)
+			h := Heartbeat{Machine: "pc", State: state, Detail: "协议回归", Version: "0.5.13"}
+			body, err := json.Marshal(h)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if w := request(s, "POST", "/api/heartbeat", "a", body); w.Code != http.StatusOK {
+				t.Fatalf("heartbeat %s rejected: %d %s", state, w.Code, w.Body.String())
+			}
+			var status Snapshot
+			w := request(s, "GET", "/api/status", "v", nil)
+			if w.Code != http.StatusOK || json.Unmarshal(w.Body.Bytes(), &status) != nil {
+				t.Fatal("status response failed")
+			}
+			assertAutomationStateSnapshot(t, status, state)
+
+			// Cancel after the first complete SSE frame, without a sleep or socket.
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			r := httptest.NewRequest("GET", "/api/events", nil).WithContext(ctx)
+			r.Header.Set("Authorization", "Bearer v")
+			stream := &cancelOnFlushRecorder{ResponseRecorder: httptest.NewRecorder(), cancel: cancel}
+			s.handler().ServeHTTP(stream, r)
+			if stream.Code != http.StatusOK {
+				t.Fatal("SSE response failed")
+			}
+			data := strings.TrimSuffix(strings.TrimPrefix(stream.Body.String(), "event: snapshot\ndata: "), "\n\n")
+			var pushed Snapshot
+			if err := json.Unmarshal([]byte(data), &pushed); err != nil {
+				t.Fatalf("SSE decode failed: %v", err)
+			}
+			assertAutomationStateSnapshot(t, pushed, state)
+			if err := s.save(); err != nil {
+				t.Fatal(err)
+			}
+			reloaded := NewServer("a", "v", dir)
+			if err := reloaded.load(); err != nil {
+				t.Fatal(err)
+			}
+			assertAutomationStateSnapshot(t, reloaded.snapshot(), state)
+		})
+	}
+}
+
+type cancelOnFlushRecorder struct {
+	*httptest.ResponseRecorder
+	cancel context.CancelFunc
+}
+
+func (w *cancelOnFlushRecorder) Flush() {
+	w.ResponseRecorder.Flush()
+	w.cancel()
+}
+
+func assertAutomationStateSnapshot(t *testing.T, snapshot Snapshot, state string) {
+	t.Helper()
+	if len(snapshot.Agents) != 1 || snapshot.Agents[0].State != state ||
+		len(snapshot.Events) != 1 || snapshot.Events[0].State != state {
+		t.Fatalf("state %s lost in snapshot: %+v", state, snapshot)
+	}
+}
+
+func TestDashboardLabelsCoverAutomationStates(t *testing.T) {
+	script, err := webFiles.ReadFile("web/app.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	labels := make(map[string]bool)
+	for _, match := range regexp.MustCompile(`\b([A-Z_]+):"`).FindAllSubmatch(script, -1) {
+		labels[string(match[1])] = true
+	}
+	for state := range states {
+		if !labels[state] {
+			t.Errorf("dashboard needs a label for automation state %s", state)
+		}
 	}
 }

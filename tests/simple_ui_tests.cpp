@@ -56,8 +56,8 @@ int main() {
   requireSimple(foregroundUse && backgroundInput.target().window==fakeWindow,"Explicit button starts on verified fixture without any OCR observations");
   requireSimple(GetForegroundWindow()==originalForeground,"Starting foreground-use does not activate fixture");
   setRunning(false);requireSimple(!foregroundUse,"Stop exits background mode");DestroyWindow(fakeWindow);config=savedConfig;
-  running=true;publish("INPUT_BLOCKED",L"fixture 失败：目标权限不足",1234);auto revision=failures.snapshot().first;
-  publish("INPUT_BLOCKED",L"fixture 失败：目标权限不足",1234);
+  running=true;publish(AutomationState::INPUT_BLOCKED,L"fixture 失败：目标权限不足",1234);auto revision=failures.snapshot().first;
+  publish(AutomationState::INPUT_BLOCKED,L"fixture 失败：目标权限不足",1234);
   requireSimple(failures.snapshot().first==revision,"Repeated identical status is not duplicated in failure log");
   refreshStatus();requireSimple(textOf(FailureList).find(L"1234")!=std::wstring::npos && textOf(FailureList).find(L"目标权限不足")!=std::wstring::npos,
      "Failure UI contains PID and concrete reason");
@@ -65,7 +65,7 @@ int main() {
   requireSimple(!failureState("RECOVERING",L"手动请求：重启") && !failureState("WAITING_FOCUS",L"等待") &&
      !failureState("UNKNOWN",L"未匹配页面，等待加载"),"Manual restart and normal waiting are not false failures");
   failures.open(directory+L"\\preview");
-  publish("STOPPED",L"选择挂机模式后开始；已在局内时可直接点前台使用。");refreshStatus();
+  publish(AutomationState::STOPPED,L"选择挂机模式后开始；已在局内时可直接点前台使用。");refreshStatus();
   sizeSimple(640,480);renderSimple(L"simple-default.bmp");
   for(auto size: {std::pair{640,400},std::pair{1000,720}}) {
    sizeSimple(size.first,size.second);RECT client{};GetClientRect(mainWindow,&client);
