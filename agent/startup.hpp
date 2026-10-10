@@ -3,7 +3,7 @@
 #include "core/cn_recovery.hpp"
 
 namespace owh {
-inline constexpr char Version[] = "0.5.11";
+inline constexpr char Version[] = "0.5.12";
 struct StartupOptions {
   bool demo{}, diagnose{};
   std::wstring dataDir;

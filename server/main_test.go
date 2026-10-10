@@ -69,7 +69,7 @@ func TestServerTimestampAndPersistence(t *testing.T) {
 }
 func TestBackgroundAndDesktopStates(t *testing.T) {
 	s := NewServer("a", "v", t.TempDir())
-	for _, state := range []string{"BACKGROUND_INPUT", "WAITING_DESKTOP"} {
+	for _, state := range []string{"BACKGROUND_INPUT", "BACKGROUND_UNVERIFIED", "BACKGROUND_INPUT_BLOCKED", "WAITING_DESKTOP"} {
 		body, _ := json.Marshal(Heartbeat{Machine: "pc", State: state, Version: "0.2.0"})
 		if response := request(s, "POST", "/api/heartbeat", "a", body); response.Code != 200 {
 			t.Fatalf("new client state %s rejected: %d", state, response.Code)

@@ -14,7 +14,7 @@ parser.add_argument('--binaries', type=Path, default=root / 'dist', help='Direct
 parser.add_argument('--windows-only', action='store_true', help='Do not require a Linux dashboard binary')
 args = parser.parse_args()
 args.output.mkdir(parents=True, exist_ok=True)
-version = '0.5.11'
+version = '0.5.12'
 files = {name: (args.binaries / name).read_bytes() for name in (
     'overwatch-helper.exe', 'owh-demo.exe', 'owh-recorder.exe', 'owh-dashboard.exe',
     'owh-teach.exe', 'owh-vision-calibrate.exe', 'owh-profile.exe')}

@@ -1,6 +1,6 @@
 "use strict";
 const $=id=>document.getElementById(id);
-const labels={STOPPED:"已停止",DETECTING:"正在检测",DRY_RUN:"演练模式",ACTIVE:"房间会话 · 运行中",BACKGROUND_INPUT:"后台全局点按",WAITING_DESKTOP:"等待桌面 / 授权",INPUT_BLOCKED:"输入未成功",RECOVERING:"正在恢复",NEEDS_USER:"需要处理",BACKOFF:"恢复冷却",STARTING:"正在启动",WINDOW_HUNG:"窗口无响应",GAME_NOT_RUNNING:"游戏未运行",NEEDS_CONFIG:"需要配置",WAITING_WINDOW:"等待窗口",WAITING_FOCUS:"等待前台窗口",CAPTURE_FAILED:"截图失败",NEEDS_CALIBRATION:"需要校准",AMBIGUOUS:"页面匹配不明确",UNKNOWN:"页面未识别",CONFIRMING:"正在确认页面",LOGIN_STUCK:"登录 / 错误页面",NAVIGATING:"正在导航",IDLE:"已知页面 · 未对局",STANDBY:"你在用电脑 · 助手待机"};
+const labels={STOPPED:"已停止",DETECTING:"正在检测",DRY_RUN:"演练模式",ACTIVE:"房间会话 · 运行中",BACKGROUND_INPUT:"后台输入（旧状态）",BACKGROUND_UNVERIFIED:"前台使用 · 效果待验证",BACKGROUND_INPUT_BLOCKED:"后台消息发送失败",WAITING_DESKTOP:"等待桌面 / 授权",INPUT_BLOCKED:"输入未成功",RECOVERING:"正在恢复",NEEDS_USER:"需要处理",BACKOFF:"恢复冷却",STARTING:"正在启动",WINDOW_HUNG:"窗口无响应",GAME_NOT_RUNNING:"游戏未运行",NEEDS_CONFIG:"需要配置",WAITING_WINDOW:"等待窗口",WAITING_FOCUS:"等待前台窗口",CAPTURE_FAILED:"截图失败",NEEDS_CALIBRATION:"需要校准",AMBIGUOUS:"页面匹配不明确",UNKNOWN:"页面未识别",CONFIRMING:"正在确认页面",LOGIN_STUCK:"登录 / 错误页面",NAVIGATING:"正在导航",IDLE:"已知页面 · 未对局",STANDBY:"你在用电脑 · 助手待机"};
 let token="",controller=null,retryTimer=null,retry=0,current=null,receivedAt=0,serverAt=0,session=0;
 const duration=s=>s<60?`${Math.max(0,Math.floor(s))} 秒`:(s<3600?`${Math.floor(s/60)} 分钟`:`${Math.floor(s/3600)} 小时 ${Math.floor(s%3600/60)} 分`);
 const time=s=>new Date(s).toLocaleTimeString("zh-CN",{hour12:false});

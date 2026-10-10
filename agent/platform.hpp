@@ -880,7 +880,7 @@ inline INPUT gameInputEvent(WORD vk,bool up) {
 }
 class Input {
   std::mutex mutex_;
-  bool held_{}, enabled_{};
+  bool held_{}, enabled_{}, foregroundBlocked_{};
   unsigned epoch_{};
   HWND target_{};
   WORD tapKey_{};
@@ -910,6 +910,12 @@ class Input {
 
 public:
   ~Input() { release(); }
+  // Changing mode first closes every global input entry point, then releases
+  // our existing holds. Background input uses a separate targeted backend.
+  void blockForeground(bool blocked) {
+    { std::lock_guard lock(mutex_); foregroundBlocked_ = blocked; }
+    if (blocked) release();
+  }
   // Takes over after this much player silence. Clamped so a bad settings value
   // cannot disable the standby guard entirely or make it fire on every keystroke.
   void holdWindow(Millis ms) {
@@ -979,7 +985,7 @@ public:
   bool tap(HWND w, WORD vk, Millis duration, unsigned epoch) {
     {
       std::lock_guard lock(mutex_);
-      if (!enabled_ || epoch != epoch_ || !foreground(w) || !interactiveDesktop() ||
+      if (!enabled_ || foregroundBlocked_ || epoch != epoch_ || !foreground(w) || !interactiveDesktop() ||
           tapKey_ || held_ || duration < 10 || duration > 500 || (GetAsyncKeyState(vk) & 0x8000)) return false;
       if (!key(vk,false)) { key(vk,true); return false; }
       tapKey_ = vk; tapTarget_ = w;
@@ -989,7 +995,7 @@ public:
       Sleep(10);
       checkFocus();
       std::lock_guard lock(mutex_);
-      if (!enabled_ || epoch != epoch_ || tapKey_ != vk) return false;
+      if (!enabled_ || foregroundBlocked_ || epoch != epoch_ || tapKey_ != vk) return false;
     }
     std::lock_guard lock(mutex_);
     if (tapKey_ != vk || epoch != epoch_) return false;
@@ -1004,7 +1010,7 @@ public:
   }
   bool hold(HWND w, unsigned epoch) {
     std::lock_guard lock(mutex_);
-    if (!enabled_ || epoch != epoch_ || !foreground(w) || !interactiveDesktop())
+    if (!enabled_ || foregroundBlocked_ || epoch != epoch_ || !foreground(w) || !interactiveDesktop())
       return false;
     if (held_)
       return target_ == w;
@@ -1017,7 +1023,7 @@ public:
   }
   bool pulse(HWND w, unsigned epoch) {
     std::lock_guard lock(mutex_);
-    if (!enabled_ || epoch != epoch_ || !w || !IsWindow(w) || !foreground(w) ||
+    if (!enabled_ || foregroundBlocked_ || epoch != epoch_ || !w || !IsWindow(w) || !foreground(w) ||
         !interactiveDesktop() ||
         (GetAsyncKeyState(VK_SHIFT) & 0x8000))
       return false;
@@ -1030,7 +1036,7 @@ public:
   }
   bool click(HWND w, Point p, unsigned epoch) {
     std::lock_guard lock(mutex_);
-    if (!enabled_ || epoch != epoch_ || !foreground(w) || !interactiveDesktop() ||
+    if (!enabled_ || foregroundBlocked_ || epoch != epoch_ || !foreground(w) || !interactiveDesktop() ||
         !std::isfinite(p.x) || !std::isfinite(p.y) || p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1)
       return false;
     RECT r{};
@@ -1064,21 +1070,21 @@ public:
     while (GetTickCount64()<until) {
       Sleep(5);
       std::lock_guard lock(mutex_);
-      if (!enabled_ || epoch!=epoch_ || !foreground(w) || !interactiveDesktop() || playerBusyLocked()) return false;
+      if (!enabled_ || foregroundBlocked_ || epoch!=epoch_ || !foreground(w) || !interactiveDesktop() || playerBusyLocked()) return false;
     }
     // Stop, a real player event, or a focus change cancels the second click.
     return !playerBusy() && click(w,p,epoch);
   }
   bool press(HWND w, WORD vk, unsigned epoch) {
     std::lock_guard lock(mutex_);
-    if (!enabled_ || epoch != epoch_ || !foreground(w) || !interactiveDesktop() || (GetAsyncKeyState(vk) & 0x8000))
+    if (!enabled_ || foregroundBlocked_ || epoch != epoch_ || !foreground(w) || !interactiveDesktop() || (GetAsyncKeyState(vk) & 0x8000))
       return false;
     bool ok = key(vk, false);
     return key(vk, true) && ok;
   }
   bool text(HWND w, const std::wstring &s, unsigned epoch) {
     std::lock_guard lock(mutex_);
-    if (!enabled_ || epoch != epoch_ || !foreground(w) || !interactiveDesktop() || s.size() > 256)
+    if (!enabled_ || foregroundBlocked_ || epoch != epoch_ || !foreground(w) || !interactiveDesktop() || s.size() > 256)
       return false;
     // This action is calibrated together with its input-field click.
     if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0)

@@ -1,6 +1,7 @@
 #include "agent/startup.hpp"
 #include "agent/vision.hpp"
 #include "agent/learning.hpp"
+#include "agent/background_input.hpp"
 #include "agent/window_layout.hpp"
 #include "core/cn_recovery.hpp"
 #include <commctrl.h>
@@ -64,7 +65,8 @@ enum {
   RoomTarget,
   StartInRoom,
   Learning,
-  ImportProfile
+  ImportProfile,
+  ForegroundUse
 };
 HINSTANCE instance{};
 HWND mainWindow{}, calibrationWindow{};
@@ -82,6 +84,21 @@ std::atomic<DWORD> roomStartPid{};
 std::atomic<ULONGLONG> roomStartCreated{};
 std::condition_variable wake, networkWake;
 Input input;
+BackgroundInput backgroundInput;
+std::atomic<bool> foregroundUse{};
+std::mutex backgroundMutex;
+Process backgroundCandidate{};
+Millis backgroundCandidateAt{};
+void offerBackground(const Process &game,Millis now) {
+  std::lock_guard lock(backgroundMutex);
+  backgroundCandidate=game;backgroundCandidateAt=now;
+}
+Process backgroundOffer() {
+  std::lock_guard lock(backgroundMutex);
+  const auto now=GetTickCount64();
+  return running && backgroundCandidateAt && now>=backgroundCandidateAt && now-backgroundCandidateAt<=10000
+      ? backgroundCandidate : Process{};
+}
 Millis bootTime = GetTickCount64();
 struct Status {
   std::string state = "STOPPED";
@@ -276,7 +293,8 @@ void worker() {
   // different patience, and the old code gave both the long one.
   bool sawGame{};
   int unmatchedSaved{};
-  Millis launcherCoverSince{};
+  Millis launcherCoverSince{}, backgroundNext{};
+  bool wasForegroundUse{}, backgroundOkay{true};
   for (;;) {
     input.checkFocus();
     {
@@ -284,10 +302,12 @@ void worker() {
       wake.wait_for(lock, std::chrono::milliseconds(100), [] { return quitting.load(); });
     }
     if (quitting) {
+      backgroundInput.stop();
       input.release();
       return;
     }
     if (!running) {
+      backgroundInput.stop();
       input.release();
       vision.cancel();
       continue;
@@ -318,7 +338,7 @@ void worker() {
       launchMonitor.reset();exitWait.reset();pendingGameExit={};launchFailurePaused=false;
       tickAt = 0;
       launcherCoverRetried=false;
-      launcherCoverSince=0;
+      launcherCoverSince=0;wasForegroundUse=false;backgroundNext=0;
       log(L"开始运行 OverwatchHelper "+wide(Version)+L"，助手完整性级别："+integrityName(selfIntegrity()));
     }
     if (now < tickAt)
@@ -331,6 +351,7 @@ void worker() {
     // that is how the burst notices it has been left and stops immediately.
     tickAt = now + (cnJoin.bursting(now) ? CNJoinGate::BurstInterval : 1000);
     if (!interactiveDesktop()) {
+      backgroundInput.release();
       input.release();
       gate.observe(-1);
       if (!desktopPaused) desktopPaused = now;
@@ -354,6 +375,52 @@ void worker() {
         launchFailurePaused=blocked=false;lastProcessScan=0;activationPending=true;
         log(L"检测到游戏已由用户启动，结束启动失败暂停并继续监控。");
       } else continue;
+    }
+    // Explicit foreground-use mode bypasses capture, OCR, navigation and recovery.
+    // Its only input backend posts to the already-confirmed process/window.
+    if (foregroundUse.load()) {
+      const auto bound=backgroundInput.target();
+      if (!wasForegroundUse) {
+        wasForegroundUse=true;backgroundNext=0;backgroundOkay=true;vision.cancel();input.release();cnJoin.reset();semanticBurst=false;gate.reset();
+        log(L"前台使用模式开启：暂停 OCR/导航/恢复，定向窗口消息；PID "+std::to_wstring(bound.pid)+
+            L"，按键效果尚未验证。");
+      }
+      activationPending=false;activationDeadline=0;standbySince=0;
+      if (!sameProcess(bound,c.gameExe) || !IsWindow(bound.window)) {
+        backgroundInput.stop();foregroundUse=false;input.blockForeground(false);
+        blocked=true;
+        publish("NEEDS_USER",L"后台目标进程或窗口已变化，已停止后台按键；请重新确认游戏后开始。",bound.pid);
+        continue;
+      }
+      if (foreground(bound.window)) {
+        backgroundInput.stop();foregroundUse=false;input.blockForeground(false);
+      } else {
+        if (!c.dryRun && c.holdShift && now>=backgroundNext) {
+          if (c.mode==WorkflowMode::CustomRoom) {
+            backgroundOkay=backgroundInput.tap(VK_LSHIFT,20,epoch);backgroundNext=now+1000;
+          } else {
+            auto stroke=deathmatch.next(now);
+            backgroundOkay=backgroundInput.tap(stroke.key,stroke.duration,epoch);
+            if (backgroundOkay) backgroundOkay=backgroundInput.tap(stroke.rightClick ? VK_RBUTTON : VK_LBUTTON,20,epoch,true);
+            backgroundNext=now+stroke.duration+20+1000;
+          }
+        }
+        publish(c.dryRun ? "DRY_RUN" : (!backgroundOkay ? "BACKGROUND_INPUT_BLOCKED" : "BACKGROUND_UNVERIFIED"),
+          c.dryRun ? L"前台使用演练：已暂停 OCR，不发送后台按键。"
+          : !backgroundOkay ? L"后台消息发送失败，Windows 错误 "+std::to_wstring(backgroundInput.error())+L"；切回游戏检查。"
+          : !c.holdShift ? L"前台使用：已暂停 OCR 和按键，游戏可最小化；切回游戏后恢复检测。"
+          : L"前台使用：定向后台按键消息，游戏可最小化；OCR/导航/恢复已暂停，游戏内是否生效待验证。切回游戏恢复检测。",bound.pid);
+        continue;
+      }
+    }
+    if (wasForegroundUse) {
+      wasForegroundUse=false;backgroundInput.stop();vision.cancel();
+      room.reset();deathmatch.reset();gate.reset();cnJoin.reset();disconnect.reset();
+      explicitRoom.begin(game.pid,game.created,now);
+      lastProcessScan=0;unknownSince=0;activationPending=false;activationDeadline=0;
+      input.clearPlayerHold();
+      {std::lock_guard lock(backgroundMutex);backgroundCandidate={};backgroundCandidateAt=0;}
+      log(L"前台使用模式结束：重新确认当前画面后恢复 OCR 和自动操作。");
     }
     // While the player is at the computer the helper is redundant: they can see a
     // disconnect themselves, the pulses are global events that would land in
@@ -465,7 +532,7 @@ void worker() {
       deathmatch.reset();
       vision.cancel();
       cnJoin.reset();
-      if (!running || epoch != generation.load()) return;
+      if (!running || foregroundUse || epoch != generation.load()) return;
       if (exitWait.active()) {
         publish("WAITING_GAME_EXIT",L"游戏终止请求已接受，仍在等待进程退出；未重复终止或启动。",pendingGameExit.pid);
         return;
@@ -516,7 +583,7 @@ void worker() {
       finishGameExit();
     };
     auto continueRoom = [&](double score, bool background) {
-      if (c.mode != WorkflowMode::CustomRoom || !room.active() || !running || epoch != generation.load()) return;
+      if (c.mode != WorkflowMode::CustomRoom || !room.active() || !running || foregroundUse || epoch != generation.load()) return;
       if (background && c.holdShift && !c.pulseShift) {
         input.release();
         publish("WAITING_FOCUS", L"持续按住模式只在前台工作；游戏回到前台后继续。", game.pid, score);
@@ -547,7 +614,7 @@ void worker() {
                                      : L"演练：房间会话已确认，仅监控。")
                        : (!ok ? L"Shift 本次未发送；检查手动按键、游戏身份或权限。"
                               : (!c.holdShift ? L"房间会话已确认，仅监控。"
-                                 : (background ? L"继续全局点按 Shift；游戏被遮挡/最小化时暂停画面检测。"
+                                 : (background ? L"游戏未在前台，Shift 未发送。"
                                     : (c.pulseShift ? L"房间会话已确认，每秒请求点按左 Shift（20 毫秒）。"
                                                     : L"房间会话已确认，保持左 Shift。")))),
               game.pid, score);
@@ -717,7 +784,7 @@ void worker() {
           cycleBudgeted = true;
           countRecovery(L"检测到游戏缺失，正在拉起启动器。");
         }
-        if (!running || epoch != generation.load())
+        if (!running || foregroundUse || epoch != generation.load())
           continue;
         const auto launched=launch(c);
         if (launched==LauncherStartResult::Failed) {
@@ -814,7 +881,7 @@ void worker() {
     // generation and no intervening manual input; every failure stays retryable.
     if (!isLauncher && c.mode==WorkflowMode::Deathmatch && !c.dryRun &&
         deathmatch.endorsementCloseReady(now)) {
-      if (!running || epoch!=generation.load()) continue;
+      if (!running || foregroundUse || epoch!=generation.load()) continue;
       input.release();gate.observe(-1);
       const bool ok=sameProcess(target,c.gameExe) && input.press(target.window,VK_ESCAPE,epoch);
       deathmatch.endorsementCloseAttempted(ok,GetTickCount64());
@@ -853,9 +920,9 @@ void worker() {
       context.trustedCustomRoom = !isLauncher && c.mode == WorkflowMode::CustomRoom &&
           (room.active() || cnJoin.awaitingRoom(now) || explicitRoom.trusted(game.pid,game.created,now));
       const auto activityAtRecognition = input.playerActivityRevision();
-      semantic = vision.recognize(frame,context,[&] { return running && !quitting && epoch == generation.load(); },
+      semantic = vision.recognize(frame,context,[&] { return running && !foregroundUse && !quitting && epoch == generation.load(); },
                                   !cnJoin.bursting(now));
-      if (!running || epoch != generation.load()) continue;
+      if (!running || foregroundUse || epoch != generation.load()) continue;
       if (vision.usedOcr) {
         // OCR can take a second. Bind the action to a new capture of this same
         // process, so a loading transition or a manual click cannot reuse it.
@@ -972,11 +1039,16 @@ void worker() {
     }
     unknownSince = 0;
     const auto &s = useBuiltin ? builtin.step : c.steps[m.index];
-    if (!running || epoch != generation.load())
+    if (!running || foregroundUse || epoch != generation.load())
       continue;
     int key = observationKey(s, m.index);
     bool confirmed = gate.observe(key);
     if (c.mode == WorkflowMode::CustomRoom) room.observe(&s, confirmed);
+    if (!isLauncher && ((c.mode==WorkflowMode::CustomRoom && confirmed && s.action==Action::Ready && room.active()) ||
+        (c.mode==WorkflowMode::Deathmatch && deathmatch.confirmedCombat(now)))) offerBackground(game,now);
+    else if (!isLauncher && observedPage!=CNPage::None) {
+      std::lock_guard lock(backgroundMutex);backgroundCandidate={};backgroundCandidateAt=0;
+    }
     if (room.active() || (c.mode==WorkflowMode::Deathmatch && deathmatch.canInput(now))) explicitRoom.reset();
     disconnect.observe(s.action == Action::Restart, now);
     if (!confirmed) {
@@ -1256,6 +1328,7 @@ void setRunning(bool on, bool manualRestart = false, bool alreadyInRoom = false)
     return;
   }
   if (on && running && manualRestart) {
+    foregroundUse=false;backgroundInput.stop();input.blockForeground(false);
     restartRequested=generation.load();
     wake.notify_all();
     return;
@@ -1273,8 +1346,10 @@ void setRunning(bool on, bool manualRestart = false, bool alreadyInRoom = false)
       return;
     }
   }
-  roomStartPid = declaredRoom.pid; roomStartCreated = declaredRoom.created;
   ++generation;
+  foregroundUse=false;backgroundInput.stop();input.blockForeground(false);
+  {std::lock_guard lock(backgroundMutex);backgroundCandidate={};backgroundCandidateAt=0;}
+  roomStartPid = declaredRoom.pid; roomStartCreated = declaredRoom.created;
   restartRequested=on && manualRestart ? generation.load() : ~0u;
   if (on) {
     auto snapshot = snapshotConfig();
@@ -1598,9 +1673,11 @@ void controls() {
   add(L"STATIC", L"", StatusDetail, 22, 56, 810, 42);
   add(L"BUTTON", L"开始", Start, 22, 106, 115, 32, BS_PUSHBUTTON);
   add(L"BUTTON", L"停止 · F8", Stop, 148, 106, 115, 32, BS_PUSHBUTTON);
-  add(L"BUTTON", L"保存配置", Save, 274, 106, 110, 32);
-  add(L"BUTTON", L"演练（不执行动作）", Dry, 409, 107, 220, 28, BS_AUTOCHECKBOX);
-  add(L"BUTTON", L"运行诊断", Diagnose, 650, 106, 168, 32, BS_PUSHBUTTON);
+  add(L"BUTTON", L"保存配置", Save, 274, 106, 100, 32);
+  add(L"BUTTON", L"前台使用（实验）", ForegroundUse, 385, 106, 173, 32, BS_PUSHBUTTON);
+  EnableWindow(control(ForegroundUse),FALSE);
+  add(L"BUTTON", L"演练（无动作）", Dry, 568, 107, 145, 28, BS_AUTOCHECKBOX);
+  add(L"BUTTON", L"运行诊断", Diagnose, 726, 106, 92, 32, BS_PUSHBUTTON);
   SendMessageW(control(Dry), BM_SETCHECK, c.dryRun ? BST_CHECKED : BST_UNCHECKED, 0);
   auto edit = [&](const wchar_t *label, int id, const std::wstring &value, int y, int width = 648,
                   DWORD extra = 0) {
@@ -1692,6 +1769,8 @@ void refreshStatus() {
   if (s.next > now)
     stats << L"    等待 " << (s.next - now) / 1000 << L" 秒";
   SetWindowTextW(control(Stats), stats.str().c_str());
+  SetWindowTextW(control(ForegroundUse),foregroundUse ? L"结束前台使用" : L"前台使用（实验）");
+  EnableWindow(control(ForegroundUse),running && (foregroundUse || backgroundOffer().pid));
   auto net = s.http == 0 ? L"远程看板：未配置"
                          : (s.http >= 200 && s.http < 300
                                 ? L"远程看板：已连接"
@@ -1726,6 +1805,24 @@ LRESULT CALLBACK mainProc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
     windowLayout.mouseWheel(GET_WHEEL_DELTA_WPARAM(wp));return 0;
   case WM_COMMAND:
     switch (LOWORD(wp)) {
+    case ForegroundUse:
+      if (foregroundUse.exchange(false)) {
+        const auto target=backgroundInput.target();backgroundInput.stop();input.blockForeground(false);
+        if (sameProcess(target,snapshotConfig().gameExe)) requestForeground(target.window);
+        wake.notify_all();
+      } else if (running) {
+        const auto target=backgroundOffer();const auto current=snapshotConfig();
+        if (target.pid && sameProcess(target,current.gameExe)) {
+          input.blockForeground(true);
+          if (backgroundInput.begin(target,current.gameExe,generation.load())) {
+            foregroundUse=true;
+            ShowWindowAsync(target.window,SW_MINIMIZE);
+            publish("BACKGROUND_UNVERIFIED",L"前台使用：暂停 OCR，开始向已确认游戏窗口发送后台消息；实际效果待验证。",target.pid);
+            wake.notify_all();
+          } else { input.blockForeground(false);publish("INPUT_BLOCKED",L"无法核验后台目标或权限，未开启前台使用。",target.pid); }
+        }
+      }
+      break;
     case Start:
       setRunning(true);
       break;
@@ -1911,7 +2008,7 @@ int WINAPI wWinMain(HINSTANCE h, HINSTANCE, PWSTR, int) {
   const int initialWidth=std::min(int(r.right-r.left),int(work.right-work.left)-u(24));
   const int initialHeight=std::min(int(r.bottom-r.top),int(work.bottom-work.top)-u(24));
   mainWindow = CreateWindowExW(0, AppClass,
-                               demo ? L"OverwatchHelper 0.5.11 · 演示配置" : L"OverwatchHelper 0.5.11 · 国服战网",
+                               demo ? L"OverwatchHelper 0.5.12 · 演示配置" : L"OverwatchHelper 0.5.12 · 国服战网",
                                style,work.left+(work.right-work.left-initialWidth)/2,
                                work.top+(work.bottom-work.top-initialHeight)/2,initialWidth,
                                initialHeight,nullptr,nullptr,h,nullptr);

@@ -15,6 +15,7 @@ int main() {
   require(!game.canInput(8101),"A stale last combat frame cannot authorize input");
   auto stroke=game.next(6500);
   require(stroke.duration>=100 && stroke.duration<=500 && !game.canInput(6600),"Random key pacing remains bounded");
+  require(game.confirmedCombat(6600),"A paced random-key gap does not hide current combat confirmation");
   require(stroke.rightClick==bool(stroke.duration&1),"Mouse side follows the reversed sample's hold-duration parity");
   bool sawLeft=false,sawRight=false;
   DeathmatchSession sequence(77);

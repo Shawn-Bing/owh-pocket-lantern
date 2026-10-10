@@ -97,10 +97,10 @@ public:
     // Input submission is not proof that the dialog closed. Keep confirmation
     // authorized until a new lobby/queue/hero/combat observation clears it.
   }
-  bool canInput(Millis now) const {
-    return combatFrames_ >= 2 && !finished_ && now >= lastCombat_ && now - lastCombat_ <= 1500 &&
-           now >= nextInput_;
+  bool confirmedCombat(Millis now) const {
+    return combatFrames_ >= 2 && !finished_ && now >= lastCombat_ && now - lastCombat_ <= 1500;
   }
+  bool canInput(Millis now) const { return confirmedCombat(now) && now>=nextInput_; }
   KeyStroke next(Millis now) {
     // The old sample selects one of eight keys and holds it rand()%401+100 ms
     // (0x1400034B7–0x140003501). Keep the same timing range, with game keys only.
