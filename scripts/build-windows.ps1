@@ -58,6 +58,7 @@ Get-ChildItem -LiteralPath (Join-Path $projectRoot 'docs') -Filter '*.md' | ForE
 }
 New-Item -ItemType Directory -Force (Join-Path $distDir 'docs/validation') | Out-Null
 Copy-Item -LiteralPath (Join-Path $projectRoot 'docs/validation/hardware-performance.json') -Destination (Join-Path $distDir 'docs/validation/hardware-performance.json') -Force
+if (Test-Path -LiteralPath (Join-Path $projectRoot 'docs/validation/p2-5-performance.json')) {Copy-Item -LiteralPath (Join-Path $projectRoot 'docs/validation/p2-5-performance.json') -Destination (Join-Path $distDir 'docs/validation/p2-5-performance.json') -Force}
 Copy-Item -LiteralPath (Join-Path $projectRoot 'README.md') -Destination $distDir -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'ocr-worker.ps1') -Destination $distDir -Force
 # Recognition steps ship as data so they can be edited and shared without a rebuild.
