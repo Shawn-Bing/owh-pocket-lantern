@@ -49,6 +49,8 @@ public:
   bool finished() const { return finished_; }
   bool leaving() const { return leaving_; }
   bool trusted() const { return queued_ || inMatch_; }
+  // Read-only provenance for the independent observer; Combat never sets this.
+  bool matchRequested() const { return requested_; }
   void matched() { queued_ = true; finished_ = leaving_ = false; }
   void observe(CNPage page, Millis now) {
     if (page!=CNPage::None && page!=CNPage::Endorse) cancelEndorsementClose();

@@ -52,10 +52,27 @@ int main() {
   auto fakeWindow=CreateWindowW(fake.lpszClassName,L"Isolated game fixture",WS_OVERLAPPEDWINDOW,-30000,-30000,200,100,nullptr,nullptr,instance,nullptr);
   ShowWindow(fakeWindow,SW_SHOWNOACTIVATE);config.gameExe=processName(GetCurrentProcessId());config.gameClass=fake.lpszClassName;
   generation=42;running=true;input.enable(true,42);
+  const auto observerTicket=matchObserver.begin(42,config.mode,GetTickCount64());
   SendMessageW(mainWindow,WM_COMMAND,ForegroundUse,0);
   requireSimple(foregroundUse && backgroundInput.target().window==fakeWindow,"Explicit button starts on verified fixture without any OCR observations");
   requireSimple(GetForegroundWindow()==originalForeground,"Starting foreground-use does not activate fixture");
-  setRunning(false);requireSimple(!foregroundUse,"Stop exits background mode");DestroyWindow(fakeWindow);config=savedConfig;
+  const auto boundObservation=backgroundInput.target();
+  ShowWindow(fakeWindow,SW_MINIMIZE);
+  Process notYetScanned;
+  {
+    MatchObservationTick tick{matchObserver,observerTicket,notYetScanned,foregroundUse};
+    tick.target(boundObservation);
+  }
+  const auto backgroundObservation=matchObserver.snapshot(GetTickCount64());
+  requireSimple(backgroundObservation.game==matchProcess(boundObservation) && backgroundObservation.window.minimized &&
+      backgroundObservation.window.backgroundInput && backgroundObservation.state==MatchState::Unverified,
+      "Background observation pairs the verified bound PID with its minimized window even before worker scan");
+  setRunning(false);requireSimple(!foregroundUse,"Stop exits background mode");
+  const auto stoppedObservation=matchObserver.snapshot(GetTickCount64());
+  requireSimple(!stoppedObservation.running && stoppedObservation.state==MatchState::Unverified &&
+      stoppedObservation.automation==AutomationState::STOPPED,"Actual UI stop immediately revokes observer without claiming game exit");
+  requireSimple(!matchObserver.automation(observerTicket,AutomationState::ACTIVE),"An actual UI stop rejects old worker status");
+  DestroyWindow(fakeWindow);config=savedConfig;
   running=true;publish(AutomationState::INPUT_BLOCKED,L"fixture 失败：目标权限不足",1234);auto revision=failures.snapshot().first;
   publish(AutomationState::INPUT_BLOCKED,L"fixture 失败：目标权限不足",1234);
   requireSimple(failures.snapshot().first==revision,"Repeated identical status is not duplicated in failure log");

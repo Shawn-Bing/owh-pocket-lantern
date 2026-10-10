@@ -2,6 +2,7 @@
 #include "agent/vision.hpp"
 #include "agent/learning.hpp"
 #include "agent/background_input.hpp"
+#include "agent/match_observer.hpp"
 #include "agent/simple_config.hpp"
 #include "agent/failure_log.hpp"
 #include "agent/window_layout.hpp"
@@ -115,6 +116,12 @@ Process backgroundOffer() {
       ? backgroundCandidate : Process{};
 }
 Millis bootTime = GetTickCount64();
+MatchObserver matchObserver{std::to_string(GetCurrentProcessId()) + "-" +
+    std::to_string(processCreation(GetCurrentProcess()))};
+// UI publication uses the current ticket; worker publications stay attached to
+// the ticket captured before any blocking recognition call.
+thread_local MatchTicket observationTicket;
+thread_local bool workerPublication{};
 struct Status {
   std::string state = "STOPPED";
   std::wstring detail = L"本地 OCR 自动识别与校准；支持自定义房间和自由死斗。先演练确认，再开启实际动作。";
@@ -228,6 +235,7 @@ void publish(AutomationState value, const std::wstring &detail, DWORD pid = 0, d
     status.score = score;
     status.next = next;
   }
+  matchObserver.automation(workerPublication ? observationTicket : matchObserver.currentTicket(), value);
   if (changed) {
     log(wide(state) + L" | " + detail);
     failures.record(state,detail,pid);
@@ -277,6 +285,7 @@ void telemetry() {
   }
 }
 void worker() {
+  workerPublication = true;
   Capture capture;
   Frame frame;
   StepGate gate;
@@ -312,6 +321,7 @@ void worker() {
   int unmatchedSaved{};
   Millis launcherCoverSince{}, backgroundNext{}, backgroundEnteredAt{};
   bool wasForegroundUse{}, backgroundOkay{true};
+  std::uint64_t observationFrameSequence{};
   for (;;) {
     input.checkFocus();
     {
@@ -367,6 +377,8 @@ void worker() {
     // interval, which also means the page is still recognised on every click --
     // that is how the burst notices it has been left and stops immediately.
     tickAt = now + (cnJoin.bursting(now) ? CNJoinGate::BurstInterval : 1000);
+    observationTicket = matchObserver.ticketFor(epoch);
+    MatchObservationTick observationTick{matchObserver,observationTicket,game,foregroundUse};
     if (!interactiveDesktop()) {
       backgroundInput.release();
       input.release();
@@ -409,6 +421,8 @@ void worker() {
         publish(AutomationState::NEEDS_USER,L"后台目标进程或窗口已变化，已停止后台按键；请重新确认游戏后开始。",bound.pid);
         continue;
       }
+      matchObserver.selectProcess(observationTicket,matchProcess(bound),now);
+      observationTick.target(bound);
       if (foreground(bound.window) && now-backgroundEnteredAt<1000) {
         publish(AutomationState::WAITING_FOCUS,L"正在开启前台使用，等待游戏最小化。",bound.pid);continue;
       }
@@ -434,6 +448,7 @@ void worker() {
       }
     }
     if (wasForegroundUse) {
+      observationTick.useScannedWindow();
       wasForegroundUse=false;backgroundInput.stop();vision.cancel();
       room.reset();deathmatch.reset();gate.reset();cnJoin.reset();disconnect.reset();
       explicitRoom.begin(game.pid,game.created,now);
@@ -536,11 +551,13 @@ void worker() {
            discoveredLauncher.window != launcher.window))
         activationPending = true;
       game = discovered;
+      matchObserver.selectProcess(observationTicket,matchProcess(game),now);
       launcher = discoveredLauncher;
       lastProcessScan = now;
     }
     auto finishGameExit = [&] {
       game={};gate.reset();disconnect.reset();typedPage=-1;
+      matchObserver.selectProcess(observationTicket,{},GetTickCount64());
       missingSince=GetTickCount64();lastProcessScan=0;launchDeadline=0;
       activationPending=true;waitingGame=cleanupChecked=false;neacRetrySince=0;
       launcherCoverRetried=false;launcherCoverSince=0;
@@ -888,7 +905,10 @@ void worker() {
               target.pid);
       continue;
     }
+    const auto observationCapturedAt = GetTickCount64();
+    const auto observationSequence = ++observationFrameSequence;
     if (!capture.grab(target.window, frame, false)) {
+      observationTick.error = capture.failure().code;
       input.release();
       gate.observe(-1);
       disconnect.reset();
@@ -950,6 +970,7 @@ void worker() {
         if (!sameProcess(target,isLauncher ? L"Battle.net.exe" : c.gameExe) ||
             !capture.grab(target.window,current,false) ||
             (semantic && !semanticStillVisible(frame,current,semantic))) {
+          observationTick.error = "post_ocr_revalidation_failed";
           input.release(); gate.observe(-1); cnJoin.observe(CNPage::None,GetTickCount64());
           deathmatch.observe(CNPage::None,GetTickCount64());
           continue;
@@ -991,6 +1012,11 @@ void worker() {
          c.mode == WorkflowMode::CustomRoom && !cnProfileTargets(c.cnProfile,c.roomTarget) &&
           (builtin.page == CNPage::Browser || builtin.page == CNPage::Join || builtin.page == CNPage::Room))) builtin = {};
     builtin=normalizeGameLoginRecovery(std::move(builtin),isLauncher);
+    // Read-only monitor consumes original page/source evidence before the
+    // automation below mutates its join gate or self-establishes Combat trust.
+    if (!isLauncher)
+      observationTick.visual(target,c.gameExe,frame,semantic,builtin,c.mode,cnJoin,explicitRoom,
+          deathmatch,observationCapturedAt,observationSequence,m.ambiguous && !semantic && !builtin);
     // Read the evidence before anything else touches the gate. `prepare` below
     // resets it the moment the page is neither browse nor join, so asking it
     // second would throw away the very observation that confirms the join --
@@ -1363,9 +1389,10 @@ void setRunning(bool on, bool manualRestart = false, bool alreadyInRoom = false)
     return;
   }
   if (on && running && manualRestart) {
+    restartRequested=generation.load();
+    matchObserver.begin(generation.load(),snapshotConfig().mode,GetTickCount64());
     if (SimpleEdition) simpleBackgroundArmed=simpleBackground.load();
     foregroundUse=false;backgroundInput.stop();input.blockForeground(false);
-    restartRequested=generation.load();
     wake.notify_all();
     return;
   }
@@ -1384,6 +1411,8 @@ void setRunning(bool on, bool manualRestart = false, bool alreadyInRoom = false)
     }
   }
   ++generation;
+  if (on) matchObserver.begin(generation.load(),snapshotConfig().mode,GetTickCount64());
+  else matchObserver.stop(generation.load(),GetTickCount64());
   foregroundUse=false;backgroundInput.stop();input.blockForeground(false);
   {std::lock_guard lock(backgroundMutex);backgroundCandidate={};backgroundCandidateAt=0;}
   roomStartPid = declaredRoom.pid; roomStartCreated = declaredRoom.created;
@@ -1937,6 +1966,11 @@ LRESULT CALLBACK mainProc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
           if (backgroundInput.begin(target,current.gameExe,generation.load())) {
             foregroundUse=true;
             ShowWindowAsync(target.window,SW_MINIMIZE);
+            const auto observationNow=GetTickCount64();
+            const auto ticket=matchObserver.currentTicket();
+            matchObserver.selectProcess(ticket,matchProcess(target),observationNow);
+            matchObserver.unavailable(ticket,matchProcess(target),observationNow,
+                matchWindow(target,true),"background_observation_paused");
             publish(AutomationState::BACKGROUND_UNVERIFIED,L"前台使用：按你指定的当前对局开启后台消息并暂停 OCR；实际效果待验证。",target.pid);
             wake.notify_all();
           } else { input.blockForeground(false);publish(AutomationState::INPUT_BLOCKED,L"无法核验后台目标或权限，未开启前台使用。Windows 错误 "+std::to_wstring(backgroundInput.error()),target.pid); }
