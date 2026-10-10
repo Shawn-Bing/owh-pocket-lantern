@@ -28,6 +28,8 @@ int main() {
   writeIni(legacy+L"\\settings.ini",L"agent",L"neac_path",L"C:\\fixture\\OWNeacClient.exe");
   writeIni(legacy+L"\\settings.ini",L"agent",L"launcher_path",L"C:\\fixture\\Battle.net.exe");
   writeIni(legacy+L"\\settings.ini",L"agent",L"dry_run",L"1");
+  writeIni(legacy+L"\\settings.ini",L"agent",L"server",L"https://developer.invalid");
+  writeIni(legacy+L"\\settings.ini",L"agent",L"token",L"developer-fixture-token");
   config=loadSimpleConfig(directory,legacy);failures.open(directory);
   requireSimple(!config.dryRun && config.semanticRecognition && config.cnPreset && config.holdShift && config.autoRecover,
      "Simple edition defaults to functional built-in automation");
@@ -47,6 +49,39 @@ int main() {
   requireSimple(config.mode==WorkflowMode::Deathmatch && simpleBackground,"Selected backend is applied");
   requireSimple(readIni(legacy+L"\\settings.ini",L"agent",L"dry_run")==L"1","Developer configuration is untouched");
   requireSimple(simpleModeIndex(directory,config)==3,"Simple mode survives reload");
+  writeIni(directory+L"\\settings.ini",L"agent",L"server",L"http://127.0.0.1:8765");
+  writeIni(directory+L"\\settings.ini",L"agent",L"token",L"simple-fixture-token");
+  config=loadSimpleConfig(directory,legacy);
+  requireSimple(config.server==L"http://127.0.0.1:8765" && config.token==L"simple-fixture-token",
+      "Simple edition accepts only its own explicit remote settings");
+  requireSimple(syncConfig(),"Actual UI mode-save preserves optional remote settings");
+  auto remoteReload=loadSimpleConfig(directory,legacy);
+  requireSimple(remoteReload.server==config.server && remoteReload.token==config.token,
+      "Simple UI save/reload never clears explicit remote settings");
+  matchObserver.stop(generation.load(),GetTickCount64());
+  auto initialStopped=matchObserver.snapshot(GetTickCount64());
+  requireSimple(!initialStopped.running && initialStopped.revision && !initialStopped.sessionId.empty() &&
+      initialStopped.automation==AutomationState::STOPPED && initialStopped.evidenceTtlMs==15000,
+      "First never-started heartbeat has a valid stopped observation envelope");
+  MatchObserver scanObserver{"scan-fixture"};
+  const auto scanTicket=scanObserver.begin(1,WorkflowMode::CustomRoom,100);
+  auto failedScan=[](const wchar_t *,std::vector<DWORD> &) { return false; };
+  auto noProcesses=[](const wchar_t *,std::vector<DWORD> &) { return true; };
+  auto identityMissing=[](const wchar_t *,std::vector<DWORD> &ids) { ids.push_back(123); return true; };
+  observeMatchProcess(scanObserver,scanTicket,{},L"fixture.exe",200,failedScan);
+  requireSimple(scanObserver.snapshot(200).state==MatchState::Unverified &&
+      scanObserver.snapshot(200).lastError=="process_scan_failed","Enumeration failure is never proof of game absence");
+  observeMatchProcess(scanObserver,scanTicket,{},L"fixture.exe",300,noProcesses);
+  requireSimple(scanObserver.snapshot(300).state==MatchState::Offline,"Only successful empty enumeration proves absence");
+  observeMatchProcess(scanObserver,scanTicket,{},L"fixture.exe",400,failedScan);
+  requireSimple(scanObserver.snapshot(400).state==MatchState::Unverified && scanObserver.snapshot(400).processObservedAt==300,
+      "Failed scan revokes historical OFFLINE without refreshing process proof");
+  observeMatchProcess(scanObserver,scanTicket,{},L"fixture.exe",500,identityMissing);
+  requireSimple(scanObserver.snapshot(500).state==MatchState::Unverified &&
+      scanObserver.snapshot(500).lastError=="process_identity_unavailable","Present PID without identity cannot be OFFLINE");
+  scanObserver.stop(2,600);
+  observeMatchProcess(scanObserver,scanTicket,{},L"fixture.exe",700,noProcesses);
+  requireSimple(scanObserver.snapshot(700).lastError=="assistant_stopped","Late scan cannot replace a stopped observer");
   auto savedConfig=config;auto originalForeground=GetForegroundWindow();
   WNDCLASSW fake{};fake.hInstance=instance;fake.lpfnWndProc=DefWindowProcW;fake.lpszClassName=L"OWH.SimpleFakeGame";RegisterClassW(&fake);
   auto fakeWindow=CreateWindowW(fake.lpszClassName,L"Isolated game fixture",WS_OVERLAPPEDWINDOW,-30000,-30000,200,100,nullptr,nullptr,instance,nullptr);

@@ -178,6 +178,14 @@ public:
     } else if (!game.verified()) unverified("process_identity_unavailable");
     return true;
   }
+  bool processUnverified(MatchTicket t, Millis now, const std::string &reason) {
+    std::lock_guard lock(mutex_);
+    if (!accepts(t) || !value_.running || now < value_.lastObservedAt || now < value_.processObservedAt) return false;
+    // A failed enumeration is no new presence/absence fact. Keep the last
+    // identity and process timestamp for diagnosis, but revoke its authority.
+    value_.lastObservedAt = now; value_.page = CNPage::None;
+    unverified(reason); clearSource(); return true;
+  }
   bool unavailable(MatchTicket t, MatchProcess game, Millis now,
                    MatchWindow window, const std::string &reason) {
     std::lock_guard lock(mutex_);

@@ -4,6 +4,25 @@
 
 namespace owh {
 inline MatchProcess matchProcess(const Process &process) { return {process.pid,process.created}; }
+// findProcess's empty result also covers Toolhelp failures. Only a complete,
+// successful name enumeration with no PID is evidence of process absence.
+// The injected enumerator makes the failure paths deterministic in tests.
+template<class Enumerate>
+inline const char *observeMatchProcess(MatchObserver &observer, MatchTicket ticket,
+    const Process &discovered, const std::wstring &name, Millis now, Enumerate enumerate) {
+  if (discovered.pid) { observer.selectProcess(ticket,matchProcess(discovered),now); return ""; }
+  std::vector<DWORD> ids;
+  const char *error = !enumerate(name.c_str(),ids) ? "process_scan_failed" :
+      !ids.empty() ? "process_identity_unavailable" : "";
+  if (*error) observer.processUnverified(ticket,now,error);
+  else observer.selectProcess(ticket,{},now);
+  return error;
+}
+inline const char *observeMatchProcess(MatchObserver &observer, MatchTicket ticket,
+    const Process &discovered, const std::wstring &name, Millis now) {
+  return observeMatchProcess(observer,ticket,discovered,name,now,
+      [](const wchar_t *processName,std::vector<DWORD> &ids) { return processIds(processName,ids); });
+}
 inline MatchWindow matchWindow(const Process &process, bool backgroundInput) {
   MatchWindow result;
   result.backgroundInput=backgroundInput;

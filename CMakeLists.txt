@@ -4,11 +4,23 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 enable_testing()
+add_executable(hardware-telemetry-tests tests/hardware_telemetry_tests.cpp)
+add_executable(telemetry-v2-tests tests/telemetry_v2_tests.cpp)
+foreach(target hardware-telemetry-tests telemetry-v2-tests)
+  target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+endforeach()
+add_test(NAME hardware-telemetry COMMAND hardware-telemetry-tests)
+add_test(NAME telemetry-v2 COMMAND telemetry-v2-tests)
 add_executable(automation-protocol-tests tests/automation_protocol_tests.cpp)
 target_include_directories(automation-protocol-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_test(NAME automation-protocol COMMAND automation-protocol-tests)
 find_program(OWH_GO_EXECUTABLE NAMES go HINTS "${CMAKE_CURRENT_SOURCE_DIR}/build/tools/go/bin")
 if(OWH_GO_EXECUTABLE)
+  add_test(NAME v2-protocol-server COMMAND ${CMAKE_COMMAND} -E env
+    "OWH_V2_PROTOCOL_FIXTURE=$<TARGET_FILE:telemetry-v2-tests>"
+    "GOCACHE=${CMAKE_CURRENT_BINARY_DIR}/go-cache"
+    ${OWH_GO_EXECUTABLE} test -count=1 -run TestCPPV2WireContract ./...)
+  set_tests_properties(v2-protocol-server PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/server" TIMEOUT 120)
   add_test(NAME automation-protocol-server COMMAND ${CMAKE_COMMAND} -E env
     "OWH_PROTOCOL_FIXTURE=$<TARGET_FILE:automation-protocol-tests>"
     "GOCACHE=${CMAKE_CURRENT_BINARY_DIR}/go-cache"
@@ -33,6 +45,19 @@ target_include_directories(visual-calibration-tests PRIVATE ${CMAKE_CURRENT_SOUR
 add_test(NAME visual-calibration COMMAND visual-calibration-tests)
 if(WIN32)
   enable_language(RC)
+  add_executable(hardware-cache-tests tests/hardware_cache_tests.cpp)
+  add_test(NAME hardware-cache COMMAND hardware-cache-tests)
+  set_tests_properties(hardware-cache PROPERTIES TIMEOUT 15)
+  find_program(OWH_SENSOR_CSC NAMES csc.exe HINTS "$ENV{WINDIR}/Microsoft.NET/Framework64/v4.0.30319")
+  if(OWH_SENSOR_CSC)
+    add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/owh-sensors.exe"
+      COMMAND "${OWH_SENSOR_CSC}" /nologo /target:exe /platform:x64 /optimize+
+        "/out:${CMAKE_CURRENT_BINARY_DIR}/owh-sensors.exe" "${CMAKE_CURRENT_SOURCE_DIR}/sensors/SensorBridge.cs"
+      DEPENDS sensors/SensorBridge.cs VERBATIM)
+    add_custom_target(sensor-bridge ALL DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/owh-sensors.exe")
+    add_test(NAME sensor-bridge COMMAND "${CMAKE_CURRENT_BINARY_DIR}/owh-sensors.exe" --self-test)
+    set_tests_properties(sensor-bridge PROPERTIES TIMEOUT 10)
+  endif()
   configure_file(agent/embedded.rc.in embedded.rc @ONLY)
   set_property(SOURCE ${CMAKE_CURRENT_BINARY_DIR}/embedded.rc APPEND PROPERTY OBJECT_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/scripts/ocr-worker.ps1 ${CMAKE_CURRENT_SOURCE_DIR}/profiles/cn-16x9.json)
@@ -45,6 +70,7 @@ if(WIN32)
     target_link_options(overwatch-helper-simple PRIVATE "/MANIFESTUAC:level='requireAdministrator' uiAccess='false'")
   else()
     enable_language(RC)
+
     target_sources(overwatch-helper PRIVATE agent/overwatch-helper.rc)
     target_sources(overwatch-helper-simple PRIVATE agent/overwatch-helper.rc)
     target_include_directories(overwatch-helper-simple PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/agent)
@@ -90,7 +116,7 @@ if(WIN32)
   add_test(NAME cn-recovery COMMAND cn-replay)
   add_test(NAME ocr-integration COMMAND vision-replay --self-test)
   set_tests_properties(ocr-integration PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 30)
-  foreach(target match-observer-tests automation-protocol-tests overwatch-helper overwatch-helper-simple owh-demo owh-recorder platform-tests background-input-tests recovery-lifecycle-tests neac-cleanup-tests ui-layout-tests simple-ui-tests recorder-tests core-tests vision-tests deathmatch-tests cn-replay owh-profile vision-replay embedded-ocr-tests owh-teach owh-vision-calibrate visual-calibration-tests learning-tests)
+  foreach(target hardware-telemetry-tests telemetry-v2-tests hardware-cache-tests match-observer-tests automation-protocol-tests overwatch-helper overwatch-helper-simple owh-demo owh-recorder platform-tests background-input-tests recovery-lifecycle-tests neac-cleanup-tests ui-layout-tests simple-ui-tests recorder-tests core-tests vision-tests deathmatch-tests cn-replay owh-profile vision-replay embedded-ocr-tests owh-teach owh-vision-calibrate visual-calibration-tests learning-tests)
     target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_compile_definitions(${target} PRIVATE UNICODE _UNICODE _WIN32_WINNT=0x0A00)
     if(MSVC)

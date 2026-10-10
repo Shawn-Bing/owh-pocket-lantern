@@ -107,6 +107,9 @@ int main(int argc, char **argv) {
     c.neacPath = L"C:\\Games\\中文目录\\OWNeacClient.exe";
     c.pulseShift = false;
     c.standbySeconds = 25;
+    c.telemetryV2=false; c.hardwareEnabled=false; c.hardwareIntervalMs=12000;
+    c.hardwareCache=dir+L"\\sensor-fixture.json"; c.hardwareLhmDirectory=L"C:\\fixture\\FanControl";
+    c.hardwareGpuUuid=L"GPU-fixture";
     Step s;
     s.label = L"目标房间 / 中文";
     s.text = L"private-search-text";
@@ -125,6 +128,9 @@ int main(int argc, char **argv) {
     require(!loaded.pulseShift && loaded.neacPath == c.neacPath,
             "Pulse and residual process options roundtrip");
     require(loaded.standbySeconds == 25, "Standby takeover delay roundtrip");
+    require(!loaded.telemetryV2 && !loaded.hardwareEnabled && loaded.hardwareIntervalMs==12000 &&
+        loaded.hardwareCache==c.hardwareCache && loaded.hardwareLhmDirectory==c.hardwareLhmDirectory &&
+        loaded.hardwareGpuUuid==c.hardwareGpuUuid,"Advanced telemetry settings survive save/reload");
     require(Config{}.pulseShift && Config{}.standbyOnInput, "New configurations pulse and stand by");
     require(Config{}.standbySeconds == 10, "Standby takeover delay defaults to ten seconds");
     // A settings file is user input: an out-of-range delay must not be able to

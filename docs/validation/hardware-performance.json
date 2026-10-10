@@ -1,0 +1,23 @@
+{
+  "measured_at_utc": "2026-10-10T17:41:23.9769226Z",
+  "interval_ms": 5000,
+  "steady_state_elapsed_seconds": 30.11,
+  "logical_processors": 24,
+  "bridge_cpu_seconds": 0.0,
+  "bridge_cpu_percent_one_core": 0.0,
+  "bridge_cpu_percent_machine": 0.0,
+  "working_set_bytes_min": 40833024.0,
+  "working_set_bytes_max": 40927232.0,
+  "private_bytes_min": 36626432.0,
+  "private_bytes_max": 36753408.0,
+  "disabled_bridge_process_cpu_seconds": 0,
+  "disabled_bridge_working_set_bytes": 0,
+  "whole_machine_power_watts": null,
+  "whole_machine_power_reason": "no_trusted_meter",
+  "cpu_sensor_status": "cpu_access_denied",
+  "gpu_sensor_status": "nvml_real_reading",
+  "note": "Short process-level observation; existing unrelated workloads were not controlled. CPU sensor native sampling not measured because access was denied.",
+  "exit_code": 0,
+  "cpu_counter_limit": "No CPU-time increment was observed at Windows process accounting resolution; this is not a claim of zero execution cost.",
+  "baseline_scope": "Disabled bridge means no bridge process. This records process footprint, not a controlled before/after whole-host benchmark."
+}

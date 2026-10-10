@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>守望 · 运行看板</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>守望 · 运行看板</title><link rel="stylesheet" href="/style.css"><script src="/monitor.js" defer></script><script src="/app.js" defer></script></head>
 <body>
 <div class="shell">
   <aside><div class="brand"><span class="mark">O<span>H</span></span><div>守望<span class="sub">OVERWATCH HELPER</span></div></div><nav><span class="nav-active"><i></i>运行概览</span></nav><div class="aside-bottom"><span class="version">预览版 0.1</span><p>每一台机器，<br>都有清晰的状态。</p></div></aside>
@@ -8,8 +8,8 @@
     <section id="login" class="login"><div class="eyebrow">你的运行状态，一处查看</div><h1>连接监控看板</h1><p>输入服务端的查看令牌。Windows 助手使用独立的 Agent 令牌。</p><form id="login-form"><label for="view-token">查看令牌</label><input id="view-token" type="password" autocomplete="off" placeholder="view-token.txt 中的内容" required><button id="connect" type="submit" class="primary">连接看板 <span>→</span></button></form><p id="login-error" role="alert" class="error"></p><small>令牌仅保留在当前页面内存中，刷新页面后需要重新输入。</small></section>
     <div id="dashboard" hidden>
       <section class="page-title"><div><div class="eyebrow">OVERVIEW</div><h1>运行概览</h1><p>机器在线状态、当前阶段与最近的恢复记录。</p></div><div class="updated">最新同步 <strong id="sync-time">—</strong></div></section>
-      <section class="metrics"><article><span>机器总数</span><strong id="total">0</strong><small>已接入的设备</small></article><article><span><i class="dot green"></i> 在线机器</span><strong id="online">0</strong><small>90 秒内收到心跳</small></article><article><span><i class="dot mint"></i> 正常运行</span><strong id="healthy">0</strong><small>已确认目标房间</small></article><article><span><i class="dot amber"></i> 需要处理</span><strong id="attention">0</strong><small>离线、暂停或异常状态</small></article></section>
-      <section><div class="section-title"><h2>设备 <span id="device-count">0</span></h2><span>状态变化时更新 · 常规心跳 30 秒</span></div><div id="agents" class="agent-grid"></div><div id="empty" class="empty"><div class="empty-icon">＋</div><h3>等待第一台机器接入</h3><p>打开 Windows 助手，在“看板服务地址”填写当前服务地址，<br>填入 Agent 令牌并保存。即使停止任务，也会持续发送心跳。</p><code id="server-address"></code></div></section>
+      <section class="metrics"><article><span>机器总数</span><strong id="total">0</strong><small>已接入的设备</small></article><article><span><i class="dot green"></i> 在线机器</span><strong id="online">0</strong><small>90 秒内收到心跳</small></article><article><span><i class="dot mint"></i> 已确认局内</span><strong id="healthy">0</strong><small>新鲜视觉证据</small></article><article><span><i class="dot amber"></i> 需要处理</span><strong id="attention">0</strong><small>离线、暂停或异常状态</small></article></section>
+      <section><div class="section-title"><h2>设备 <span id="device-count">0</span></h2><span>状态变化时更新 · 证据到期自动撤销</span></div><div id="agents" class="agent-grid"></div><div id="empty" class="empty"><div class="empty-icon">＋</div><h3>等待第一台机器接入</h3><p>打开 Windows 助手，在“看板服务地址”填写当前服务地址，<br>填入 Agent 令牌并保存。即使停止任务，也会持续发送心跳。</p><code id="server-address"></code></div></section>
       <section class="events-section"><div class="section-title"><h2>最近事件</h2><span>最多保留 200 条</span></div><div id="events" class="events"></div></section>
       <footer>OverwatchHelper <span>运行监控与恢复 · 0.2.0</span></footer>
     </div>

@@ -147,3 +147,5 @@ reverse-analysis/  原始样本的静态分析与证据
 开发测试可使用 `overwatch-helper.exe --demo --data-dir "E:\test folder\demo"` 指定隔离配置。`--diagnose` 只写入该目录的 `diagnostics.txt`，不显示面板、不发送输入、不启动游戏、不上报网络。
 
 更多信息：[架构与协议](docs/ARCHITECTURE.md)、[验证记录](docs/VALIDATION.md)。
+
+本分支已完成 P0–P2 第一轮：共享状态协议、独立对局观察器和可选 v2 硬件遥测。`ACTIVE` 不再作为远端已确认局内的依据；证据默认 15 秒过期。详见[本轮交付记录](docs/P0_P2_REPORT.zh-CN.md)、[远程协议与 Tailscale 联调](docs/MONITOR_PROTOCOL.zh-CN.md)、[硬件来源、缺失原因与实测边界](docs/HARDWARE_TELEMETRY.zh-CN.md)。原生 Mac 客户端及真实游戏端到端验收仍属后续阶段。

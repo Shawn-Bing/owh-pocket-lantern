@@ -30,25 +30,29 @@ import (
 var webFiles embed.FS
 
 type Heartbeat struct {
-	Machine  string  `json:"machine"`
-	State    string  `json:"state"`
-	Detail   string  `json:"detail"`
-	PID      uint32  `json:"pid"`
-	Uptime   uint64  `json:"uptime"`
-	Restarts uint32  `json:"restarts"`
-	Score    float64 `json:"score"`
-	DryRun   bool    `json:"dry_run"`
-	Version  string  `json:"version"`
+	Machine  string       `json:"machine"`
+	State    string       `json:"state"`
+	Detail   string       `json:"detail"`
+	PID      uint32       `json:"pid"`
+	Uptime   uint64       `json:"uptime"`
+	Restarts uint32       `json:"restarts"`
+	Score    float64      `json:"score"`
+	DryRun   bool         `json:"dry_run"`
+	Version  string       `json:"version"`
+	V2       *TelemetryV2 `json:"v2,omitempty"`
 }
 type Agent struct {
 	Heartbeat
-	Seen time.Time `json:"seen"`
+	Seen    time.Time    `json:"seen"`
+	Monitor *MonitorView `json:"monitor,omitempty"`
+	receipt *receipt
 }
 type Event struct {
-	Machine string    `json:"machine"`
-	State   string    `json:"state"`
-	Detail  string    `json:"detail"`
-	At      time.Time `json:"at"`
+	Machine    string    `json:"machine"`
+	State      string    `json:"state"`
+	Detail     string    `json:"detail"`
+	At         time.Time `json:"at"`
+	MatchState string    `json:"match_state,omitempty"`
 }
 type Snapshot struct {
 	Agents       []Agent   `json:"agents"`
@@ -64,16 +68,18 @@ type Server struct {
 	agentToken, viewToken, dataDir string
 	dirty                          bool
 	now                            func() time.Time
+	guards                         map[string]protocolGuard
 }
 
 func NewServer(agentToken, viewToken, dir string) *Server {
-	return &Server{agents: map[string]Agent{}, subscribers: map[chan struct{}]struct{}{}, agentToken: agentToken, viewToken: viewToken, dataDir: dir, now: time.Now}
+	return &Server{agents: map[string]Agent{}, subscribers: map[chan struct{}]struct{}{}, agentToken: agentToken, viewToken: viewToken, dataDir: dir, now: time.Now, guards: map[string]protocolGuard{}}
 }
 func (s *Server) snapshot() Snapshot { s.mu.Lock(); defer s.mu.Unlock(); return s.snapshotLocked() }
 func (s *Server) snapshotLocked() Snapshot {
-	x := Snapshot{Agents: make([]Agent, 0, len(s.agents)), Events: append([]Event{}, s.events...), Now: s.now().UTC(), OfflineAfter: 90}
+	now := s.now()
+	x := Snapshot{Agents: make([]Agent, 0, len(s.agents)), Events: append([]Event{}, s.events...), Now: now.UTC(), OfflineAfter: 90}
 	for _, a := range s.agents {
-		x.Agents = append(x.Agents, a)
+		x.Agents = append(x.Agents, deriveAgent(a, now))
 	}
 	sort.Slice(x.Agents, func(i, j int) bool { return x.Agents[i].Machine < x.Agents[j].Machine })
 	return x
@@ -95,7 +101,7 @@ func (s *Server) auth(token string, next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 func validHeartbeat(h Heartbeat) bool {
-	if len(h.Machine) < 1 || len(h.Machine) > 64 || len(h.Detail) > 2000 || len(h.Version) > 32 || !states[h.State] || math.IsNaN(h.Score) || math.IsInf(h.Score, 0) || h.Score < 0 || h.Score > 1 {
+	if len(h.Machine) < 1 || len(h.Machine) > 64 || len(h.Detail) > 2000 || len(h.Version) > 32 || !states[h.State] || math.IsNaN(h.Score) || math.IsInf(h.Score, 0) || h.Score < 0 || h.Score > 1 || !validV2(h.V2) {
 		return false
 	}
 	for _, r := range h.Machine {
@@ -132,10 +138,18 @@ func (s *Server) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		reply(w, 429, map[string]string{"error": "agent_limit"})
 		return
 	}
-	now := s.now().UTC()
-	s.agents[h.Machine] = Agent{Heartbeat: h, Seen: now}
-	if !exists || previous.State != h.State || previous.Detail != h.Detail || previous.DryRun != h.DryRun {
-		s.events = append(s.events, Event{Machine: h.Machine, State: h.State, Detail: h.Detail, At: now})
+	now := s.now()
+	guard, err := nextGuard(s.guards[h.Machine], h.V2)
+	if err != nil {
+		s.mu.Unlock()
+		reply(w, 409, map[string]string{"error": err.Error()})
+		return
+	}
+	received := anchoredReceipt(s.guards[h.Machine], &guard, h.V2, now)
+	s.guards[h.Machine] = guard
+	s.agents[h.Machine] = Agent{Heartbeat: h, Seen: now.UTC(), receipt: received}
+	if !exists || previous.State != h.State || previous.Detail != h.Detail || previous.DryRun != h.DryRun || deriveAgent(previous, now).Monitor.State != deriveAgent(s.agents[h.Machine], now).Monitor.State {
+		s.events = append(s.events, Event{Machine: h.Machine, State: h.State, Detail: h.Detail, At: now.UTC(), MatchState: deriveAgent(s.agents[h.Machine], now).Monitor.State})
 		if len(s.events) > 200 {
 			s.events = append([]Event{}, s.events[len(s.events)-200:]...)
 		}
@@ -224,7 +238,7 @@ func (s *Server) handler() http.Handler {
 	files, _ := fs.Sub(webFiles, "web")
 	static := http.FileServer(http.FS(files))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" && r.URL.Path != "/app.js" && r.URL.Path != "/style.css" {
+		if r.URL.Path != "/" && r.URL.Path != "/app.js" && r.URL.Path != "/style.css" && r.URL.Path != "/monitor.js" {
 			http.NotFound(w, r)
 			return
 		}
@@ -244,7 +258,19 @@ func (s *Server) save() error {
 		s.mu.Unlock()
 		return nil
 	}
-	snapshot := s.snapshotLocked()
+	now := s.now()
+	snapshot := persistedState{Snapshot: Snapshot{Agents: make([]Agent, 0, len(s.agents)), Events: append([]Event{}, s.events...), Now: now.UTC(), OfflineAfter: 90}, Guards: make(map[string]protocolGuard, len(s.guards))}
+	for _, a := range s.agents {
+		snapshot.Agents = append(snapshot.Agents, cloneAgent(a))
+	}
+	for k, g := range s.guards {
+		copyGuard := g
+		copyGuard.Retired = make(map[string]bool, len(g.Retired))
+		for id, b := range g.Retired {
+			copyGuard.Retired[id] = b
+		}
+		snapshot.Guards[k] = copyGuard
+	}
 	s.dirty = false
 	s.mu.Unlock()
 	b, err := json.MarshalIndent(snapshot, "", "  ")
@@ -277,28 +303,54 @@ func (s *Server) save() error {
 	return err
 }
 func (s *Server) load() error {
-	b, err := os.ReadFile(filepath.Join(s.dataDir, "state.json"))
+	file, err := os.Open(filepath.Join(s.dataDir, "state.json"))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	if len(b) > 2*1024*1024 {
+	defer file.Close()
+	// v2 identities and bounded retired-session guards increase snapshot size.
+	b, err := io.ReadAll(io.LimitReader(file, 16*1024*1024+1))
+	if err != nil {
+		return err
+	}
+	if len(b) > 16*1024*1024 {
 		return fmt.Errorf("state file too large")
 	}
-	var x Snapshot
+	var x persistedState
 	if err = json.Unmarshal(b, &x); err != nil {
 		return err
 	}
-	if len(x.Agents) > 128 || len(x.Events) > 200 {
+	if len(x.Agents) > 128 || len(x.Events) > 200 || len(x.Guards) > 128 {
 		return fmt.Errorf("state limits exceeded")
 	}
 	for _, a := range x.Agents {
 		if !validHeartbeat(a.Heartbeat) {
 			return fmt.Errorf("invalid persisted agent")
 		}
+		a.Monitor = nil
+		a.receipt = nil
 		s.agents[a.Machine] = a
+		if a.V2 != nil {
+			if _, exists := x.Guards[a.Machine]; !exists {
+				g, e := nextGuard(protocolGuard{}, a.V2)
+				if e != nil {
+					return e
+				}
+				s.guards[a.Machine] = g
+			}
+		}
+	}
+	for machine, g := range x.Guards {
+		if _, exists := s.agents[machine]; !exists {
+			return fmt.Errorf("orphan persisted protocol guard")
+		}
+		if !validGuard(g) {
+			return fmt.Errorf("invalid persisted protocol guard")
+		}
+		s.guards[machine] = g
 	}
 	s.events = x.Events
 	return nil

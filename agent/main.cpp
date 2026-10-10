@@ -12,6 +12,8 @@
 #include <condition_variable>
 #include <iomanip>
 #include <thread>
+#include "agent/hardware_telemetry.hpp"
+#include "core/telemetry_v2.hpp"
 
 using namespace owh;
 namespace {
@@ -116,6 +118,7 @@ Process backgroundOffer() {
       ? backgroundCandidate : Process{};
 }
 Millis bootTime = GetTickCount64();
+HardwareCacheReader hardwareReader;
 MatchObserver matchObserver{std::to_string(GetCurrentProcessId()) + "-" +
     std::to_string(processCreation(GetCurrentProcess()))};
 // UI publication uses the current ticket; worker publications stay attached to
@@ -251,36 +254,48 @@ Config snapshotConfig() {
   return config;
 }
 void telemetry() {
-  Millis last{};
+  TelemetrySchedule schedule;
+  std::uint64_t sequence{};
+  const auto created=processCreation(GetCurrentProcess());
   for (;;) {
     {
       std::unique_lock lock(networkMutex);
-      networkWake.wait_for(lock, std::chrono::seconds(1), [] { return quitting.load(); });
-      if (quitting)
-        return;
-      if (GetTickCount64() - last < 2000)
-        continue;
-      if (!networkDirty && GetTickCount64() - last < 30000)
-        continue;
-      networkDirty = false;
+      networkWake.wait_for(lock, std::chrono::seconds(1));
+      if (quitting) return;
     }
     auto c = snapshotConfig();
+    const auto now=GetTickCount64();
+    auto observation=matchObserver.snapshot(now);
+    auto hardware=c.hardwareEnabled ? hardwareReader.snapshot(now) :
+        hardwareFailureAttempt(unavailableHardware("hardware_disabled"));
+    {
+      std::lock_guard lock(networkMutex);
+      if (!schedule.due(now,networkDirty,observation,hardware)) continue;
+      networkDirty=false;
+    }
     Status s;
     {
       std::lock_guard lock(statusMutex);
-      s = status;
+      s=status;
     }
-    last = GetTickCount64();
+    schedule.sent(now,observation,hardware);
+    const auto sentTick=GetTickCount64();
+    const auto sentAt=telemetryUtcNow();
     std::ostringstream j;
+    j.imbue(std::locale::classic());
     j << "{\"machine\":\"" << jsonEscape(utf8(c.machine)) << "\",\"state\":\"" << s.state
       << "\",\"detail\":\"" << jsonEscape(utf8(s.detail)) << "\",\"pid\":" << s.pid
-      << ",\"uptime\":" << (last - bootTime) / 1000 << ",\"restarts\":" << s.restarts
+      << ",\"uptime\":" << (sentTick - bootTime) / 1000 << ",\"restarts\":" << s.restarts
       << ",\"score\":" << std::fixed << std::setprecision(3) << s.score
-      << ",\"dry_run\":" << (c.dryRun ? "true" : "false") << ",\"version\":\"" << Version << "\"}";
-    int code = heartbeat(c, j.str());
+      << ",\"dry_run\":" << (c.dryRun ? "true" : "false") << ",\"version\":\"" << Version << "\"";
+    ++sequence;
+    if(c.telemetryV2)
+      j << ",\"v2\":" << telemetryV2Json(GetCurrentProcessId(),created,sequence,sentTick,sentAt,observation,hardware);
+    j << '}';
+    int code=heartbeat(c,j.str());
     {
       std::lock_guard lock(statusMutex);
-      status.http = code;
+      status.http=code;
     }
   }
 }
@@ -551,13 +566,13 @@ void worker() {
            discoveredLauncher.window != launcher.window))
         activationPending = true;
       game = discovered;
-      matchObserver.selectProcess(observationTicket,matchProcess(game),now);
+      observationTick.error = observeMatchProcess(matchObserver,observationTicket,game,c.gameExe,now);
       launcher = discoveredLauncher;
       lastProcessScan = now;
     }
     auto finishGameExit = [&] {
       game={};gate.reset();disconnect.reset();typedPage=-1;
-      matchObserver.selectProcess(observationTicket,{},GetTickCount64());
+      observationTick.error = observeMatchProcess(matchObserver,observationTicket,{},c.gameExe,GetTickCount64());
       missingSince=GetTickCount64();lastProcessScan=0;launchDeadline=0;
       activationPending=true;waitingGame=cleanupChecked=false;neacRetrySince=0;
       launcherCoverRetried=false;launcherCoverSince=0;
@@ -2194,6 +2209,14 @@ int WINAPI wWinMain(HINSTANCE h, HINSTANCE, PWSTR, int) {
   SetTimer(mainWindow, 1, 500, nullptr);
   ShowWindow(mainWindow, SW_SHOW);
   UpdateWindow(mainWindow);
+  matchObserver.stop(generation.load(),GetTickCount64());
+  HardwareBridgeProcess sensorBridge;
+  if(config.hardwareEnabled) {
+    auto cache=config.hardwareCache.empty() ? directory+L"\\hardware.json" : config.hardwareCache;
+    sensorBridge.start(exeDirectory()+L"\\owh-sensors.exe",cache,config.hardwareIntervalMs,
+                       config.hardwareLhmDirectory,config.hardwareGpuUuid);
+    hardwareReader.start(cache);
+  }
   std::thread workerThread(worker), networkThread(telemetry);
   MSG msg{};
   while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
@@ -2209,6 +2232,7 @@ int WINAPI wWinMain(HINSTANCE h, HINSTANCE, PWSTR, int) {
   networkWake.notify_all();
   workerThread.join();
   networkThread.join();
+  hardwareReader.stop();
   DeleteObject(font);
   DeleteObject(titleFont);
   return 0;

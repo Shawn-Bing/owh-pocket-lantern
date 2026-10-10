@@ -180,6 +180,10 @@ inline constexpr int StandbySecondsMax = 600;
 struct Config {
   std::wstring gameExe{L"Overwatch.exe"}, gameClass{L"TankWindowClass"}, launcherPath, launcherArgs;
   std::wstring server, token, machine, neacPath;
+  // Advanced monitoring settings: no impact on input/recovery state.
+  bool telemetryV2{true}, hardwareEnabled{true};
+  unsigned hardwareIntervalMs{5000};
+  std::wstring hardwareCache, hardwareLhmDirectory, hardwareGpuUuid;
   bool dryRun{true}, holdShift{true}, autoRecover{true}, demo{};
   bool pulseShift{true};
   // While the player is at the computer the helper stands down entirely: they can
@@ -212,6 +216,12 @@ inline Config loadConfig(const std::wstring &dir, bool demo) {
   c.launcherArgs = readIni(p, L"agent", L"launcher_args");
   c.server = readIni(p, L"agent", L"server");
   c.token = readIni(p, L"agent", L"token");
+  c.telemetryV2 = number(readIni(p,L"agent",L"telemetry_v2",L"1")) != 0;
+  c.hardwareEnabled = number(readIni(p,L"agent",L"hardware_enabled",L"1")) != 0;
+  c.hardwareIntervalMs = unsigned(std::clamp(number(readIni(p,L"agent",L"hardware_interval_ms",L"5000")),3000,60000));
+  c.hardwareCache = readIni(p,L"agent",L"hardware_cache",(dir+L"\\hardware.json").c_str());
+  c.hardwareLhmDirectory = readIni(p,L"agent",L"hardware_lhm_directory");
+  c.hardwareGpuUuid = readIni(p,L"agent",L"hardware_gpu_uuid");
   wchar_t host[256]{};
   DWORD size = 256;
   GetComputerNameW(host, &size);
@@ -287,6 +297,12 @@ inline void saveConfig(const std::wstring &dir, const Config &c) {
            {L"launcher_args", c.launcherArgs},
            {L"server", c.server},
            {L"token", c.token},
+           {L"telemetry_v2", c.telemetryV2 ? L"1" : L"0"},
+           {L"hardware_enabled", c.hardwareEnabled ? L"1" : L"0"},
+           {L"hardware_interval_ms", std::to_wstring(c.hardwareIntervalMs)},
+           {L"hardware_cache", c.hardwareCache},
+           {L"hardware_lhm_directory", c.hardwareLhmDirectory},
+           {L"hardware_gpu_uuid", c.hardwareGpuUuid},
            {L"machine", c.machine},
            {L"dry_run", c.dryRun ? L"1" : L"0"},
            {L"hold_shift", c.holdShift ? L"1" : L"0"},

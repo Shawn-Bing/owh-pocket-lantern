@@ -9,7 +9,8 @@ inline std::wstring simpleDataDirectory(const StartupOptions &options) {
 inline void applySimpleDefaults(Config &c) {
   c.dryRun=false;c.holdShift=true;c.autoRecover=true;c.pulseShift=true;
   c.standbyOnInput=true;c.standbySeconds=10;c.cnPreset=true;c.semanticRecognition=true;
-  c.server.clear();c.token.clear();c.steps.clear();
+  // Remote monitoring is optional and uses only this edition's explicit settings.
+  c.steps.clear();
   std::string error;auto profile=embeddedAsset(202);
   if (profile.empty()) profile=defaultCNProfileJson();
   if (!parseCNProfile(profile,c.cnProfile,error)) throw std::runtime_error("Invalid embedded recognition profile");

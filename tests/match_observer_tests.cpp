@@ -144,6 +144,13 @@ int main() {
   processes.monitor.selectProcess(processes.ticket,{123,0},5000);
   require(processes.monitor.snapshot(5000).state==MatchState::Unverified,"PID without creation time cannot verify identity");
 
+  Fixture failedProcess; failedProcess.inRoom();
+  failedProcess.monitor.processUnverified(failedProcess.ticket,3000,"process_scan_failed");
+  auto uncertainProcess=failedProcess.monitor.snapshot(3000);
+  require(uncertainProcess.state==MatchState::Unverified && uncertainProcess.source==MatchSource::None &&
+          uncertainProcess.processObservedAt==100 && uncertainProcess.lastConfirmedAt==2000,
+          "Process scan failure revokes current authority without inventing fresh process or visual evidence");
+
   // 7. Minimize, capture failure, independent snapshot TTL, and source retention.
   Fixture minimized; minimized.inRoom();
   MatchWindow hidden{true,false,false,true};

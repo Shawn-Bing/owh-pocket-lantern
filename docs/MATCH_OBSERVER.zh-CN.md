@@ -7,7 +7,7 @@
 - IN_MATCH：同一助手运行代次、同一游戏 PID 与进程创建时间，连续两张可信局内 HUD，且有对应模式来源。
 - OUT_OF_MATCH：可靠视觉明确识别主菜单、设置菜单、队列、目标房间大厅、结算或登录错误等非局内页面。设置菜单可能覆盖一场仍在进行的比赛，此状态只说明当前画面不能确认为局内 HUD。
 - UNVERIFIED：未知、加载、英雄选择、重生、失焦、遮挡、最小化、截图失败、助手停止或证据过期。
-- OFFLINE：本机进程扫描明确确认目标游戏进程不存在。助手停止不等于游戏退出；服务器/网络离线由远程协议另行表示，不能与这个状态混同。
+- OFFLINE：本机进程扫描明确确认目标游戏进程不存在。findProcess 返回空时，再用可区分错误的完整进程枚举核实；枚举失败或发现 PID 但身份不可读取均为 UNVERIFIED，不会刷新进程事实时间。助手停止不等于游戏退出；服务器/网络离线由远程协议另行表示，不能与这个状态混同。
 
 confidence 是证据种类（NONE、PROCESS、VISUAL、REPEATED_VISUAL），不是统计概率。绿色只对应 IN_MATCH；进程存活、功耗或 PostMessage 成功不能提升它。
 
@@ -45,7 +45,7 @@ P2 必须每次发送前调用 snapshot，而非缓存先前绿色快照。状�
 
 tests/match_observer_tests.cpp 用真实 recognizeSemantic、CNJoinGate、CNRoomStart、DeathmatchSession 和像素 HUD/计分板夹具覆盖任务要求的十类确定性场景，并额外覆盖任意手动模板自证、PID 复用、缺失创建时间、重复帧、OCR 迟到、快照 TTL、三分钟来源失效及显式重绑。并发停止测试以 promise 控制旧线程返回顺序，不依赖 sleep 或游戏环境。
 
-tests/simple_ui_tests.cpp 还实际调用 setRunning(false)，检查 UI 停止立即撤销观察器并拒绝旧 worker 的状态发布。
+tests/simple_ui_tests.cpp 还实际调用 setRunning(false)，检查 UI 停止立即撤销观察器并拒绝旧 worker 的状态发布；真实进程观察适配注入枚举失败、成功空列表和有 PID 但身份不可得的结果，验证 process_scan_failed 不会变成 OFFLINE 或刷新旧的进程事实。
 
 P1 验证：开发版/简易版及全部 C++ 目标构建通过；CTest 19/19 通过，Go 普通测试通过，当前工作区 dist 打包完成。观察器 TTL 元数据还以自定义配置单独回归，避免传输层重复常数。
 

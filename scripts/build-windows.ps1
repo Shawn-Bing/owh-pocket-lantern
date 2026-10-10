@@ -46,6 +46,9 @@ foreach ($name in @('overwatch-helper.exe', 'overwatch-helper-dev.exe', 'overwat
     if (-not (Test-Path -LiteralPath $source)) { $source = Join-Path $buildDir "Release/$name" }
     Copy-Item -LiteralPath $source -Destination (Join-Path $distDir $name) -Force
 }
+if (Test-Path -LiteralPath (Join-Path $buildDir 'owh-sensors.exe')) {
+    Copy-Item -LiteralPath (Join-Path $buildDir 'owh-sensors.exe') -Destination (Join-Path $distDir 'owh-sensors.exe') -Force
+}
 foreach ($name in @('start-demo.cmd', 'start-dashboard.cmd', 'diagnose.cmd', 'start-recording.cmd', 'stop-recording.cmd')) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $distDir -Force
 }
@@ -53,6 +56,8 @@ New-Item -ItemType Directory -Force (Join-Path $distDir 'docs') | Out-Null
 Get-ChildItem -LiteralPath (Join-Path $projectRoot 'docs') -Filter '*.md' | ForEach-Object {
     Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $distDir 'docs') -Force
 }
+New-Item -ItemType Directory -Force (Join-Path $distDir 'docs/validation') | Out-Null
+Copy-Item -LiteralPath (Join-Path $projectRoot 'docs/validation/hardware-performance.json') -Destination (Join-Path $distDir 'docs/validation/hardware-performance.json') -Force
 Copy-Item -LiteralPath (Join-Path $projectRoot 'README.md') -Destination $distDir -Force
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'ocr-worker.ps1') -Destination $distDir -Force
 # Recognition steps ship as data so they can be edited and shared without a rebuild.
