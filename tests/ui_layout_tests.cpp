@@ -44,7 +44,7 @@ int main() {
                              0,0,0,0,mainWindow,nullptr,instance,&windowLayout);
     windowLayout.attach(mainWindow,pane,dpi);controls();refreshStatus();
     ShowWindow(mainWindow,SW_SHOWNOACTIVATE);UpdateWindow(mainWindow);
-    requireUi(!IsWindowEnabled(control(ForegroundUse)),"Background mode cannot start without a confirmed live session");
+    requireUi(IsWindowEnabled(control(ForegroundUse)),"Explicit foreground-use request is available without an OCR match");
     requireUi(GetParent(control(GameExe))==pane && GetParent(control(Start))==mainWindow,
               "Content scrolls independently of persistent run controls");
     for (const auto &item:windowLayout.items()) requireUi(IsWindow(item.window),"All production controls are created");

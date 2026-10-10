@@ -36,7 +36,7 @@ int selfTest() {
   GdiFlush(); std::memcpy(frame.pixels.data(),pixels,frame.pixels.size()*4);
   SelectObject(dc,previousFont); DeleteObject(font); SelectObject(dc,previous); DeleteObject(bitmap); DeleteDC(dc);
   LocalOcr ocr; OcrFrame words;
-  auto directory = (std::filesystem::path(exeDirectory())/L"vision-integration-data").wstring();
+  auto directory = (std::filesystem::path(exeDirectory())/(L"vision-integration-data-"+std::to_wstring(GetCurrentProcessId()))).wstring();
   if (!ocr.recognize(frame,directory,words,[] { return true; })) {
     if (ocr.error().find("Chinese OCR is unavailable") != std::string::npos) {
       std::cout << "Chinese OCR language feature unavailable; integration test skipped\n"; return 77;

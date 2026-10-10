@@ -1,0 +1,2 @@
+201 RCDATA "@CMAKE_CURRENT_SOURCE_DIR@/scripts/ocr-worker.ps1"
+202 RCDATA "@CMAKE_CURRENT_SOURCE_DIR@/profiles/cn-16x9.json"

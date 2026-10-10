@@ -34,7 +34,7 @@ class LocalOcr {
     }
     return false;
   }
-  bool start(const std::function<bool()> &alive) {
+  bool start(const std::function<bool()> &alive,const std::wstring &directory) {
     if (process_) return true;
     if (GetTickCount64() < retryAt_) return false;
     SECURITY_ATTRIBUTES security{sizeof(security),nullptr,TRUE};
@@ -49,7 +49,10 @@ class LocalOcr {
     nullHandle = CreateFileW(L"NUL",GENERIC_WRITE,FILE_SHARE_READ|FILE_SHARE_WRITE,&security,OPEN_EXISTING,0,nullptr);
     wchar_t windows[32768]{}; GetWindowsDirectoryW(windows,32768);
     auto executable = std::filesystem::path(windows)/L"System32"/L"WindowsPowerShell"/L"v1.0"/L"powershell.exe";
-    auto script = std::filesystem::path(exeDirectory())/L"ocr-worker.ps1";
+    std::filesystem::path script;
+    try { script=embeddedOcrScript(directory); }
+    catch (...) {cleanup();error_="Cannot prepare embedded Windows OCR";return false;}
+    if (script.empty()) script=std::filesystem::path(exeDirectory())/L"ocr-worker.ps1";
     if (!std::filesystem::is_regular_file(script)) {
       cleanup(); error_ = "Missing ocr-worker.ps1 beside the executable"; retryAt_ = GetTickCount64()+60000; return false;
     }
@@ -105,7 +108,7 @@ public:
   const std::string &error() const { return error_; }
   bool recognize(const Frame &frame, const std::wstring &dir, OcrFrame &result,
                  const std::function<bool()> &alive, bool deskew = true, bool highDetail = false) {
-    if (!start(alive) || !alive()) return false;
+    if (!start(alive,dir) || !alive()) return false;
     auto folder = std::filesystem::path(dir)/L"adaptive";
     std::error_code ec; std::filesystem::create_directories(folder,ec);
     imagePath_ = (folder/(L"ocr-frame-"+std::to_wstring(GetCurrentProcessId())+L".bmp")).wstring();

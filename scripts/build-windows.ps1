@@ -41,7 +41,7 @@ try {
         Invoke-Checked $Go @('build', '-trimpath', '-ldflags=-s -w', '-o', (Join-Path $distDir 'owh-dashboard.exe'), '.')
     } finally { Pop-Location }
 } finally { $env:GOCACHE = $oldCache }
-foreach ($name in @('overwatch-helper.exe', 'owh-demo.exe', 'owh-recorder.exe', 'owh-teach.exe', 'owh-vision-calibrate.exe', 'owh-profile.exe')) {
+foreach ($name in @('overwatch-helper.exe', 'overwatch-helper-dev.exe', 'overwatch-helper-simple.exe', 'owh-demo.exe', 'owh-recorder.exe', 'owh-teach.exe', 'owh-vision-calibrate.exe', 'owh-profile.exe')) {
     $source = Join-Path $buildDir $name
     if (-not (Test-Path -LiteralPath $source)) { $source = Join-Path $buildDir "Release/$name" }
     Copy-Item -LiteralPath $source -Destination (Join-Path $distDir $name) -Force

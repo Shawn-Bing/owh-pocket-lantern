@@ -1,4 +1,5 @@
 #pragma once
+#include "agent/embedded.hpp"
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif

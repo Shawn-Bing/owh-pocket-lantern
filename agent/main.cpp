@@ -2,6 +2,8 @@
 #include "agent/vision.hpp"
 #include "agent/learning.hpp"
 #include "agent/background_input.hpp"
+#include "agent/simple_config.hpp"
+#include "agent/failure_log.hpp"
 #include "agent/window_layout.hpp"
 #include "core/cn_recovery.hpp"
 #include <commctrl.h>
@@ -11,6 +13,12 @@
 
 using namespace owh;
 namespace {
+#ifdef OWH_SIMPLE_EDITION
+constexpr bool SimpleEdition=true;
+#else
+constexpr bool SimpleEdition=false;
+#endif
+constexpr UINT StartSimpleBackground=WM_APP+3;
 constexpr wchar_t AppClass[] = L"OverwatchHelper.Main";
 constexpr wchar_t OverlayClass[] = L"OverwatchHelper.Calibrate";
 constexpr const wchar_t *ActionNames[] = {L"点击按钮",
@@ -66,7 +74,11 @@ enum {
   StartInRoom,
   Learning,
   ImportProfile,
-  ForegroundUse
+  ForegroundUse,
+  FailureList,
+  OpenFailures,
+  FailureHeading,
+  ModeHeading
 };
 HINSTANCE instance{};
 HWND mainWindow{}, calibrationWindow{};
@@ -84,6 +96,8 @@ std::atomic<DWORD> roomStartPid{};
 std::atomic<ULONGLONG> roomStartCreated{};
 std::condition_variable wake, networkWake;
 Input input;
+FailureLog failures;
+std::atomic<bool> simpleBackground{}, simpleBackgroundArmed{};
 BackgroundInput backgroundInput;
 std::atomic<bool> foregroundUse{};
 std::mutex backgroundMutex;
@@ -214,6 +228,7 @@ void publish(const char *state, const std::wstring &detail, DWORD pid = 0, doubl
   }
   if (changed) {
     log(wide(state) + L" | " + detail);
+    failures.record(state,detail,pid);
     {
       std::lock_guard lock(networkMutex);
       networkDirty = true;
@@ -293,7 +308,7 @@ void worker() {
   // different patience, and the old code gave both the long one.
   bool sawGame{};
   int unmatchedSaved{};
-  Millis launcherCoverSince{}, backgroundNext{};
+  Millis launcherCoverSince{}, backgroundNext{}, backgroundEnteredAt{};
   bool wasForegroundUse{}, backgroundOkay{true};
   for (;;) {
     input.checkFocus();
@@ -381,7 +396,7 @@ void worker() {
     if (foregroundUse.load()) {
       const auto bound=backgroundInput.target();
       if (!wasForegroundUse) {
-        wasForegroundUse=true;backgroundNext=0;backgroundOkay=true;vision.cancel();input.release();cnJoin.reset();semanticBurst=false;gate.reset();
+        wasForegroundUse=true;backgroundNext=0;backgroundEnteredAt=now;backgroundOkay=true;vision.cancel();input.release();cnJoin.reset();semanticBurst=false;gate.reset();
         log(L"前台使用模式开启：暂停 OCR/导航/恢复，定向窗口消息；PID "+std::to_wstring(bound.pid)+
             L"，按键效果尚未验证。");
       }
@@ -391,6 +406,9 @@ void worker() {
         blocked=true;
         publish("NEEDS_USER",L"后台目标进程或窗口已变化，已停止后台按键；请重新确认游戏后开始。",bound.pid);
         continue;
+      }
+      if (foreground(bound.window) && now-backgroundEnteredAt<1000) {
+        publish("WAITING_FOCUS",L"正在开启前台使用，等待游戏最小化。",bound.pid);continue;
       }
       if (foreground(bound.window)) {
         backgroundInput.stop();foregroundUse=false;input.blockForeground(false);
@@ -444,7 +462,7 @@ void worker() {
         cnJoin.reset(); semanticBurst = false;
       }
     }
-    if (c.standbyOnInput && playerBusy && !foreground(game.window)) {
+    if (c.standbyOnInput && playerBusy && !foreground(game.window) && !requestedRestart) {
       input.release();
       gate.observe(-1);
       if (!standbySince)
@@ -541,7 +559,7 @@ void worker() {
       if (!c.demo && ((!c.cnPreset && !c.semanticRecognition && std::none_of(c.steps.begin(),c.steps.end(),[](const Step &s){return s.launcher && s.action==Action::Launch;})) ||
           !validNeacPath(c.neacPath) || !std::filesystem::is_regular_file(c.neacPath,neacError) ||
           (!launcher.pid && !std::filesystem::is_regular_file(c.launcherPath,launcherError)))) {
-        publish("NEEDS_CONFIG", L"重启前请填写 OWNeacClient.exe 完整路径和启动器，并启用本地 OCR、国服预设或录制战网启动按钮。游戏尚未关闭。",game.pid);
+        publish("NEEDS_CONFIG", SimpleEdition ? L"无法自动核验游戏或战网安装路径。请先从战网启动一次游戏后重试，或在开发版保存正确路径。游戏尚未关闭。" : L"重启前请填写 OWNeacClient.exe 完整路径和启动器，并启用本地 OCR、国服预设或录制战网启动按钮。游戏尚未关闭。",game.pid);
         blocked=true;
         return;
       }
@@ -1045,7 +1063,11 @@ void worker() {
     bool confirmed = gate.observe(key);
     if (c.mode == WorkflowMode::CustomRoom) room.observe(&s, confirmed);
     if (!isLauncher && ((c.mode==WorkflowMode::CustomRoom && confirmed && s.action==Action::Ready && room.active()) ||
-        (c.mode==WorkflowMode::Deathmatch && deathmatch.confirmedCombat(now)))) offerBackground(game,now);
+        (c.mode==WorkflowMode::Deathmatch && deathmatch.confirmedCombat(now)))) {
+      offerBackground(game,now);
+      if (SimpleEdition && simpleBackground && simpleBackgroundArmed.exchange(false))
+        PostMessageW(mainWindow,StartSimpleBackground,epoch,0);
+    }
     else if (!isLauncher && observedPage!=CNPage::None) {
       std::lock_guard lock(backgroundMutex);backgroundCandidate={};backgroundCandidateAt=0;
     }
@@ -1271,6 +1293,17 @@ void refreshSteps() {
 }
 bool syncConfig() {
   auto c = snapshotConfig();
+  if (SimpleEdition) {
+    try {
+      const int selection=std::clamp(int(SendMessageW(control(ModeBox),CB_GETCURSEL,0,0)),0,3);
+      if (!saveSimpleConfig(directory,c,selection)) throw std::runtime_error("Cannot save simple mode");
+      simpleBackground=(selection%2)!=0;
+      std::lock_guard lock(configMutex);config=std::move(c);return true;
+    } catch (...) {
+      failures.record("NEEDS_CONFIG",L"简易版设置或内置识别初始化失败，请检查配置目录写入权限。",0);
+      MessageBoxW(mainWindow,L"无法保存简易版设置，请检查本地目录权限。",L"设置失败",MB_ICONERROR);return false;
+    }
+  }
   c.gameExe = textOf(GameExe);
   c.launcherPath = textOf(Launcher);
   c.launcherArgs = textOf(Args);
@@ -1328,6 +1361,7 @@ void setRunning(bool on, bool manualRestart = false, bool alreadyInRoom = false)
     return;
   }
   if (on && running && manualRestart) {
+    if (SimpleEdition) simpleBackgroundArmed=simpleBackground.load();
     foregroundUse=false;backgroundInput.stop();input.blockForeground(false);
     restartRequested=generation.load();
     wake.notify_all();
@@ -1337,6 +1371,7 @@ void setRunning(bool on, bool manualRestart = false, bool alreadyInRoom = false)
     return;
   if (on && !syncConfig())
     return;
+  if (SimpleEdition) simpleBackgroundArmed=on && simpleBackground;
   Process declaredRoom;
   if (on && alreadyInRoom) {
     auto current = snapshotConfig();
@@ -1667,7 +1702,63 @@ HWND add(const wchar_t *cls, const std::wstring &txt, int id, int x, int y, int 
   SendMessageW(h,WM_SETFONT,reinterpret_cast<WPARAM>(id==StatusTitle ? titleFont : font),TRUE);
   return h;
 }
+void resizeSimple() {
+  RECT client{};GetClientRect(mainWindow,&client);
+  const int width=client.right,height=client.bottom,margin=u(20),gap=u(12);
+  auto place=[&](int id,int x,int y,int w,int h){MoveWindow(control(id),x,y,w,h,TRUE);};
+  place(StatusTitle,margin,u(16),width-margin*2,u(30));
+  place(ModeHeading,margin,u(62),u(76),u(26));
+  place(ModeBox,u(100),u(58),width-u(120),u(140));
+  const int button=(width-margin*2-gap*3)/4;
+  place(Start,margin,u(100),button,u(34));place(Stop,margin+button+gap,u(100),button,u(34));
+  place(RestartNow,margin+(button+gap)*2,u(100),button,u(34));
+  place(ForegroundUse,margin+(button+gap)*3,u(100),width-margin-(margin+(button+gap)*3),u(34));
+  place(StatusDetail,margin,u(148),width-margin*2,u(50));
+  place(FailureHeading,margin,u(204),width-margin*2,u(24));
+  place(FailureList,margin,u(234),width-margin*2,std::max(u(80),height-u(302)));
+  place(Stats,margin,height-u(47),width-u(220),u(24));
+  place(OpenFailures,width-u(190),height-u(52),u(170),u(32));
+}
+void simpleControls() {
+  auto create=[&](const wchar_t *cls,const wchar_t *label,int id,int x,int y,int w,int h,DWORD style=0) {
+    auto window=CreateWindowExW(wcscmp(cls,L"EDIT")==0 ? WS_EX_CLIENTEDGE : 0,cls,label,
+      WS_CHILD|WS_VISIBLE|style|(wcscmp(cls,L"STATIC") ? WS_TABSTOP : 0),u(x),u(y),u(w),u(h),
+      mainWindow,reinterpret_cast<HMENU>(INT_PTR(id)),instance,nullptr);
+    windowLayout.remember(window,id,x,y,w,h,ui::WindowLayout::Band::Header,ui::WindowLayout::WidthRule::Fixed);
+    SendMessageW(window,WM_SETFONT,reinterpret_cast<WPARAM>(id==StatusTitle ? titleFont : font),TRUE);
+  };
+  create(L"STATIC",L"守望挂机 · 简易版",StatusTitle,20,16,600,30);
+  create(L"STATIC",L"挂机模式",ModeHeading,20,62,76,26);
+  create(L"COMBOBOX",L"",ModeBox,100,58,520,140,CBS_DROPDOWNLIST);
+  for (auto label:{L"战令房间 · 前台",L"战令房间 · 后台（实验）",L"自由死斗 · 前台",L"自由死斗 · 后台（实验）"})
+    SendMessageW(control(ModeBox),CB_ADDSTRING,0,reinterpret_cast<LPARAM>(label));
+  SendMessageW(control(ModeBox),CB_SETCURSEL,simpleModeIndex(directory,snapshotConfig()),0);
+  create(L"BUTTON",L"开始挂机",Start,20,100,190,34,BS_PUSHBUTTON);
+  create(L"BUTTON",L"停止 · F8",Stop,222,100,190,34,BS_PUSHBUTTON);
+  create(L"BUTTON",L"重启游戏",RestartNow,324,100,140,34,BS_PUSHBUTTON);
+  create(L"BUTTON",L"前台使用",ForegroundUse,480,100,140,34,BS_PUSHBUTTON);
+  create(L"STATIC",L"选择模式后开始。识别和失败记录会自动运行。",StatusDetail,20,148,600,50);
+  create(L"STATIC",L"失败记录 · 自动保存，最新在上",FailureHeading,20,204,600,24);
+  create(L"EDIT",L"尚无失败记录。",FailureList,20,234,600,178,
+         ES_MULTILINE|ES_READONLY|ES_AUTOVSCROLL|WS_VSCROLL);
+  create(L"STATIC",L"",Stats,20,433,420,24);
+  create(L"BUTTON",L"打开失败日志",OpenFailures,450,428,170,32,BS_PUSHBUTTON);
+  settingsIds={ModeBox};resizeSimple();
+}
+std::wstring simpleStateTitle(const std::string &state) {
+  if(state=="STOPPED") return L"已停止";
+  if(state=="ACTIVE") return L"挂机中";
+  if(state=="BACKGROUND_UNVERIFIED") return L"后台挂机 · 效果待验证";
+  if(state=="STANDBY") return L"等待停止手动操作";
+  if(state=="RECOVERING" || state=="STARTING" || state=="WAITING_GAME_EXIT") return L"正在重启游戏";
+  if(state=="BACKOFF") return L"等待恢复冷却";
+  if(state=="WAITING_FOCUS") return L"等待游戏前台";
+  if(state=="WAITING_DESKTOP") return L"等待返回桌面或授权";
+  if(failureState(state,L"")) return L"需要检查 · 原因已记录";
+  return L"正在识别与进入对局";
+}
 void controls() {
+  if (SimpleEdition) {simpleControls();return;}
   auto c = snapshotConfig();
   add(L"STATIC", L"OverwatchHelper · 国服试用版", StatusTitle, 22, 17, 810, 30);
   add(L"STATIC", L"", StatusDetail, 22, 56, 810, 42);
@@ -1675,7 +1766,7 @@ void controls() {
   add(L"BUTTON", L"停止 · F8", Stop, 148, 106, 115, 32, BS_PUSHBUTTON);
   add(L"BUTTON", L"保存配置", Save, 274, 106, 100, 32);
   add(L"BUTTON", L"前台使用（实验）", ForegroundUse, 385, 106, 173, 32, BS_PUSHBUTTON);
-  EnableWindow(control(ForegroundUse),FALSE);
+  EnableWindow(control(ForegroundUse),TRUE);
   add(L"BUTTON", L"演练（无动作）", Dry, 568, 107, 145, 28, BS_AUTOCHECKBOX);
   add(L"BUTTON", L"运行诊断", Diagnose, 726, 106, 92, 32, BS_PUSHBUTTON);
   SendMessageW(control(Dry), BM_SETCHECK, c.dryRun ? BST_CHECKED : BST_UNCHECKED, 0);
@@ -1758,7 +1849,16 @@ void refreshStatus() {
     std::lock_guard lock(statusMutex);
     s = status;
   }
-  auto title = L"OverwatchHelper · " + wide(s.state);
+  auto title = SimpleEdition ? L"守望挂机 · "+simpleStateTitle(s.state) : L"OverwatchHelper 开发版 · " + wide(s.state);
+  if (SimpleEdition) {
+    const auto history=failures.snapshot();static unsigned long long lastRevision=~0ull;
+    if (history.first!=lastRevision) {SetWindowTextW(control(FailureList),history.second.c_str());lastRevision=history.first;}
+    const auto summary=L"已运行 "+std::to_wstring((GetTickCount64()-bootTime)/1000)+L" 秒 · 恢复 "+std::to_wstring(s.restarts)+L" 次";
+    SetWindowTextW(control(ForegroundUse),foregroundUse ? L"结束前台使用" : L"前台使用");
+    EnableWindow(control(ForegroundUse),!calibrating);
+    SetWindowTextW(control(Stats),summary.c_str());SetWindowTextW(control(StatusTitle),title.c_str());
+    SetWindowTextW(control(StatusDetail),s.detail.c_str());return;
+  }
   SetWindowTextW(control(StatusTitle), title.c_str());
   SetWindowTextW(control(StatusDetail), s.detail.c_str());
   const auto now = GetTickCount64();
@@ -1770,7 +1870,7 @@ void refreshStatus() {
     stats << L"    等待 " << (s.next - now) / 1000 << L" 秒";
   SetWindowTextW(control(Stats), stats.str().c_str());
   SetWindowTextW(control(ForegroundUse),foregroundUse ? L"结束前台使用" : L"前台使用（实验）");
-  EnableWindow(control(ForegroundUse),running && (foregroundUse || backgroundOffer().pid));
+  EnableWindow(control(ForegroundUse),!calibrating);
   auto net = s.http == 0 ? L"远程看板：未配置"
                          : (s.http >= 200 && s.http < 300
                                 ? L"远程看板：已连接"
@@ -1785,24 +1885,30 @@ LRESULT CALLBACK mainProc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
     return reinterpret_cast<LRESULT>(GetSysColorBrush(COLOR_WINDOW));
   }
   case WM_GETMINMAXINFO: {
-    RECT minimum{0,0,u(ui::WindowLayout::BaseWidth),u(ui::WindowLayout::MinimumHeight)};
+    RECT minimum{0,0,u(SimpleEdition ? 640 : ui::WindowLayout::BaseWidth),u(SimpleEdition ? 400 : ui::WindowLayout::MinimumHeight)};
     AdjustWindowRectExForDpi(&minimum,DWORD(GetWindowLongPtrW(w,GWL_STYLE)),FALSE,0,dpi);
     auto *limits=reinterpret_cast<MINMAXINFO*>(lp);
     limits->ptMinTrackSize={minimum.right-minimum.left,minimum.bottom-minimum.top};
     return 0;
   }
   case WM_SIZE:
-    if (wp!=SIZE_MINIMIZED) windowLayout.resize();
+    if (wp!=SIZE_MINIMIZED) {if (SimpleEdition) resizeSimple();else windowLayout.resize();}
     return 0;
   case WM_DPICHANGED: {
     dpi=HIWORD(wp);windowLayout.setDpi(dpi);updateFonts();
     const auto *suggested=reinterpret_cast<RECT*>(lp);
     SetWindowPos(w,nullptr,suggested->left,suggested->top,suggested->right-suggested->left,
                  suggested->bottom-suggested->top,SWP_NOZORDER|SWP_NOACTIVATE);
-    windowLayout.resize();return 0;
+    if (SimpleEdition) resizeSimple();else windowLayout.resize();return 0;
   }
   case WM_MOUSEWHEEL:
     windowLayout.mouseWheel(GET_WHEEL_DELTA_WPARAM(wp));return 0;
+  case StartSimpleBackground:
+    if (SimpleEdition && running && wp==generation.load() && simpleBackground && !foregroundUse) {
+      if (backgroundOffer().pid) SendMessageW(w,WM_COMMAND,ForegroundUse,0);
+      else simpleBackgroundArmed=true;
+    }
+    return 0;
   case WM_COMMAND:
     switch (LOWORD(wp)) {
     case ForegroundUse:
@@ -1810,21 +1916,42 @@ LRESULT CALLBACK mainProc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
         const auto target=backgroundInput.target();backgroundInput.stop();input.blockForeground(false);
         if (sameProcess(target,snapshotConfig().gameExe)) requestForeground(target.window);
         wake.notify_all();
-      } else if (running) {
-        const auto target=backgroundOffer();const auto current=snapshotConfig();
+      } else {
+        auto current=snapshotConfig();
+        auto target=findProcess(current.gameExe,current.gameClass);
+        if (!target.window || !sameProcess(target,current.gameExe)) {
+          failures.record("INPUT_BLOCKED",L"前台使用未开启：未找到可核验的游戏窗口，请先进入目标房间或死斗对局。",target.pid);
+          MessageBoxW(w,L"未找到游戏窗口。请先打开游戏并进入目标房间或死斗对局，再点前台使用。",L"前台使用未开启",MB_ICONINFORMATION);
+          break;
+        }
+        // This button is an explicit declaration of the current selected game
+        // session, equivalent to StartInRoom. OCR is not a prerequisite.
+        if (!running) setRunning(true,false,true);
+        if (!running) break;
+        current=snapshotConfig();
+        simpleBackgroundArmed=false;
         if (target.pid && sameProcess(target,current.gameExe)) {
           input.blockForeground(true);
           if (backgroundInput.begin(target,current.gameExe,generation.load())) {
             foregroundUse=true;
             ShowWindowAsync(target.window,SW_MINIMIZE);
-            publish("BACKGROUND_UNVERIFIED",L"前台使用：暂停 OCR，开始向已确认游戏窗口发送后台消息；实际效果待验证。",target.pid);
+            publish("BACKGROUND_UNVERIFIED",L"前台使用：按你指定的当前对局开启后台消息并暂停 OCR；实际效果待验证。",target.pid);
             wake.notify_all();
-          } else { input.blockForeground(false);publish("INPUT_BLOCKED",L"无法核验后台目标或权限，未开启前台使用。",target.pid); }
+          } else { input.blockForeground(false);publish("INPUT_BLOCKED",L"无法核验后台目标或权限，未开启前台使用。Windows 错误 "+std::to_wstring(backgroundInput.error()),target.pid); }
         }
       }
       break;
+    case ModeBox:
+      if (SimpleEdition && HIWORD(wp)==CBN_SELCHANGE && !running) syncConfig();
+      break;
+    case OpenFailures: {
+      auto path=std::filesystem::path(directory)/L"failures.log";
+      if (std::filesystem::exists(path)) ShellExecuteW(w,L"open",path.c_str(),nullptr,nullptr,SW_SHOWNORMAL);
+      else MessageBoxW(w,L"尚无失败记录。出现异常后会自动保存。",L"失败记录",MB_OK);
+      break;
+    }
     case Start:
-      setRunning(true);
+      setRunning(true,false,SimpleEdition && bool(findProcess(snapshotConfig().gameExe,snapshotConfig().gameClass).window));
       break;
     case StartInRoom:
       if (learning::isOpen()) {
@@ -1967,20 +2094,23 @@ int WINAPI wWinMain(HINSTANCE h, HINSTANCE, PWSTR, int) {
   StartupOptions options;
   try {
     options = commandLineOptions();
-    directory = resolveDataDirectory(options);
-    config = loadConfig(directory, options.demo);
+    directory = SimpleEdition ? simpleDataDirectory(options) : resolveDataDirectory(options);
+    failures.open(directory);
+    config = SimpleEdition ? loadSimpleConfig(directory,dataDirectory(false)) : loadConfig(directory, options.demo);
+    if (SimpleEdition) {simpleBackground=(simpleModeIndex(directory,config)%2)!=0;status.detail=L"选择挂机模式后开始；已在局内时可直接点前台使用。";}
     if (options.diagnose) {
       writeDiagnostics(directory, config);
       return 0;
     }
   } catch (...) {
+    failures.record("NEEDS_CONFIG",L"启动参数、配置目录或内置识别资源读取失败。",0);
     // CLI diagnosis must not leave an unattended message box on failure.
     if (!options.diagnose)
       MessageBoxW(nullptr, L"无法读取启动参数或配置目录。\n支持 --demo、--data-dir 路径、--diagnose。",
                   L"OverwatchHelper", MB_ICONERROR);
     return 1;
   }
-  bool demo = options.demo;
+  bool demo = options.demo && !SimpleEdition;
   Handle singleton(CreateMutexW(
       nullptr, TRUE, demo ? L"Local\\OverwatchHelper.Demo" : L"Local\\OverwatchHelper.Main"));
   if (GetLastError() == ERROR_ALREADY_EXISTS) {
@@ -2001,23 +2131,26 @@ int WINAPI wWinMain(HINSTANCE h, HINSTANCE, PWSTR, int) {
   RegisterClassW(&wc);
   wc.lpfnWndProc=ui::paneProc;wc.lpszClassName=ui::PaneClass;
   RegisterClassW(&wc);
-  RECT r{0,0,u(960),u(826)},work{};
+  RECT r{0,0,u(SimpleEdition ? 640 : 960),u(SimpleEdition ? 480 : 826)},work{};
   DWORD style=WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN;
   AdjustWindowRectExForDpi(&r,style,FALSE,0,dpi);
   SystemParametersInfoW(SPI_GETWORKAREA,0,&work,0);
   const int initialWidth=std::min(int(r.right-r.left),int(work.right-work.left)-u(24));
   const int initialHeight=std::min(int(r.bottom-r.top),int(work.bottom-work.top)-u(24));
   mainWindow = CreateWindowExW(0, AppClass,
-                               demo ? L"OverwatchHelper 0.5.12 · 演示配置" : L"OverwatchHelper 0.5.12 · 国服战网",
+                               SimpleEdition ? L"守望挂机 0.5.13 · 简易版" : (demo ? L"OverwatchHelper 0.5.13 · 开发版演示" : L"OverwatchHelper 0.5.13 · 开发版"),
                                style,work.left+(work.right-work.left-initialWidth)/2,
                                work.top+(work.bottom-work.top-initialHeight)/2,initialWidth,
                                initialHeight,nullptr,nullptr,h,nullptr);
   if (!mainWindow) return 1;
   dpi=GetDpiForWindow(mainWindow);updateFonts();
+  if (SimpleEdition) windowLayout.attach(mainWindow,nullptr,dpi);
+  else {
   auto pane=CreateWindowExW(WS_EX_CONTROLPARENT,ui::PaneClass,L"配置与页面校准",
       WS_CHILD|WS_VISIBLE|WS_VSCROLL|WS_CLIPCHILDREN,0,0,0,0,mainWindow,nullptr,h,&windowLayout);
   if (!pane) { DestroyWindow(mainWindow);return 1; }
   windowLayout.attach(mainWindow,pane,dpi);
+  }
   controls();
   if (!RegisterHotKey(mainWindow, 1, MOD_NOREPEAT, VK_F8))
     MessageBoxW(mainWindow, L"F8 被其他程序占用，本次请用“停止”按钮。", L"全局停止热键不可用",

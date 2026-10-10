@@ -36,7 +36,7 @@ inline Processes processes(bool demo) {
   do {
     auto name=lower(e.szExeFile);
     bool wanted=name==game || name==L"owneacclient.exe" || name==L"neacloader.exe" ||
-      name==L"battle.net.exe" || name==L"overwatch-helper.exe" || name==L"owh-recorder.exe" || name==L"agent.exe";
+      name==L"battle.net.exe" || name==L"overwatch-helper.exe" || name==L"overwatch-helper-dev.exe" || name==L"overwatch-helper-simple.exe" || name==L"owh-recorder.exe" || name==L"agent.exe";
     if (!wanted || (demo && name!=game && name!=L"owh-recorder.exe")) continue;
     Handle h(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,FALSE,e.th32ProcessID));
     if (name==L"agent.exe" && (!h.h || lower(fullProcessPath(h.h)).find(L"battle.net")==std::wstring::npos)) continue;

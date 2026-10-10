@@ -3,7 +3,7 @@
 #include "core/cn_recovery.hpp"
 
 namespace owh {
-inline constexpr char Version[] = "0.5.12";
+inline constexpr char Version[] = "0.5.13";
 struct StartupOptions {
   bool demo{}, diagnose{};
   std::wstring dataDir;
@@ -52,7 +52,8 @@ inline std::string diagnosticReport(const Config &c) {
       << "cn_preset=" << c.cnPreset << "\n"
       << "semantic_recognition=" << c.semanticRecognition << "\n"
       << "workflow_mode=" << (c.mode == WorkflowMode::Deathmatch ? "deathmatch" : "custom_room") << "\n"
-      << "ocr_worker_present=" << std::filesystem::is_regular_file(std::filesystem::path(exeDirectory())/L"ocr-worker.ps1") << "\n"
+      << "ocr_worker_present=" << (!embeddedAsset(201).empty() || std::filesystem::is_regular_file(std::filesystem::path(exeDirectory())/L"ocr-worker.ps1")) << "\n"
+      << "ocr_worker_embedded=" << !embeddedAsset(201).empty() << "\n"
       << "cn_profile_source=" << (c.cnProfileSource.empty() ? "none" : c.cnProfileSource) << "\n"
       << "cn_profile_rules=" << c.cnProfile.rules.size() << "\n"
       << "neac_path_valid=" << validNeacPath(c.neacPath) << "\n"
@@ -78,7 +79,10 @@ inline std::string diagnosticReport(const Config &c) {
   auto effectiveHelper = helperLevel;
   {
     std::vector<DWORD> running;
-    if (processIds(L"overwatch-helper.exe", running)) {
+    for (auto name:{L"overwatch-helper.exe",L"overwatch-helper-dev.exe",L"overwatch-helper-simple.exe"}) {
+      std::vector<DWORD> found;if (processIds(name,found)) running.insert(running.end(),found.begin(),found.end());
+    }
+    if (!running.empty()) {
       out << "helpers.running=" << running.size() << "\n";
       for (auto pid : running) {
         auto level = processIntegrity(pid);
