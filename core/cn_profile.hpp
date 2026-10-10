@@ -74,7 +74,11 @@ struct CNProfile {
   std::vector<CNRule> rules;
   std::vector<CNLauncherAnchor> launcher;
   CNJoinSpec join;
+  std::wstring roomTarget; // Empty means the original shipped target.
 };
+inline bool cnProfileTargets(const CNProfile &profile, const std::wstring &target) {
+  return profile.roomTarget.empty() ? target == L"最稳轮换版" : target == profile.roomTarget;
+}
 // The target card click, taken from the profile rather than duplicated at each
 // call site: the join gate has to select the card itself before joining, and the
 // two positions must not be able to drift apart.
@@ -101,11 +105,25 @@ inline const char *cnPageName(CNPage page) {
   case CNPage::Launch: return "launch";
   case CNPage::Room: return "room";
   case CNPage::Menu: return "menu";
+  case CNPage::Login: return "login";
+  case CNPage::LauncherSelect: return "launcher_select";
+  case CNPage::BrowserSearch: return "browser_search";
+  case CNPage::Queue: return "queue";
+  case CNPage::Hero: return "hero";
+  case CNPage::Combat: return "combat";
+  case CNPage::Results: return "results";
+  case CNPage::Leave: return "leave";
+  case CNPage::ConfirmLeave: return "confirm_leave";
+  case CNPage::Respawn: return "respawn";
+  case CNPage::DeathmatchStart: return "deathmatch_start";
+  case CNPage::Endorse: return "endorse";
+  case CNPage::RoomList: return "room_list";
+  case CNPage::Joining: return "joining";
   default: return "none";
   }
 }
 inline bool cnPageFromName(const std::string &name, CNPage &out) {
-  for (int i = 0; i <= int(CNPage::Menu); ++i) {
+  for (int i = 0; i <= int(CNPage::Joining); ++i) {
     auto page = CNPage(i);
     if (page != CNPage::None && name == cnPageName(page)) {
       out = page;
@@ -124,11 +142,16 @@ inline const char *cnActionName(Action action) {
   case Action::Restart: return "restart";
   case Action::Launch: return "launch";
   case Action::Ignore: return "ignore";
+  case Action::Wait: return "wait";
+  case Action::Combat: return "combat";
+  case Action::Space: return "space";
+  case Action::Endorse: return "endorse";
+  case Action::DoubleClick: return "double_click";
   }
   return "click";
 }
 inline bool cnActionFromName(const std::string &name, Action &out) {
-  for (int i = 0; i <= int(Action::Ignore); ++i)
+  for (int i = 0; i <= int(Action::DoubleClick); ++i)
     if (name == cnActionName(Action(i))) {
       out = Action(i);
       return true;
@@ -234,6 +257,13 @@ inline bool parseCNProfile(const std::string &json, CNProfile &out, std::string 
   CNProfile profile;
   if (auto name = root.find("name"); name && name->is(Json::Kind::String))
     profile.name = name->text;
+  if (auto target = root.find("room_target")) {
+    if (!target->is(Json::Kind::String) || target->text.size() > 256)
+      return error = "invalid profile room target", false;
+    profile.roomTarget = utf8ToWide(target->text);
+    if (profile.roomTarget.size() > 64 || profile.roomTarget.find_first_of(L"\r\n\t") != std::wstring::npos)
+      return error = "invalid profile room target", false;
+  }
 
   auto rules = root.find("rules");
   if (!rules || !rules->is(Json::Kind::Array))
@@ -390,7 +420,7 @@ inline std::string writeCNProfile(const CNProfile &profile) {
     return out;
   };
   std::string out = "{\n  \"format\": \"owh-profile\",\n  \"version\": 1,\n  \"name\": ";
-  out += quote(profile.name) + ",\n  \"rules\": [\n";
+  out += quote(profile.name) + ",\n  \"room_target\": " + quote(wideToUtf8(profile.roomTarget)) + ",\n  \"rules\": [\n";
   for (std::size_t r = 0; r < profile.rules.size(); ++r) {
     const auto &rule = profile.rules[r];
     out += "    {\n      \"page\": " + quote(cnPageName(rule.page)) + ",\n";

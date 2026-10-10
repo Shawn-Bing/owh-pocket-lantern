@@ -41,7 +41,7 @@ try {
         Invoke-Checked $Go @('build', '-trimpath', '-ldflags=-s -w', '-o', (Join-Path $distDir 'owh-dashboard.exe'), '.')
     } finally { Pop-Location }
 } finally { $env:GOCACHE = $oldCache }
-foreach ($name in @('overwatch-helper.exe', 'owh-demo.exe', 'owh-recorder.exe')) {
+foreach ($name in @('overwatch-helper.exe', 'owh-demo.exe', 'owh-recorder.exe', 'owh-teach.exe', 'owh-vision-calibrate.exe', 'owh-profile.exe')) {
     $source = Join-Path $buildDir $name
     if (-not (Test-Path -LiteralPath $source)) { $source = Join-Path $buildDir "Release/$name" }
     Copy-Item -LiteralPath $source -Destination (Join-Path $distDir $name) -Force
@@ -54,6 +54,7 @@ Get-ChildItem -LiteralPath (Join-Path $projectRoot 'docs') -Filter '*.md' | ForE
     Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $distDir 'docs') -Force
 }
 Copy-Item -LiteralPath (Join-Path $projectRoot 'README.md') -Destination $distDir -Force
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'ocr-worker.ps1') -Destination $distDir -Force
 # Recognition steps ship as data so they can be edited and shared without a rebuild.
 New-Item -ItemType Directory -Force (Join-Path $distDir 'profiles') | Out-Null
 Copy-Item -LiteralPath (Join-Path $projectRoot 'profiles/cn-16x9.json') -Destination (Join-Path $distDir 'profiles') -Force

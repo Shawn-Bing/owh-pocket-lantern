@@ -65,6 +65,33 @@ int main(int argc, char **argv) {
       try { parseOptions(args); } catch (const std::runtime_error &) { rejected = true; }
       require(rejected, "Invalid CLI must fail");
     }
+    const auto ownRecords=recordedProcessIds(windowFixtureName);
+    require(std::find(ownRecords.begin(),ownRecords.end(),GetCurrentProcessId())!=ownRecords.end(),
+            "Stable process snapshot preserves the launch-time executable name");
+    require(!recordedLauncherName(GetCurrentProcessId(),windowFixtureName),
+            "Temporary-image fallback is restricted to the launcher name");
+    HWND hiddenMain=CreateWindowExW(0,L"STATIC",L"Hidden launcher fixture",WS_POPUP,
+                                  -30000,-30000,960,640,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);
+    HWND hiddenUtility=CreateWindowExW(WS_EX_TOOLWINDOW,L"STATIC",L"Hidden utility fixture",WS_POPUP,
+                                     -30000,-30000,1300,900,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);
+    require(hiddenMain && hiddenUtility,"Create isolated hidden launcher fixtures");
+    auto tray=findProcess(windowFixtureName,L"",true);
+    require(tray.pid==GetCurrentProcessId() && tray.window==hiddenMain,"Hidden main window wins over utility windows without a fixed Chromium class");
+    int activated{},started{},found{};
+    auto discover=[&] {++found;return tray;};
+    auto activate=[&](const Process &value) {require(value.window==hiddenMain,"Activate original main handle");++activated;};
+    auto start=[&] {++started;return true;};
+    require(dispatchLauncher(false,discover,activate,start)==LauncherStartResult::AlreadyRunning && activated==1 && started==0,
+            "Existing launcher is restored without launching another process");
+    tray.window=nullptr;
+    require(dispatchLauncher(false,discover,activate,start)==LauncherStartResult::AlreadyRunning && activated==1 && started==0,
+            "Background launcher without HWND waits without re-executing");
+    tray={};
+    require(dispatchLauncher(false,discover,activate,start)==LauncherStartResult::Started && started==1,
+            "Only an absent launcher calls the executable start callback");
+    require(dispatchLauncher(false,discover,activate,[] {return false;})==LauncherStartResult::Failed,
+            "Actual launch failure is reported separately");
+    DestroyWindow(hiddenUtility);DestroyWindow(hiddenMain);
     StartupOptions test;
     test.demo = true;
     test.dataDir = (std::filesystem::current_path() / L"platform-test-data" /
@@ -120,6 +147,15 @@ int main(int argc, char **argv) {
     c.cnPreset = true;
     saveConfig(dir, c);
     require(loadConfig(dir, false).cnPreset, "CN preset opt-in persists");
+    c.mode = WorkflowMode::Deathmatch;
+    c.roomTarget = L"测试房间";
+    c.semanticRecognition = false;
+    saveConfig(dir,c);
+    auto modeConfig = loadConfig(dir,false);
+    require(modeConfig.mode == WorkflowMode::Deathmatch && modeConfig.roomTarget == c.roomTarget && !modeConfig.semanticRecognition,
+            "Workflow mode, target and OCR preference persist");
+    require(Config{}.semanticRecognition && Config{}.mode == WorkflowMode::CustomRoom,
+            "New configurations use OCR and retain custom-room workflow");
     require(validNeacPath(c.neacPath), "Exact absolute client path accepted");
     require(!validNeacPath(L"OWNeacClient.exe") && !validNeacPath(L"C:\\Games\\NeacLoader.exe"),
             "Relative path and loader cannot be cleanup targets");
@@ -148,18 +184,82 @@ int main(int argc, char **argv) {
     require(sameProcess(process, name), "Current process identity");
     ++process.created;
     require(!sameProcess(process, name), "Stale identity must be rejected");
+    PlayerActivityTracker activity;
+    activity.baseline(true,900);
+    require(!activity.observe(1000,900,10000)&&activity.revision()==0,
+            "Starting input tracking does not turn the current timestamp into a player event");
+    require(activity.observe(1200,1150,10000)&&activity.revision()==1&&activity.changed(),
+            "A genuine new external input starts a hold and advances its revision");
+    activity.sent(1500);
+    require(activity.observe(1550,1508,10000)&&activity.revision()==1&&!activity.changed()&&activity.lastPlayerInput()==1150,
+            "Own injection during a player hold does not revoke a newly requested Join");
+    require(activity.observe(2200,2150,10000)&&activity.revision()==2&&activity.changed(),
+            "New external input after our send still advances activity");
+    require(activity.observe(2300,2150,10000)&&activity.revision()==2&&!activity.changed(),
+            "Repeated polling of one external input is not a second activity event");
+    activity.clearHold();
+    require(!activity.observe(2400,2150,10000)&&activity.revision()==2&&activity.lastPlayerInput()==2150,
+            "Clearing standby cancels only the hold and cannot manufacture a new event");
+    require(activity.observe(2700,2650,10000)&&activity.revision()==3,
+            "Clearing standby does not suppress the next genuine external input");
+    activity.baseline(true,2650);
+    require(!activity.observe(2800,2650,10000)&&activity.revision()==3,
+            "Re-enabling preserves the monotonic activity revision without adding an event");
+    require(activity.observe(15000,14990,10000)&&activity.revision()==4,
+            "A long interval with no helper sends still detects new user activity");
+    require(!activity.observe(25000,14990,10000)&&activity.revision()==4,
+            "An expired hold stays expired without creating a synthetic send timestamp");
+    constexpr Millis wrap=Millis(1)<<32;
+    PlayerActivityTracker rollover;
+    rollover.baseline(true,DWORD(wrap-1000));
+    require(rollover.observe(wrap-600,DWORD(wrap-650),10000)&&rollover.revision()==1,
+            "External activity before the DWORD rollover is tracked");
+    rollover.sent(wrap-20);
+    require(rollover.observe(wrap+100,5,10000)&&rollover.revision()==1&&!rollover.changed(),
+            "Own input across the DWORD rollover remains excluded while paused");
+    require(rollover.observe(wrap+900,850,10000)&&rollover.revision()==2&&rollover.idle()==50,
+            "External input after rollover has a small correct idle duration");
+    require(!rollover.observe(wrap+10900,850,10000)&&rollover.revision()==2,
+            "Idle hold expiration is correct after the DWORD rollover");
+    rollover.clearHold();
+    require(rollover.revision()==2&&!rollover.observe(wrap+11000,850,10000),
+            "Clear after rollover does not increment or repeat an event");
+    PlayerActivityTracker ancient;
+    ancient.baseline(true,2000); ancient.sent(1000);
+    require(ancient.observe(wrap+1100,1050,10000)&&ancient.revision()==1,
+            "An own send from a prior DWORD cycle cannot hide current external activity");
+    auto leftDown=gameInputEvent(VK_LBUTTON,false),leftUp=gameInputEvent(VK_LBUTTON,true);
+    auto rightDown=gameInputEvent(VK_RBUTTON,false),rightUp=gameInputEvent(VK_RBUTTON,true);
+    require(leftDown.type==INPUT_MOUSE && leftDown.mi.dwFlags==MOUSEEVENTF_LEFTDOWN &&
+            leftUp.mi.dwFlags==MOUSEEVENTF_LEFTUP && rightDown.type==INPUT_MOUSE &&
+            rightDown.mi.dwFlags==MOUSEEVENTF_RIGHTDOWN && rightUp.mi.dwFlags==MOUSEEVENTF_RIGHTUP,
+            "Mouse input emits real paired button events without pointer movement");
+    require(gameInputEvent('W',false).type==INPUT_KEYBOARD && gameInputEvent('W',true).ki.dwFlags==KEYEVENTF_KEYUP,
+            "Keyboard event mapping remains unchanged");
     Input input;
     input.enable(true, 2);
+    const auto enabledRevision=input.playerActivityRevision();
+    input.clearPlayerHold();
+    require(input.playerActivityRevision()==enabledRevision,
+            "The public clearPlayerHold API never creates a player activity revision");
     auto foregroundWindow = GetForegroundWindow();
     require(!input.hold(foregroundWindow, 1), "Old generation cannot hold Shift");
     require(!input.pulse(foregroundWindow, 1), "Old generation cannot pulse");
     require(!input.click(foregroundWindow, {.5, .5}, 1), "Old generation cannot click");
+    require(!input.doubleClick(foregroundWindow,{.5,.5},1),"Old generation cannot double click");
     require(!input.press(foregroundWindow, VK_RETURN, 1), "Old generation cannot press keys");
+    require(!input.tap(foregroundWindow,'W',100,1), "Old generation cannot start random game input");
+    require(!input.tapMouse(foregroundWindow,false,1) && !input.tapMouse(foregroundWindow,true,1),
+            "Old generation cannot inject either mouse button");
     require(!input.text(foregroundWindow, L"must never be typed", 1), "Old generation cannot type");
     input.enable(false, 3);
     input.holdWindow(Millis(0)); // Clamped, and never sends while stopped.
     require(!input.hold(foregroundWindow, 3), "Stopped input must stay disabled");
     require(!input.pulse(foregroundWindow, 3), "Stopped pulses stay disabled");
+    require(!input.tap(foregroundWindow,'W',100,3), "Stopped random game input stays disabled");
+    require(!input.tapMouse(foregroundWindow,false,3) && !input.tapMouse(foregroundWindow,true,3),
+            "Stopped input cannot inject either mouse button");
+    require(!input.doubleClick(foregroundWindow,{.5,.5},3),"Stopped input cannot double click");
     // Only this test's console child is terminated; no desktop input or game process is touched.
     wchar_t executable[32768]{};
     GetModuleFileNameW(nullptr, executable, 32768);
@@ -176,9 +276,18 @@ int main(int argc, char **argv) {
     auto stale = fixture;
     ++stale.created;
     require(!terminateGame(stale, fixtureName, active, generation, 3), "Stale process cannot be terminated");
+    require(terminateGameDetailed(stale,fixtureName,active,generation,3).result==GameTermination::IdentityChanged,
+            "Changed creation time is distinguished from a termination rejection");
+    require(terminateGameDetailed(fixture,fixtureName,active,generation,2).result==GameTermination::Cancelled,
+            "Old run is cancelled before requesting process access");
     require(!terminateGame(fixture, fixtureName, active, generation, 2), "Old run cannot terminate fixture");
     require(WaitForSingleObject(child.hProcess, 0) == WAIT_TIMEOUT, "Rejected termination leaves child alive");
-    require(terminateGame(fixture, fixtureName, active, generation, 3), "Verified test child terminates");
+    require(gameExitStillPending(fixture),"Owned live fixture cannot be treated as an exited game");
+    const auto ended=terminateGameDetailed(fixture,fixtureName,active,generation,3);
+    require(ended.result==GameTermination::Exited,"Verified test child terminates with a confirmed result");
+    require(!gameExitStillPending(fixture),"Owned terminated fixture resumes recovery");
+    require(terminateGameDetailed(fixture,fixtureName,active,generation,3).result==GameTermination::Exited,
+            "An already-exited owned process is successful rather than a new failure");
     require(WaitForSingleObject(child.hProcess, 0) == WAIT_OBJECT_0, "Success means child has actually exited");
     DWORD exitCode{};
     GetExitCodeProcess(child.hProcess, &exitCode);

@@ -10,17 +10,21 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--output', type=Path, default=root / 'dist')
+parser.add_argument('--binaries', type=Path, default=root / 'dist', help='Directory of built Windows binaries')
 parser.add_argument('--windows-only', action='store_true', help='Do not require a Linux dashboard binary')
 args = parser.parse_args()
 args.output.mkdir(parents=True, exist_ok=True)
-version = '0.3.0'
-files = {name: (root / 'dist' / name).read_bytes() for name in (
-    'overwatch-helper.exe', 'owh-demo.exe', 'owh-dashboard.exe')}
-for name in ('start-demo.cmd', 'start-dashboard.cmd', 'diagnose.cmd'):
+version = '0.5.11'
+files = {name: (args.binaries / name).read_bytes() for name in (
+    'overwatch-helper.exe', 'owh-demo.exe', 'owh-recorder.exe', 'owh-dashboard.exe',
+    'owh-teach.exe', 'owh-vision-calibrate.exe', 'owh-profile.exe')}
+for name in ('start-demo.cmd', 'start-dashboard.cmd', 'diagnose.cmd', 'start-recording.cmd', 'stop-recording.cmd'):
     files[name] = (root / 'scripts' / name).read_text().replace('\n', '\r\n').encode('ascii')
 for path in sorted((root / 'docs').glob('*.md')):
     files['docs/' + path.name] = path.read_bytes()
 files['README.md'] = (root / 'README.md').read_bytes()
+files['ocr-worker.ps1'] = (root / 'scripts' / 'ocr-worker.ps1').read_bytes()
+files['profiles/cn-16x9.json'] = (root / 'profiles' / 'cn-16x9.json').read_bytes()
 files['SHA256SUMS.txt'] = ''.join(
     f'{hashlib.sha256(data).hexdigest()}  {name}\n' for name, data in sorted(files.items())
 ).encode('utf-8')

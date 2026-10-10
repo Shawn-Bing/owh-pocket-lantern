@@ -3,7 +3,7 @@
 #include "core/cn_recovery.hpp"
 
 namespace owh {
-inline constexpr char Version[] = "0.3.0";
+inline constexpr char Version[] = "0.5.11";
 struct StartupOptions {
   bool demo{}, diagnose{};
   std::wstring dataDir;
@@ -50,11 +50,21 @@ inline std::string diagnosticReport(const Config &c) {
       << "\nstandby_on_input=" << c.standbyOnInput
       << "\nstandby_seconds=" << c.standbySeconds << "\n"
       << "cn_preset=" << c.cnPreset << "\n"
+      << "semantic_recognition=" << c.semanticRecognition << "\n"
+      << "workflow_mode=" << (c.mode == WorkflowMode::Deathmatch ? "deathmatch" : "custom_room") << "\n"
+      << "ocr_worker_present=" << std::filesystem::is_regular_file(std::filesystem::path(exeDirectory())/L"ocr-worker.ps1") << "\n"
       << "cn_profile_source=" << (c.cnProfileSource.empty() ? "none" : c.cnProfileSource) << "\n"
       << "cn_profile_rules=" << c.cnProfile.rules.size() << "\n"
       << "neac_path_valid=" << validNeacPath(c.neacPath) << "\n"
       << "interactive_desktop=" << interactiveDesktop() << "\n"
       << "launcher_configured=" << !c.launcherPath.empty() << "\n";
+  if (validNeacPath(c.neacPath)) {
+    const auto recent=readNeacLoaderLog(std::filesystem::path(c.neacPath).parent_path()/L"log"/L"NeacLoader.log");
+    out<<"neac_loader_log.present="<<(recent.modified!=0)<<"\n";
+    if (const auto failure=parseNeacLaunchFailure(recent.tail))
+      out<<"neac_loader_log.last_failure="<<failure->code<<"\n"
+         <<"neac_loader_log.last_loader_pid="<<failure->loaderPid<<"\n";
+  }
   // A helper that is not at least as privileged as the game or Battle.net can
   // neither activate their windows nor send them input (UIPI). Report both
   // sides so a mismatch is visible instead of looking like a focus problem.
@@ -191,7 +201,7 @@ inline std::string diagnosticReport(const Config &c) {
       << ',' << GetSystemMetrics(SM_CXVIRTUALSCREEN) << ',' << GetSystemMetrics(SM_CYVIRTUALSCREEN) << "\n";
   reportProcess("game", findProcess(c.gameExe, c.gameClass), c.gameExe);
   if (!c.demo)
-    reportProcess("launcher", findProcess(L"Battle.net.exe", L"Chrome_WidgetWin_0"), L"Battle.net.exe");
+    reportProcess("launcher", findLauncherProcess(), L"Battle.net.exe");
   if (!c.demo) {
     std::vector<DWORD> ids;
     out << "neac.snapshot_ok=" << processIds(L"OWNeacClient.exe", ids) << "\n"
@@ -218,11 +228,11 @@ inline std::string diagnosticReport(const Config &c) {
         << " action=" << int(s.action) << " aspect=" << s.aspect
         << " contrast=" << contrast(s.image) << "\n";
   }
-  if (!ready && !c.cnPreset)
+  if (!ready && !c.cnPreset && !c.semanticRecognition)
     out << "CHECK: Calibrate a unique target-room feature (Ready action).\n";
-  if (!c.demo && c.autoRecover && !launchSteps && !c.cnPreset)
+  if (!c.demo && c.autoRecover && !launchSteps && !c.cnPreset && !c.semanticRecognition)
     out << "CHECK: Calibrate the Battle.net Play button (Launch action).\n";
-  if (!c.demo && c.autoRecover && !errorSteps && !c.cnPreset)
+  if (!c.demo && c.autoRecover && !errorSteps && !c.cnPreset && !c.semanticRecognition)
     out << "CHECK: Calibrate disconnect error text (Restart action).\n";
   if (!c.demo && c.autoRecover && !validNeacPath(c.neacPath))
     out << "CHECK: Configure the exact OWNeacClient.exe path for stale-client cleanup.\n";

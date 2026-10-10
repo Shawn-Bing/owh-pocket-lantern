@@ -12,6 +12,8 @@
 #include "core/core.hpp"
 #include "core/cn_default_profile.hpp"
 #include "core/cn_profile.hpp"
+#include "core/deathmatch.hpp"
+#include "core/recovery_lifecycle.hpp"
 #include <atomic>
 #include <commdlg.h>
 #include <cstring>
@@ -189,6 +191,9 @@ struct Config {
   // away"; it is a setting because that judgement is the user's, not ours.
   int standbySeconds{10};
   bool cnPreset{true};
+  bool semanticRecognition{true};
+  WorkflowMode mode{WorkflowMode::CustomRoom};
+  std::wstring roomTarget{L"最稳轮换版"};
   double threshold{.90};
   CNProfile cnProfile;
   std::string cnProfileSource, cnProfileError;
@@ -222,6 +227,11 @@ inline Config loadConfig(const std::wstring &dir, bool demo) {
   c.standbySeconds = std::clamp(int(number(readIni(p, L"agent", L"standby_seconds", L"10"))),
                                 StandbySecondsMin, StandbySecondsMax);
   c.cnPreset = !demo && number(readIni(p, L"agent", L"cn_preset", L"1")) != 0;
+  c.semanticRecognition = !demo && number(readIni(p, L"agent", L"semantic_recognition", L"1")) != 0;
+  c.mode = WorkflowMode(std::clamp(number(readIni(p,L"agent",L"workflow_mode",L"0")),0,1));
+  c.roomTarget = readIni(p,L"agent",L"room_target",L"最稳轮换版");
+  if (c.roomTarget.empty() || c.roomTarget.size() > 64 || c.roomTarget.find_first_of(L"\r\n\t") != std::wstring::npos)
+    c.roomTarget = L"最稳轮换版";
   c.neacPath = readIni(p, L"agent", L"neac_path");
   auto profile = loadCNProfile(dir);
   c.cnProfile = std::move(profile.profile);
@@ -235,7 +245,7 @@ inline Config loadConfig(const std::wstring &dir, bool demo) {
     s.text = readIni(p, sec.c_str(), L"text");
     s.launcher = number(readIni(p, sec.c_str(), L"launcher")) != 0;
     int action = number(readIni(p, sec.c_str(), L"action"), -1);
-    if (action < 0 || action > int(Action::Ignore))
+    if (action < 0 || action > int(Action::DoubleClick))
       continue;
     s.action = Action(action);
     std::wistringstream v(readIni(p, sec.c_str(), L"geometry"));
@@ -283,6 +293,9 @@ inline void saveConfig(const std::wstring &dir, const Config &c) {
            {L"standby_on_input", c.standbyOnInput ? L"1" : L"0"},
            {L"standby_seconds", std::to_wstring(c.standbySeconds)},
            {L"cn_preset", c.cnPreset ? L"1" : L"0"},
+           {L"semantic_recognition", c.semanticRecognition ? L"1" : L"0"},
+           {L"workflow_mode", std::to_wstring(int(c.mode))},
+           {L"room_target", c.roomTarget},
            {L"neac_path", c.neacPath},
            {L"auto_recover", c.autoRecover ? L"1" : L"0"}})
     writeIni(p, L"agent", kv.first.c_str(), kv.second);
@@ -404,29 +417,44 @@ inline bool outranks(const Process &target) {
   return mine != Integrity::Unknown && theirs != Integrity::Unknown &&
          int(theirs) > int(mine);
 }
-inline Process findProcess(const std::wstring &name, const std::wstring &cls = L"") {
+inline std::vector<DWORD> recordedProcessIds(const std::wstring &name) {
+  std::vector<DWORD> ids;Handle snapshot(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0));
+  PROCESSENTRY32W item{};item.dwSize=sizeof(item);
+  if (snapshot.h!=INVALID_HANDLE_VALUE && Process32FirstW(snapshot.h,&item))
+    do {if (_wcsicmp(item.szExeFile,name.c_str())==0) ids.push_back(item.th32ProcessID);} while(Process32NextW(snapshot.h,&item));
+  return ids;
+}
+inline bool recordedLauncherName(DWORD pid,const std::wstring &expected) {
+  if (_wcsicmp(expected.c_str(),L"Battle.net.exe")!=0) return false;
+  const auto ids=recordedProcessIds(expected);return std::find(ids.begin(),ids.end(),pid)!=ids.end();
+}
+inline Process findProcess(const std::wstring &name, const std::wstring &cls = L"", bool includeHiddenMain = false) {
   Process p;
+  const bool launcherName=_wcsicmp(name.c_str(),L"Battle.net.exe")==0;
+  const auto recordedIds=launcherName ? recordedProcessIds(name) : std::vector<DWORD>{};
   // Prefer a verified main window, not an arbitrary same-name background
   // helper.
   struct Find {
     const std::wstring *name;
     const std::wstring *cls;
     Process *out;
+    bool includeHiddenMain{};
+    const std::vector<DWORD> *recordedIds{};
     std::int64_t best{-1};
-  } ctx{&name, &cls, &p};
+  } ctx{&name, &cls, &p, includeHiddenMain, &recordedIds};
   EnumWindows(
       [](HWND w, LPARAM a) -> BOOL {
         auto &x = *reinterpret_cast<Find *>(a);
-        if (!IsWindowVisible(w))
-          return TRUE;
+        const bool visible = IsWindowVisible(w) != FALSE;
+        if (!visible && !x.includeHiddenMain) return TRUE;
         wchar_t cls[256]{};
         GetClassNameW(w, cls, 256);
         if (!x.cls->empty() && *x.cls != cls)
           return TRUE;
         DWORD pid{};
         GetWindowThreadProcessId(w, &pid);
-        if (_wcsicmp(processName(pid).c_str(), x.name->c_str()) != 0)
-          return TRUE;
+        if (_wcsicmp(processName(pid).c_str(),x.name->c_str())!=0 &&
+            std::find(x.recordedIds->begin(),x.recordedIds->end(),pid)==x.recordedIds->end()) return TRUE;
         RECT client{};
         GetClientRect(w, &client);
         std::int64_t area = std::int64_t(std::max(0L,client.right))*std::max(0L,client.bottom);
@@ -436,8 +464,16 @@ inline Process findProcess(const std::wstring &name, const std::wstring &cls = L
             area=std::int64_t(std::max(0L,place.rcNormalPosition.right-place.rcNormalPosition.left))*
                  std::max(0L,place.rcNormalPosition.bottom-place.rcNormalPosition.top);
         }
-        // Battle.net also exposes tiny auxiliary Chromium windows.
-        auto rank=area+(GetWindow(w,GW_OWNER)==nullptr ? (std::int64_t(1)<<40) : 0);
+        // Tray-hidden launchers still own a restorable main HWND. Exclude
+        // Chromium utility windows; do not depend on a version-specific class.
+        const std::wstring windowClass=cls;
+        if (x.includeHiddenMain && (windowClass.find(L"Message")!=std::wstring::npos ||
+                                   windowClass.find(L"TrayIcon")!=std::wstring::npos)) return TRUE;
+        if (x.includeHiddenMain &&
+            (area < 320*200 || (GetWindowLongPtrW(w,GWL_EXSTYLE)&(WS_EX_TOOLWINDOW|WS_EX_NOACTIVATE)) ||
+             (!visible && GetWindow(w,GW_OWNER)!=nullptr))) return TRUE;
+        auto rank=area+(GetWindow(w,GW_OWNER)==nullptr ? (std::int64_t(1)<<40) : 0)+
+                  (x.includeHiddenMain && visible ? (std::int64_t(1)<<42) : 0);
         if (rank<=x.best) return TRUE;
         x.best=rank;
         x.out->pid = pid;
@@ -464,12 +500,13 @@ inline Process findProcess(const std::wstring &name, const std::wstring &cls = L
   }
   return p;
 }
+inline Process findLauncherProcess() { return findProcess(L"Battle.net.exe",L"",true); }
 inline bool sameProcess(const Process &p, const std::wstring &name) {
   if (!p.pid || !p.created)
     return false;
   Handle h(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, p.pid));
   return h.h && processCreation(h.h) == p.created &&
-         _wcsicmp(processName(p.pid).c_str(), name.c_str()) == 0;
+         (_wcsicmp(processName(p.pid).c_str(),name.c_str())==0 || recordedLauncherName(p.pid,name));
 }
 inline bool responsive(HWND w) {
   DWORD_PTR result{};
@@ -482,10 +519,9 @@ inline bool foreground(HWND w) { return w && GetForegroundWindow() == w && !IsIc
 // the result and retry. Sharing the input queue with the current foreground
 // thread satisfies the same check without changing any system setting.
 inline bool requestForeground(HWND w) {
-  if (!w || !IsWindow(w) || !IsWindowVisible(w))
-    return false;
-  if (IsIconic(w))
-    ShowWindow(w, SW_RESTORE);
+  if (!w || !IsWindow(w)) return false;
+  if (!IsWindowVisible(w) || IsIconic(w))
+    ShowWindowAsync(w, SW_RESTORE);
   if (foreground(w))
     return true;
   SetWindowPos(w, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
@@ -790,29 +826,66 @@ inline bool saveFrameBmp(const Frame &f, const std::filesystem::path &path) {
   out.write(reinterpret_cast<const char *>(f.pixels.data()), std::ptrdiff_t(f.pixels.size()) * 4);
   return out.good();
 }
+// Pure timestamp tracking: tests can replay several player/helper events without
+// injecting desktop input. GetLastInputInfo only exposes a wrapping DWORD, while
+// our send and hold times use GetTickCount64's full range.
+class PlayerActivityTracker {
+  static constexpr Millis OwnInputMargin = 400;
+  bool observed_{}, hasSend_{}, hasPlayer_{}, holding_{}, changed_{};
+  DWORD lastSeen_{}, lastPlayer_{};
+  Millis lastSend_{}, playerAt_{}, idle_{};
+  std::uint64_t revision_{};
+public:
+  void sent(Millis now) { lastSend_ = now; hasSend_ = true; }
+  void baseline(bool available, DWORD last) {
+    observed_ = available; lastSeen_ = last; holding_ = false; changed_ = false;
+    // Starting a run is not a new player event. Keep the lifetime revision and
+    // the last genuine input timestamp rather than manufacturing a new one.
+  }
+  void clearHold() { holding_ = false; changed_ = false; }
+  bool observe(Millis now, DWORD last, Millis holdWindow) {
+    const bool advanced = observed_ && last != lastSeen_;
+    observed_ = true; lastSeen_ = last; changed_ = false;
+    if (advanced) {
+      const Millis age = DWORD(DWORD(now) - last);
+      const Millis eventAt = age <= now ? now - age : 0;
+      const Millis fromSend = eventAt >= lastSend_ ? eventAt - lastSend_ : lastSend_ - eventAt;
+      // The margin covers the key-up timestamp and send-call scheduling in both
+      // directions. Apply it even during an existing player hold: navigation
+      // can still send our own clicks while the game remains foreground.
+      if (!hasSend_ || fromSend > OwnInputMargin) {
+        lastPlayer_ = last; playerAt_ = eventAt; hasPlayer_ = holding_ = changed_ = true;
+        ++revision_;
+      }
+    }
+    idle_ = hasPlayer_ ? (now >= playerAt_ ? now - playerAt_ : 0) : holdWindow;
+    if (idle_ >= holdWindow) holding_ = false;
+    return holding_;
+  }
+  std::uint64_t revision() const { return revision_; }
+  DWORD lastPlayerInput() const { return lastPlayer_; }
+  Millis idle() const { return idle_; }
+  bool changed() const { return changed_; }
+};
+inline INPUT gameInputEvent(WORD vk,bool up) {
+  INPUT event{};
+  if (vk==VK_LBUTTON || vk==VK_RBUTTON) {
+    event.type=INPUT_MOUSE;
+    event.mi.dwFlags=vk==VK_LBUTTON ? (up ? MOUSEEVENTF_LEFTUP : MOUSEEVENTF_LEFTDOWN)
+                                  : (up ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_RIGHTDOWN);
+  } else {
+    event.type=INPUT_KEYBOARD;event.ki.wVk=vk;event.ki.dwFlags=up ? KEYEVENTF_KEYUP : 0;
+  }
+  return event;
+}
 class Input {
   std::mutex mutex_;
   bool held_{}, enabled_{};
   unsigned epoch_{};
   HWND target_{};
-  // When the helper last injected anything. Windows counts injected input as
-  // input, so without this the helper's own pulses would look like the player
-  // typing and the pause below would never end.
-  Millis lastSend_{GetTickCount64()};
-  // The pulse is a global event delivered to whatever window has focus, so while
-  // the player is working it reaches their application instead of the game.
-  // Skipping it costs the game nothing and stops fighting them for the keyboard.
-  //
-  // GetLastInputInfo counts injected input, so while pulsing the player's input
-  // is whatever arrived clearly later than our own last send; our key-up lands
-  // within a few milliseconds of it and a margin absorbs scheduling jitter.
-  //
-  // The pause must not be able to sustain itself. Once paused we inject nothing,
-  // so that timestamp goes stale and "later than our last send" would stay true
-  // forever, which is exactly the lock-up this replaced. While paused, any change
-  // at all is therefore the player, and the pause simply ends once their input
-  // stops advancing. A short hold keeps one key press from flickering the state.
-  static constexpr Millis PlayerInputMargin = 400;
+  WORD tapKey_{};
+  HWND tapTarget_{};
+  PlayerActivityTracker activity_;
   // How long the player must stay silent before the helper takes over. Three
   // seconds was far too short: reading a paragraph, thinking, or watching
   // something all exceed it, so standby released during ordinary computer use and
@@ -821,43 +894,18 @@ class Input {
   // value is a user setting because only the user knows their own rhythm.
   static constexpr Millis DefaultHoldWindow = 10000;
   Millis holdWindow_{DefaultHoldWindow};
-  DWORD lastSeenInput_{}, lastPlayerInput_{};
-  bool paused_{};
-  Millis lastPlayerIdle_{};
-  bool lastChanged_{};
   bool playerBusyLocked() {
     LASTINPUTINFO info{};
     info.cbSize = sizeof(info);
-    if (!GetLastInputInfo(&info))
-      return false;
-    DWORD now = DWORD(GetTickCount64());
-    DWORD last = info.dwTime;
-    bool changed = last != lastSeenInput_;
-    lastSeenInput_ = last;
-    lastChanged_ = changed;
-    // Both comparisons use wrapping 32-bit subtraction, which is correct across
-    // the tick rollover that GetLastInputInfo's DWORD domain shares with
-    // GetTickCount.
-    if (paused_ ? changed
-                : std::int32_t(last - DWORD(lastSend_)) > std::int32_t(PlayerInputMargin))
-      lastPlayerInput_ = last;
-    lastPlayerIdle_ = Millis(std::int32_t(now - lastPlayerInput_));
-    bool busy = lastPlayerIdle_ < holdWindow_;
-    if (paused_ && !busy)
-      // Leaving the pause: the send timestamp is stale from the silent period and
-      // would otherwise read as the player having been busy the whole time.
-      lastSend_ = GetTickCount64();
-    paused_ = busy;
-    return busy;
+    if (!GetLastInputInfo(&info)) return false;
+    return activity_.observe(GetTickCount64(), info.dwTime, holdWindow_);
   }
 
   bool key(WORD vk, bool up) {
-    lastSend_ = GetTickCount64();
-    INPUT i{};
-    i.type = INPUT_KEYBOARD;
-    i.ki.wVk = vk;
-    i.ki.dwFlags = up ? KEYEVENTF_KEYUP : 0;
-    return SendInput(1, &i, sizeof(i)) == 1;
+    INPUT i=gameInputEvent(vk,up);
+    const bool sent = SendInput(1, &i, sizeof(i)) == 1;
+    if (sent) activity_.sent(GetTickCount64());
+    return sent;
   }
 
 public:
@@ -873,35 +921,25 @@ public:
     std::lock_guard lock(mutex_);
     epoch_ = epoch;
     enabled_ = on;
-    // Start the idle window now, so the first check does not read the untouched
-    // initial timestamp as "the player has been busy all along".
+    // Ignore the input that started this run, without creating a player event
+    // or pretending that merely enabling the helper injected anything.
     if (on) {
-      lastSend_ = GetTickCount64();
-      lastSeenInput_ = 0;
-      lastPlayerInput_ = 0;
-      paused_ = false;
+      LASTINPUTINFO info{}; info.cbSize = sizeof(info);
+      const bool available = GetLastInputInfo(&info) != FALSE;
+      activity_.baseline(available, info.dwTime);
     }
     if (!on && held_) {
       key(VK_LSHIFT, true);
       held_ = false;
       target_ = nullptr;
     }
+    if (!on && tapKey_) { key(tapKey_,true); tapKey_ = 0; tapTarget_ = nullptr; }
   }
-  // Forgets the current activity burst. Called once the helper has taken control
-  // back: the very keystroke that ended standby is still inside the hold window,
-  // so leaving it counted put the helper straight back to sleep the instant it
-  // resumed -- it detected the room and then began counting down again.
+  // Ending standby clears the hold, not the input history. The same sampled
+  // event stays consumed, and a genuinely new event still advances revision.
   void clearPlayerHold() {
     std::lock_guard lock(mutex_);
-    lastPlayerInput_ = DWORD(GetTickCount64()) - DWORD(holdWindow_) - 1;
-    // lastSend_ must move too. Nothing is injected while standing by, so it is
-    // stale by the whole standby period, and the player's last input -- which is
-    // what ended standby -- would then read as clearly newer than it and put the
-    // helper straight back to sleep. The normal exit path refreshes it as well;
-    // this entry point has to do the same.
-    lastSend_ = GetTickCount64();
-    lastSeenInput_ = 0;
-    paused_ = false;
+    activity_.clearHold();
   }
   // True while the player has produced input that the helper did not send.
   bool playerBusy() {
@@ -911,10 +949,12 @@ public:
   // Reported with the paused status so a stuck pause can be told apart from the
   // player genuinely still working: a small idle value means input keeps
   // arriving, a large one means the exit condition never fired.
+  DWORD lastPlayerActivity() { std::lock_guard lock(mutex_); return activity_.lastPlayerInput(); }
+  std::uint64_t playerActivityRevision() { std::lock_guard lock(mutex_); return activity_.revision(); }
   std::wstring activityText() {
     std::lock_guard lock(mutex_);
-    return L"距上次你的操作 " + std::to_wstring(lastPlayerIdle_) + L" ms" +
-           (lastChanged_ ? L"，本轮有新输入" : L"，本轮无新输入");
+    return L"距上次你的操作 " + std::to_wstring(activity_.idle()) + L" ms" +
+           (activity_.changed() ? L"，本轮有新输入" : L"，本轮无新输入");
   }
   void release() {
     std::lock_guard lock(mutex_);
@@ -923,18 +963,48 @@ public:
       held_ = false;
       target_ = nullptr;
     }
+    if (tapKey_) { key(tapKey_,true); tapKey_ = 0; tapTarget_ = nullptr; }
   }
   void checkFocus() {
     std::lock_guard lock(mutex_);
-    if (held_ && !foreground(target_)) {
+    if (held_ && (!foreground(target_) || !interactiveDesktop())) {
       key(VK_LSHIFT, true);
       held_ = false;
       target_ = nullptr;
     }
+    if (tapKey_ && (!foreground(tapTarget_) || !interactiveDesktop())) {
+      key(tapKey_,true); tapKey_ = 0; tapTarget_ = nullptr;
+    }
+  }
+  bool tap(HWND w, WORD vk, Millis duration, unsigned epoch) {
+    {
+      std::lock_guard lock(mutex_);
+      if (!enabled_ || epoch != epoch_ || !foreground(w) || !interactiveDesktop() ||
+          tapKey_ || held_ || duration < 10 || duration > 500 || (GetAsyncKeyState(vk) & 0x8000)) return false;
+      if (!key(vk,false)) { key(vk,true); return false; }
+      tapKey_ = vk; tapTarget_ = w;
+    }
+    const auto until = GetTickCount64() + duration;
+    while (GetTickCount64() < until) {
+      Sleep(10);
+      checkFocus();
+      std::lock_guard lock(mutex_);
+      if (!enabled_ || epoch != epoch_ || tapKey_ != vk) return false;
+    }
+    std::lock_guard lock(mutex_);
+    if (tapKey_ != vk || epoch != epoch_) return false;
+    bool ok = key(vk,true);
+    tapKey_ = 0; tapTarget_ = nullptr;
+    return ok;
+  }
+  bool tapMouse(HWND w,bool right,unsigned epoch) {
+    // Uses the same owned hold, cancellation, focus and player-button guards.
+    // No pointer movement is sent during gameplay.
+    return tap(w,right ? VK_RBUTTON : VK_LBUTTON,20,epoch);
   }
   bool hold(HWND w, unsigned epoch) {
     std::lock_guard lock(mutex_);
-    if (!enabled_ || epoch != epoch_ || !foreground(w))
+    if (!enabled_ || epoch != epoch_ || !foreground(w) || !interactiveDesktop())
       return false;
     if (held_)
       return target_ == w;
@@ -955,12 +1025,13 @@ public:
     keybd_event(VK_LSHIFT, 0, 0, 0);
     Sleep(20);
     keybd_event(VK_LSHIFT, 0, KEYEVENTF_KEYUP, 0);
-    lastSend_ = GetTickCount64();
+    activity_.sent(GetTickCount64());
     return true; // Events requested, not proof that the game accepted them.
   }
   bool click(HWND w, Point p, unsigned epoch) {
     std::lock_guard lock(mutex_);
-    if (!enabled_ || epoch != epoch_ || !foreground(w))
+    if (!enabled_ || epoch != epoch_ || !foreground(w) || !interactiveDesktop() ||
+        !std::isfinite(p.x) || !std::isfinite(p.y) || p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1)
       return false;
     RECT r{};
     GetClientRect(w, &r);
@@ -983,19 +1054,31 @@ public:
       up.mi.dwFlags = MOUSEEVENTF_LEFTUP;
       SendInput(1, &up, sizeof(up));
     }
-    lastSend_ = GetTickCount64();
+    activity_.sent(GetTickCount64());
     return n == 3;
+  }
+  bool doubleClick(HWND w, Point p, unsigned epoch) {
+    if (playerBusy() || !click(w,p,epoch)) return false;
+    const Millis delay=std::clamp<Millis>(GetDoubleClickTime()/4,20,80);
+    const auto until=GetTickCount64()+delay;
+    while (GetTickCount64()<until) {
+      Sleep(5);
+      std::lock_guard lock(mutex_);
+      if (!enabled_ || epoch!=epoch_ || !foreground(w) || !interactiveDesktop() || playerBusyLocked()) return false;
+    }
+    // Stop, a real player event, or a focus change cancels the second click.
+    return !playerBusy() && click(w,p,epoch);
   }
   bool press(HWND w, WORD vk, unsigned epoch) {
     std::lock_guard lock(mutex_);
-    if (!enabled_ || epoch != epoch_ || !foreground(w))
+    if (!enabled_ || epoch != epoch_ || !foreground(w) || !interactiveDesktop() || (GetAsyncKeyState(vk) & 0x8000))
       return false;
     bool ok = key(vk, false);
     return key(vk, true) && ok;
   }
   bool text(HWND w, const std::wstring &s, unsigned epoch) {
     std::lock_guard lock(mutex_);
-    if (!enabled_ || epoch != epoch_ || !foreground(w) || s.size() > 256)
+    if (!enabled_ || epoch != epoch_ || !foreground(w) || !interactiveDesktop() || s.size() > 256)
       return false;
     // This action is calibrated together with its input-field click.
     if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0)
@@ -1014,9 +1097,9 @@ public:
       key(VK_CONTROL, true);
       return false;
     }
-    lastSend_ = GetTickCount64();
+    activity_.sent(GetTickCount64());
     for (wchar_t ch : s) {
-      if (!foreground(w))
+      if (!foreground(w) || !interactiveDesktop())
         return false;
       INPUT a[2]{};
       for (auto &i : a) {
@@ -1028,68 +1111,94 @@ public:
       if (SendInput(2, a, sizeof(INPUT)) != 2) {
         a[1].ki.dwFlags |= KEYEVENTF_KEYUP;
         SendInput(1, a + 1, sizeof(INPUT));
+        activity_.sent(GetTickCount64());
         return false;
       }
+      activity_.sent(GetTickCount64());
     }
     return true;
   }
 };
-inline bool launch(const Config &c) {
-  if (c.launcherPath.empty() || !std::filesystem::exists(c.launcherPath))
-    return false;
-  SHELLEXECUTEINFOW s{};
-  s.cbSize = sizeof(s);
-  s.fMask = SEE_MASK_NOASYNC;
-  s.lpFile = c.launcherPath.c_str();
-  s.lpParameters = c.launcherArgs.c_str();
-  s.nShow = SW_SHOWNORMAL;
-  return ShellExecuteExW(&s) != FALSE;
+enum class LauncherStartResult { Failed, Started, AlreadyRunning };
+template<class Find,class Activate,class Start>
+inline LauncherStartResult dispatchLauncher(bool demo,Find find,Activate activate,Start start) {
+  if (!demo) {
+    const auto existing=find();
+    if (existing.pid) {
+      if (existing.window) activate(existing);
+      return LauncherStartResult::AlreadyRunning;
+    }
+  }
+  return start() ? LauncherStartResult::Started : LauncherStartResult::Failed;
 }
-inline bool terminateGame(const Process &p, const std::wstring &name,
-                          const std::atomic<bool> &running, const std::atomic<unsigned> &generation,
-                          unsigned epoch) {
-  auto active = [&] { return running && generation.load() == epoch; };
-  if (!sameProcess(p, name))
-    return false;
-  Handle h(OpenProcess(SYNCHRONIZE | PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE,
-                       p.pid));
-  if (!h.h || processCreation(h.h) != p.created)
-    return false;
-  if (!active())
-    return false;
-  // Killing a client that has stopped talking to Windows is not one call. A
-  // disconnected Overwatch leaves its window hung -- the log says WINDOW_HUNG
-  // in as many words -- so a posted WM_CLOSE lands in a queue nobody will ever
-  // read and the graceful phase can only burn its budget. TerminateProcess does
-  // work, but a process parked inside a driver call, which is where an
-  // anti-cheat client leaves a disconnected game, is not destroyed the instant
-  // it is asked to be: it survives as a process object until the driver
-  // returns. Five seconds of waiting after the kill was measured to be far too
-  // short. The helper reported "无法关闭已验证的游戏进程" at 00:56:30, went idle,
-  // and the process then disappeared on its own -- the recovery had already
-  // been abandoned by the time the game actually let go. The two phases are
-  // therefore sized by what can still succeed: asking a window that answers to
-  // close itself is worth five seconds, asking one that does not is worth two,
-  // and the kill gets the long wait it needs.
-  const int gracefulTicks = (p.window && responsive(p.window)) ? 25 : 10;
+inline LauncherStartResult launch(const Config &c) {
+  // Recheck immediately before ShellExecute. A tray/background process never
+  // falls through to starting another executable, even if restoration fails.
+  return dispatchLauncher(c.demo,findLauncherProcess,[](const Process &existing) {
+    DWORD windowPid{};GetWindowThreadProcessId(existing.window,&windowPid);
+    if (windowPid==existing.pid && sameProcess(existing,L"Battle.net.exe")) requestForeground(existing.window);
+  },[&] {
+    if (c.launcherPath.empty() || !std::filesystem::exists(c.launcherPath)) return false;
+    SHELLEXECUTEINFOW request{};request.cbSize=sizeof(request);request.fMask=SEE_MASK_NOASYNC;
+    request.lpFile=c.launcherPath.c_str();request.lpParameters=c.launcherArgs.c_str();request.nShow=SW_SHOWNORMAL;
+    return ShellExecuteExW(&request)!=FALSE;
+  });
+}
+enum class GameTermination { Exited,Cancelled,Denied,Pending,IdentityChanged };
+struct GameTerminationReport {GameTermination result;DWORD error{};std::wstring phase;};
+inline GameTerminationReport terminateGameDetailed(const Process &p,const std::wstring &name,
+    const std::atomic<bool> &running,const std::atomic<unsigned> &generation,unsigned epoch) {
+  auto active=[&] {return running && generation.load()==epoch && interactiveDesktop();};
+  if (!active()) return {GameTermination::Cancelled};
+  // Query/wait does not require terminate access: a graceful close can still
+  // succeed even if Windows refuses a later force-exit request.
+  Handle observed(OpenProcess(SYNCHRONIZE|PROCESS_QUERY_LIMITED_INFORMATION,FALSE,p.pid));
+  if (!observed.h) {
+    const auto error=GetLastError();
+    return {error==ERROR_INVALID_PARAMETER ? GameTermination::Exited : GameTermination::Denied,error,L"打开退出等待句柄"};
+  }
+  if (WaitForSingleObject(observed.h,0)==WAIT_OBJECT_0) return {GameTermination::Exited};
+  if (processCreation(observed.h)!=p.created || _wcsicmp(processName(p.pid).c_str(),name.c_str()))
+    return {GameTermination::IdentityChanged,0,L"核验 PID 和创建时间"};
+  const int gracefulTicks=p.window ? (responsive(p.window) ? 25 : 10) : 0;
   if (p.window) {
-    DWORD owner{};
-    GetWindowThreadProcessId(p.window, &owner);
-    if (owner == p.pid)
-      PostMessageW(p.window, WM_CLOSE, 0, 0);
+    DWORD owner{};GetWindowThreadProcessId(p.window,&owner);
+    if (owner==p.pid) PostMessageW(p.window,WM_CLOSE,0,0);
   }
-  for (int i = 0; i < gracefulTicks; ++i) {
-    if (WaitForSingleObject(h.h, 200) == WAIT_OBJECT_0)
-      return true;
-    if (!active())
-      return false;
+  for (int i=0;i<gracefulTicks;++i) {
+    if (WaitForSingleObject(observed.h,200)==WAIT_OBJECT_0) return {GameTermination::Exited};
+    if (!active()) return {GameTermination::Cancelled};
   }
-  if (!active() || !TerminateProcess(h.h, 0)) return false;
-  for (int i = 0; i < 150; ++i) {
-    if (WaitForSingleObject(h.h, 200) == WAIT_OBJECT_0) return true;
-    if (!active()) return false;
+  if (!active()) return {GameTermination::Cancelled};
+  Handle force(OpenProcess(SYNCHRONIZE|PROCESS_TERMINATE|PROCESS_QUERY_LIMITED_INFORMATION,FALSE,p.pid));
+  if (!force.h) {
+    const auto error=GetLastError();
+    if (WaitForSingleObject(observed.h,0)==WAIT_OBJECT_0) return {GameTermination::Exited};
+    return {GameTermination::Denied,error,L"打开终止句柄"};
   }
-  return false;
+  if (processCreation(force.h)!=p.created) return {GameTermination::IdentityChanged,0,L"重新核验终止句柄"};
+  if (!active()) return {GameTermination::Cancelled};
+  if (!TerminateProcess(force.h,0)) {
+    const auto error=GetLastError();
+    if (WaitForSingleObject(observed.h,0)==WAIT_OBJECT_0) return {GameTermination::Exited};
+    return {GameTermination::Denied,error,L"发送终止请求"};
+  }
+  for (int i=0;i<150;++i) {
+    if (WaitForSingleObject(observed.h,200)==WAIT_OBJECT_0) return {GameTermination::Exited};
+    if (!active()) return {GameTermination::Cancelled};
+  }
+  return {GameTermination::Pending,WAIT_TIMEOUT,L"终止请求已接受，进程尚未退出"};
+}
+inline bool gameExitStillPending(const Process &p) {
+  Handle handle(OpenProcess(SYNCHRONIZE|PROCESS_QUERY_LIMITED_INFORMATION,FALSE,p.pid));
+  if (!handle.h) return GetLastError()!=ERROR_INVALID_PARAMETER; // denied is not exit evidence
+  if (WaitForSingleObject(handle.h,0)==WAIT_OBJECT_0) return false;
+  const auto created=processCreation(handle.h);
+  return !created || created==p.created;
+}
+inline bool terminateGame(const Process &p,const std::wstring &name,
+    const std::atomic<bool> &running,const std::atomic<unsigned> &generation,unsigned epoch) {
+  return terminateGameDetailed(p,name,running,generation,epoch).result==GameTermination::Exited;
 }
 inline bool validNeacPath(const std::wstring &path) {
   auto p = std::filesystem::path(path);
@@ -1117,74 +1226,156 @@ inline bool processIds(const wchar_t *name, std::vector<DWORD> &ids) {
   return GetLastError() == ERROR_NO_MORE_FILES;
 }
 enum class CleanupResult { Clear, NeedsPath, Denied, Cancelled, GamePresent };
-// Every refusal used to look identical: one message covering path, permission
-// and timing alike. The log could therefore say that the stale process could
-// not be verified, but never which check refused it -- the one question that
-// actually decides what to do about it. `why` carries the specific check, and
-// the error code is read before anything else can overwrite it.
-inline CleanupResult cleanupNeac(const Config &c, const std::atomic<bool> &running,
-                                  const std::atomic<unsigned> &generation, unsigned epoch,
-                                  std::wstring *why = nullptr) {
-  auto deny = [&](std::wstring text) {
-    if (why) *why = std::move(text);
-    return CleanupResult::Denied;
+struct NeacProcessIdentity { DWORD pid{};ULONGLONG created{};std::wstring path; };
+enum class NeacQueryResult { Found, Gone, Denied };
+inline std::wstring neacLoaderPath(const std::wstring &clientPath) {
+  if (!validNeacPath(clientPath)) return {};
+  return (std::filesystem::path(clientPath).parent_path()/L"NeacLoader.exe").lexically_normal().wstring();
+}
+inline bool sameNeacPath(const std::wstring &actual,const std::wstring &expected) {
+  const auto allowed=[](const std::filesystem::path &p) {
+    return p.is_absolute() && (_wcsicmp(p.filename().c_str(),L"OWNeacClient.exe")==0 ||
+                              _wcsicmp(p.filename().c_str(),L"NeacLoader.exe")==0);
   };
-  auto active = [&] { return running && generation.load() == epoch && interactiveDesktop(); };
+  const std::filesystem::path a(actual),b(expected);
+  return allowed(a) && allowed(b) && _wcsicmp(a.lexically_normal().c_str(),b.lexically_normal().c_str())==0;
+}
+// Policy is shared by the Windows backend and isolated lifecycle tests. The
+// launcher is stopped first so it cannot recreate the stale client underneath
+// the next start. No process trees, services, drivers or wildcard names.
+template<class Backend,class Active>
+CleanupResult cleanupNeacWith(const Config &c,Active active,Backend &backend,std::wstring *why=nullptr) {
+  if (why) why->clear();
+  auto deny=[&](const std::wstring &text) {if (why) *why=text;return CleanupResult::Denied;};
   if (!active()) return CleanupResult::Cancelled;
   if (c.demo) return CleanupResult::Clear;
-  std::vector<DWORD> games, clients;
-  if (!processIds(L"Overwatch.exe", games)) return deny(L"无法枚举 Overwatch.exe 进程");
+  std::vector<DWORD> games,loaders,clients;
+  if (!backend.enumerate(L"Overwatch.exe",games)) return deny(L"无法枚举 Overwatch.exe");
   if (!games.empty()) return CleanupResult::GamePresent;
-  if (!processIds(L"OWNeacClient.exe", clients)) return deny(L"无法枚举 OWNeacClient.exe 进程");
-  if (clients.empty()) return CleanupResult::Clear;
-  if (_wcsicmp(c.gameExe.c_str(), L"Overwatch.exe") || !validNeacPath(c.neacPath))
-    return CleanupResult::NeedsPath;
-  for (auto pid : clients) {
-    const auto id = std::to_wstring(pid);
-    Handle query(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid));
-    if (!query.h) {
-      const DWORD error = GetLastError();
-      return deny(L"查询 PID " + id + L" 被拒绝（错误 " + std::to_wstring(error) + L"）");
-    }
-    auto created = processCreation(query.h);
-    auto path = fullProcessPath(query.h);
-    // Unknown or different installation: stop instead of terminating by basename alone.
-    if (!created || !exactExecutable(path, c.neacPath))
-      return deny(L"PID " + id + L" 路径不符：实际「" + path + L"」，配置「" + c.neacPath + L"」");
+  if (!backend.enumerate(L"NeacLoader.exe",loaders) || !backend.enumerate(L"OWNeacClient.exe",clients))
+    return deny(L"无法枚举反作弊加载器或客户端");
+  if (loaders.empty() && clients.empty()) return CleanupResult::Clear;
+  if (_wcsicmp(c.gameExe.c_str(),L"Overwatch.exe") || !validNeacPath(c.neacPath)) return CleanupResult::NeedsPath;
+  const std::pair<std::wstring,std::vector<DWORD>> targets[]={{neacLoaderPath(c.neacPath),loaders},{c.neacPath,clients}};
+  for (const auto &target:targets) for (const auto pid:target.second) {
+    if (!active()) return CleanupResult::Cancelled;
+    NeacProcessIdentity identity;std::wstring reason;
+    const auto queried=backend.query(pid,identity,reason);
+    if (queried==NeacQueryResult::Gone) continue;
+    if (queried==NeacQueryResult::Denied) return deny(reason);
+    if (!identity.created || !sameNeacPath(identity.path,target.first))
+      return deny(L"PID "+std::to_wstring(pid)+L" 路径不符：实际「"+identity.path+L"」，预期「"+target.first+L"」");
     if (c.dryRun) continue;
-    Handle target(OpenProcess(SYNCHRONIZE | PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION,
-                               FALSE, pid));
-    if (!target.h) {
-      // The usual cause by far: the helper is not elevated, so Windows refuses
-      // PROCESS_TERMINATE on a process that is.
-      const DWORD error = GetLastError();
-      return deny(L"打开 PID " + id + L" 的终止句柄被拒绝（错误 " + std::to_wstring(error) +
-                  L"）——助手多半没有以管理员身份运行");
-    }
-    if (processCreation(target.h) != created ||
-        !exactExecutable(fullProcessPath(target.h), c.neacPath))
-      return deny(L"PID " + id + L" 在核验期间已被替换，未终止");
-    if (!processIds(L"Overwatch.exe", games)) return deny(L"无法再次枚举 Overwatch.exe 进程");
+    if (!backend.enumerate(L"Overwatch.exe",games)) return deny(L"结束前无法再次枚举游戏");
     if (!games.empty()) return CleanupResult::GamePresent;
     if (!active()) return CleanupResult::Cancelled;
-    if (!TerminateProcess(target.h, 0)) {
-      const DWORD error = GetLastError();
-      return deny(L"结束 PID " + id + L" 被拒绝（错误 " + std::to_wstring(error) + L"）");
-    }
-    bool exited = false;
-    for (int i = 0; i < 25; ++i) {
-      if (WaitForSingleObject(target.h, 200) == WAIT_OBJECT_0) { exited = true; break; }
-      if (!active()) return CleanupResult::Cancelled;
-    }
-    if (!exited) return deny(L"PID " + id + L" 在 5 秒内没有退出");
+    const auto result=backend.terminate(identity,active,reason);
+    if (result!=CleanupResult::Clear) {if (why) *why=reason;return result;}
   }
   if (!c.dryRun) {
-    if (!processIds(L"OWNeacClient.exe", clients)) return deny(L"结束后无法重新枚举 OWNeacClient.exe");
-    if (!clients.empty())
-      return deny(L"结束后重新枚举又出现了 OWNeacClient.exe（PID " +
-                  std::to_wstring(clients.front()) + L"），可能被守护进程重新拉起");
+    if (!active()) return CleanupResult::Cancelled;
+    if (!backend.enumerate(L"Overwatch.exe",games)) return deny(L"结束后无法再次枚举游戏");
+    if (!games.empty()) return CleanupResult::GamePresent;
+    for (const auto name:{L"NeacLoader.exe",L"OWNeacClient.exe"}) {
+      std::vector<DWORD> remaining;
+      if (!backend.enumerate(name,remaining)) return deny(L"结束后无法枚举 "+std::wstring(name));
+      if (!remaining.empty()) return deny(std::wstring(name)+L" 尚未退出或被重新拉起（PID "+std::to_wstring(remaining.front())+L"）");
+    }
   }
   return CleanupResult::Clear;
+}
+struct WindowsNeacCleanup {
+  bool enumerate(const wchar_t *name,std::vector<DWORD> &ids) {return processIds(name,ids);}
+  NeacQueryResult query(DWORD pid,NeacProcessIdentity &identity,std::wstring &why) {
+    Handle handle(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,FALSE,pid));
+    if (!handle.h) {
+      const auto error=GetLastError();
+      if (error==ERROR_INVALID_PARAMETER) return NeacQueryResult::Gone;
+      why=L"查询 PID "+std::to_wstring(pid)+L" 被拒绝（错误 "+std::to_wstring(error)+L"）";
+      return NeacQueryResult::Denied;
+    }
+    DWORD exitCode{};
+    if (GetExitCodeProcess(handle.h,&exitCode) && exitCode!=STILL_ACTIVE) return NeacQueryResult::Gone;
+    identity={pid,processCreation(handle.h),fullProcessPath(handle.h)};
+    if (!identity.created || identity.path.empty()) {
+      why=L"无法核验 PID "+std::to_wstring(pid)+L" 的创建时间或完整路径";return NeacQueryResult::Denied;
+    }
+    return NeacQueryResult::Found;
+  }
+  template<class Active>
+  CleanupResult terminate(const NeacProcessIdentity &identity,Active active,std::wstring &why) {
+    const auto label=std::filesystem::path(identity.path).filename().wstring()+L"（PID "+std::to_wstring(identity.pid)+L"）";
+    auto deny=[&](const std::wstring &reason) {why=label+reason;return CleanupResult::Denied;};
+    Handle handle(OpenProcess(SYNCHRONIZE|PROCESS_TERMINATE|PROCESS_QUERY_LIMITED_INFORMATION,FALSE,identity.pid));
+    if (!handle.h) {
+      const auto error=GetLastError();NeacProcessIdentity current;std::wstring queryWhy;
+      if (query(identity.pid,current,queryWhy)==NeacQueryResult::Gone) return CleanupResult::Clear;
+      return deny(L" 打开终止句柄失败（错误 "+std::to_wstring(error)+L"）");
+    }
+    if (WaitForSingleObject(handle.h,0)==WAIT_OBJECT_0) return CleanupResult::Clear;
+    if (processCreation(handle.h)!=identity.created || !sameNeacPath(fullProcessPath(handle.h),identity.path))
+      return deny(L" 核验期间身份变化，未结束");
+    std::vector<DWORD> games;
+    if (!processIds(L"Overwatch.exe",games)) return deny(L" 结束前无法枚举游戏");
+    if (!games.empty()) return CleanupResult::GamePresent;
+    if (!active()) return CleanupResult::Cancelled;
+    if (!TerminateProcess(handle.h,0)) {
+      const auto error=GetLastError();
+      if (WaitForSingleObject(handle.h,0)==WAIT_OBJECT_0) return CleanupResult::Clear;
+      return deny(L" 结束失败（错误 "+std::to_wstring(error)+L"）");
+    }
+    for (int i=0;i<25;++i) {
+      if (WaitForSingleObject(handle.h,200)==WAIT_OBJECT_0) return CleanupResult::Clear;
+      if (!active()) return CleanupResult::Cancelled;
+    }
+    return deny(L" 结束请求已发送，但 5 秒内未退出");
+  }
+};
+inline CleanupResult cleanupNeac(const Config &c,const std::atomic<bool> &running,
+    const std::atomic<unsigned> &generation,unsigned epoch,std::wstring *why=nullptr) {
+  WindowsNeacCleanup backend;
+  return cleanupNeacWith(c,[&] {return running && generation.load()==epoch && interactiveDesktop();},backend,why);
+}
+struct NeacLogSnapshot {ULONGLONG modified{};std::string tail;};
+inline NeacLogSnapshot readNeacLoaderLog(const std::filesystem::path &path) {
+  NeacLogSnapshot result;
+  Handle handle(CreateFileW(path.c_str(),GENERIC_READ,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,
+                            nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr));
+  if (handle.h==INVALID_HANDLE_VALUE) return result;
+  FILETIME time{};LARGE_INTEGER size{};
+  if (!GetFileTime(handle.h,nullptr,nullptr,&time) || !GetFileSizeEx(handle.h,&size)) return result;
+  result.modified=(ULONGLONG(time.dwHighDateTime)<<32)|time.dwLowDateTime;
+  constexpr DWORD maximum=65536;LARGE_INTEGER offset{};offset.QuadPart=std::max<LONGLONG>(0,size.QuadPart-maximum);
+  if (!SetFilePointerEx(handle.h,offset,nullptr,FILE_BEGIN)) return {};
+  result.tail.resize(std::size_t(std::min<LONGLONG>(size.QuadPart,maximum)));DWORD count{};
+  if (!ReadFile(handle.h,result.tail.data(),DWORD(result.tail.size()),&count,nullptr)) return {};
+  result.tail.resize(count);return result;
+}
+class NeacLaunchMonitor {
+  std::filesystem::path path_;ULONGLONG began_{},baseline_{};
+public:
+  void reset() {path_.clear();began_=baseline_=0;}
+  void begin(const Config &c) {
+    reset();if (c.demo || !validNeacPath(c.neacPath)) return;
+    path_=std::filesystem::path(c.neacPath).parent_path()/L"log"/L"NeacLoader.log";
+    baseline_=readNeacLoaderLog(path_).modified;
+    FILETIME time{};GetSystemTimeAsFileTime(&time);began_=(ULONGLONG(time.dwHighDateTime)<<32)|time.dwLowDateTime;
+  }
+  std::optional<NeacLaunchFailure> failure() const {
+    if (path_.empty()) return {};
+    const auto current=readNeacLoaderLog(path_);
+    if (current.modified<=baseline_ || current.modified<began_) return {};
+    return parseNeacLaunchFailure(current.tail);
+  }
+};
+inline bool neacLaunchRequiresUser(unsigned code) {
+  return code==ERROR_CANCELLED || code==ERROR_ACCESS_DENIED || code==ERROR_ELEVATION_REQUIRED;
+}
+inline std::wstring neacLaunchFailureText(const NeacLaunchFailure &failure) {
+  const auto identity=L"NeacLoader（PID "+std::to_wstring(failure.loaderPid)+L"）启动失败，错误 "+std::to_wstring(failure.code);
+  if (failure.code==ERROR_CANCELLED)
+    return identity+L"：启动被取消；此前如有 NeacProtect / UAC 授权，请手动确认。未继续自动重试；处理后点重启游戏。";
+  return identity+L"；检查反作弊启动日志和授权，处理后点重启游戏。";
 }
 inline int heartbeat(const Config &c, const std::string &json) {
   if (c.server.empty() || c.token.empty())

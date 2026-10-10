@@ -139,8 +139,15 @@ int main() {
   require(!budget.take(20000), "restart cooldown");
   require(budget.take(40000), "second recovery");
   require(budget.take(100000), "third recovery");
-  require(!budget.take(500000), "hourly restart cap");
-  require(budget.take(3610000), "budget replenishes after one hour");
+  require(!budget.take(219999),"Third failure retains its two-minute cooldown");
+  require(budget.take(220000),"Fourth recovery continues within the same hour");
+  Millis retry=budget.retryAt();
+  for (int attempt=0;attempt<1000;++attempt) {
+    require(!budget.take(retry-1),"Unlimited attempts still obey cooldown");
+    require(budget.take(retry),"Long unattended runs never exhaust the recovery count");
+    require(budget.retryAt()==retry+120000,"Repeated failures use a bounded two-minute delay");
+    retry=budget.retryAt();
+  }
   // The window exists so that pressing 开始 with Battle.net already open and no
   // game running does not cost thirty seconds of doing nothing; the long wait is
   // only owed to a client that might be restarting itself.
@@ -192,11 +199,14 @@ int main() {
   join.observe(CNPage::Join, burst + CNJoinGate::BurstWindow);
   require(join.gaveUp(), "Five bursts without the page ever changing gives up");
   require(!join.bursting(burst + CNJoinGate::BurstWindow), "Giving up leaves the burst closed");
-  // Leaving the screens is the evidence, and it clears the count so a later room
-  // in the same run does not inherit the previous one's failures.
+  // A loading/unknown frame cancels clicks without claiming success. Only two
+  // positive room observations establish a join.
   join.acted(CNPage::Join, true, burst + CNJoinGate::BurstWindow + 1);
-  require(join.observe(CNPage::None, burst + CNJoinGate::BurstWindow + 200).joined,
-          "Leaving the join and browse screens is the evidence that counts");
+  require(!join.observe(CNPage::None, burst + CNJoinGate::BurstWindow + 200).joined,
+          "Unknown or loading frames cannot prove a join");
+  require(!join.observe(CNPage::Room,burst + CNJoinGate::BurstWindow + 400).joined &&
+           join.observe(CNPage::Room,burst + CNJoinGate::BurstWindow + 600).joined,
+          "Two room observations prove a join");
   require(!join.gaveUp(), "A confirmed join clears the spent burst count");
   require(!join.bursting(burst + CNJoinGate::BurstWindow + 200),
           "A confirmed join ends the burst immediately");
@@ -253,6 +263,49 @@ int main() {
       identical = before.anchors[j].variants == after.anchors[j].variants;
   }
   require(identical, "round trip preserves anchors and template bytes");
+  require(cnProfileTargets(profile,L"最稳轮换版") && !cnProfileTargets(profile,L"其他目标"),
+          "Legacy profiles cannot authorize another target room");
+  auto trained = profile; trained.roomTarget = L"用户示范的目标";
+  require(parseCNProfile(writeCNProfile(trained),reparsed,profileError) &&
+          reparsed.roomTarget == trained.roomTarget && cnProfileTargets(reparsed,trained.roomTarget) &&
+          !cnProfileTargets(reparsed,L"最稳轮换版"),"Imported calibration remains bound to its demonstrated room target");
+  CNJoinGate longLoad;
+  longLoad.acted(CNPage::Browser,true,1000);
+  longLoad.acted(CNPage::Join,true,2000);
+  CNObservation arrived; arrived.page=CNPage::Room; arrived.step.action=Action::Ready;
+  require(!longLoad.observe(CNPage::Room,71000).joined,"One room observation cannot confirm a slow join");
+  longLoad.prepare(arrived,71000,card);
+  require(longLoad.awaitingRoom(72000) && longLoad.observe(CNPage::Room,72000).joined,
+          "Selection expiry cannot erase a pending slow join when loading frames were unavailable");
+  CNJoinGate lateJoin;
+  for (Millis time=1000; time<26000; time+=5000) {
+    lateJoin.acted(CNPage::Browser,true,time); lateJoin.acted(CNPage::Join,true,time);
+    lateJoin.observe(CNPage::Join,time+5000);
+  }
+  require(lateJoin.gaveUp(),"Five attempts establish retry backoff");
+  lateJoin.observe(CNPage::None,27000);
+  lateJoin.prepare({},42000,card);
+  require(!lateJoin.gaveUp() && lateJoin.awaitingRoom(70000),
+          "Backoff expiry preserves a late join still loading");
+  require(!lateJoin.observe(CNPage::Room,71000).joined && lateJoin.observe(CNPage::Room,73000).joined,
+          "Late server join still requires two positive room observations");
+  CNRoomStart knownRoom; knownRoom.begin(71,800,1000);
+  require(knownRoom.trusted(71,800,2000) && !knownRoom.trusted(72,800,2000) &&
+          !knownRoom.trusted(71,801,2000) && !knownRoom.trusted(71,800,200000),
+          "Explicit current-room confirmation is bounded to a process and deadline");
+  knownRoom.observe(CNPage::None);
+  require(knownRoom.trusted(71,800,3000),"Loading keeps explicit room confirmation pending");
+  knownRoom.observe(CNPage::Hero);
+  require(knownRoom.trusted(71,800,3000),"Hero selection keeps explicit room confirmation pending");
+  CNJoinGate choosing;choosing.acted(CNPage::Join,true,1000);
+  require(!choosing.observe(CNPage::Hero,2000).joined && choosing.awaitingRoom(2000) && !choosing.bursting(2000),
+          "Hero selection stops join clicks without claiming the room is ready");
+  CNObservation heroStep;heroStep.page=CNPage::Hero;choosing.prepare(heroStep,3000,card);
+  require(choosing.awaitingRoom(3000) && !choosing.observe(CNPage::Room,4000).joined &&
+          choosing.observe(CNPage::Room,5000).joined,
+          "After hero confirmation the custom room still needs two fresh observations");
+  knownRoom.observe(CNPage::Home);
+  require(!knownRoom.trusted(71,800,3000),"Navigation revokes explicit room confirmation");
   require(!parseCNProfile("{", ignored, profileError), "truncated profile rejected");
   require(!parseCNProfile("[]", ignored, profileError), "non-object profile rejected");
   require(!parseCNProfile("{\"format\":\"owh-profile\",\"version\":2,\"rules\":[]}", ignored,

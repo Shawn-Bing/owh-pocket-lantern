@@ -6,7 +6,10 @@ namespace owh {
 // Menu covers pages the player opens deliberately -- settings, hero gallery --
 // that must be recognised so an established room session ends, but never acted
 // on. Appended last so it cannot shift an existing identifier.
-enum class CNPage { None, LoginError, Home, Play, More, Browser, Join, Launch, Room, Menu };
+enum class CNPage {
+  None, LoginError, Home, Play, More, Browser, Join, Launch, Room, Menu,
+  Login, LauncherSelect, BrowserSearch, Queue, Hero, Combat, Results, Leave, ConfirmLeave, Respawn, DeathmatchStart, Endorse, RoomList, Joining
+};
 
 // One anchor passes when any of its variants reaches `minimum`. Variants exist
 // because the same on-screen text yields different 32x16 samples at different
@@ -59,9 +62,21 @@ struct CNObservation {
   CNPage page{CNPage::None};
   Step step;
   double score{};
+  bool hasCard{};
+  Point card;
+  std::vector<Point> cards;
   explicit operator bool() const { return page != CNPage::None; }
   int key() const { return 100 + int(page); }
 };
+
+inline constexpr Millis GameLoginRecoveryDelay=3000;
+inline CNObservation normalizeGameLoginRecovery(CNObservation observation,bool launcher) {
+  if (!launcher && observation && observation.page==CNPage::Login && observation.step.action==Action::Ignore) {
+    observation.page=CNPage::LoginError;observation.step.action=Action::Restart;
+    observation.step.label=L"游戏登录页面：关闭并重新启动游戏";
+  }
+  return observation;
+}
 // Clicking 自动加入 is not proof of having joined. A custom lobby can fill in the
 // instant between the capture and the click, and the old code treated the click
 // itself as success -- so the helper logged "已确认加入房间" twenty times in a row
@@ -72,8 +87,8 @@ struct CNObservation {
 // five seconds. Custom lobbies are taken within seconds of appearing, so one
 // decisive click is routinely too slow, and a capture-confirm-decide round trip
 // per attempt spends most of its time re-reading a page that has not changed.
-// Leaving the browse/join screens is the only evidence that counts, and it ends
-// the window immediately.
+// Leaving the browse/join screens ends the window immediately; only positive
+// room observations establish that the join actually succeeded.
 class CNJoinGate {
 public:
   // Five clicks a second for five seconds: fast enough to beat another player
@@ -83,12 +98,14 @@ public:
   static constexpr Millis BurstWindow = 5000;
   static constexpr int BurstClicks = 25;
   // A burst is one attempt, so this is how many attempts the helper makes
-  // before it stops and says why, rather than spinning for the rest of the night
-  // while claiming it had joined.
+  // before a 15-second pause and a fresh selection attempt.
   static constexpr int BurstAttempts = 5;
+  // Cold Workshop maps can spend over a minute loading. This only retains the
+  // identity of our requested target; loading itself still never confirms a room.
+  static constexpr Millis PendingWindow = 180000;
   // What one tick's observation says about a burst in flight.
   struct State {
-    bool joined{}; // the join screens are gone -- the only evidence that counts
+    bool joined{}; // two consecutive positive room observations after a click
   };
 
 private:
@@ -96,29 +113,62 @@ private:
   bool selected_{};
   Millis burstUntil_{};
   int failedBursts_{};
+  Millis pendingSince_{}, pendingUntil_{}, pauseUntil_{};
+  int roomFrames_{};
+  Millis listAttemptAt_{};
 
 public:
   void reset() { *this = CNJoinGate{}; }
   bool bursting(Millis now) const { return burstUntil_ != 0 && now < burstUntil_; }
   bool gaveUp() const { return failedBursts_ >= BurstAttempts; }
+  Millis retryAt() const { return pauseUntil_; }
+  bool awaitingRoom(Millis now) const {
+    return pendingUntil_ && now >= pendingSince_ && now <= pendingUntil_;
+  }
   // Called once per tick with the page *as recognised*, before `prepare` is
   // allowed to rewrite it: whether the join worked is a question about what is
   // on screen, not about what the helper decided to click.
   State observe(CNPage page, Millis now) {
     State state;
-    if (!burstUntil_)
-      return state;
-    if (page != CNPage::Join && page != CNPage::Browser) {
+    if (page == CNPage::Room && awaitingRoom(now)) {
       burstUntil_ = 0;
-      failedBursts_ = 0;
-      selected_ = false;
-      state.joined = true;
+      if (++roomFrames_ >= 2) {
+        reset();
+        state.joined = true;
+      }
       return state;
     }
+    roomFrames_ = 0;
+    if (page == CNPage::Joining) {
+      burstUntil_=0; selected_=false;
+      return state; // a pending request is never a successful room observation
+    }
+    if (page == CNPage::RoomList) {
+      burstUntil_=0; selected_=false;
+      if (listAttemptAt_ && now>=listAttemptAt_ && now-listAttemptAt_>=5000) {
+        listAttemptAt_=0;
+        if (++failedBursts_>=BurstAttempts) pauseUntil_=now+15000;
+      }
+      return state;
+    }
+    if (page == CNPage::None || page == CNPage::Hero) {
+      // A loading or hero-selection frame or a failed recognizer is never proof of joining.
+      burstUntil_ = 0;
+      selected_ = false;
+      return state;
+    }
+    if (page != CNPage::Join && page != CNPage::Browser) {
+      reset();
+      return state;
+    }
+    if (!burstUntil_)
+      return state;
     if (now >= burstUntil_) {
       // The window closed with the page exactly as it was: one attempt spent.
       burstUntil_ = 0;
       ++failedBursts_;
+      selected_ = false;
+      if (gaveUp()) pauseUntil_ = now + 15000;
     }
     return state;
   }
@@ -126,10 +176,40 @@ public:
   // used to be duplicated as a literal here, so moving the card silently left
   // this step pointing at the old position.
   CNObservation prepare(CNObservation observation, Millis now, Point card) {
-    if (selected_ && (now < selectedAt_ || now - selectedAt_ > 15000))
+    if (pauseUntil_ && now >= pauseUntil_) {
+      if (awaitingRoom(now)) {
+        // A late server response may start loading during retry backoff.
+        selected_ = false; selectedAt_ = burstUntil_ = pauseUntil_ = 0;
+        failedBursts_ = 0;
+      } else reset();
+    }
+    if (pauseUntil_ && (observation.page == CNPage::Browser || observation.page == CNPage::Join || observation.page == CNPage::RoomList)) {
+      observation.step.action = Action::Wait;
+      observation.step.label = L"房间暂时不可加入，15 秒后继续快速尝试";
+      return observation;
+    }
+    if (observation.page==CNPage::RoomList && listAttemptAt_) {
+      observation.step.action=Action::Wait;
+      observation.step.label=L"已双击有空位大厅，等待加入结果";
+      return observation;
+    }
+    if (selected_ && (now < selectedAt_ || now - selectedAt_ > 15000)) {
+      // Selection expires independently of a join already sent. A slow load
+      // may produce no usable frames before the first positive room frame.
+      if (awaitingRoom(now)) { selected_ = false; selectedAt_ = 0; burstUntil_ = 0; }
+      else reset();
+    }
+    if (observation && observation.page != CNPage::Browser && observation.page != CNPage::Join &&
+        observation.page != CNPage::Room && observation.page != CNPage::Hero &&
+        observation.page != CNPage::RoomList && observation.page != CNPage::Joining)
       reset();
-    if (observation && observation.page != CNPage::Browser && observation.page != CNPage::Join)
-      reset();
+    if (!observation.cards.empty()) {
+      card = observation.cards[std::size_t(failedBursts_) % observation.cards.size()];
+      observation.card = card;
+      if ((observation.page == CNPage::Browser || observation.page==CNPage::RoomList) &&
+          (observation.step.action == Action::Click || observation.step.action==Action::DoubleClick))
+        observation.step.click = card;
+    }
     // Inside the window the join button is the only thing worth aiming at.
     // Re-running the "select the target card first" correction would swap the
     // join step for a card click, and the burst would spend its whole five
@@ -140,13 +220,17 @@ public:
     // selected card. Always select the verified target ourselves first.
     if (observation.page == CNPage::Join && !selected_) {
       observation.page = CNPage::Browser;
-      observation.step.label = L"先选中最稳轮换版";
+      observation.step.label = L"先选中已识别的目标房间";
       observation.step.action = Action::Click;
       observation.step.click = card;
     }
     return observation;
   }
   void acted(CNPage page, bool success, Millis now) {
+    if (page==CNPage::RoomList && success) {
+      listAttemptAt_=now; pendingSince_=now; pendingUntil_=now+PendingWindow;
+      burstUntil_=0; selected_=false;
+    }
     if (page == CNPage::Browser) {
       selected_ = success;
       selectedAt_ = now;
@@ -158,6 +242,8 @@ public:
       }
       if (!bursting(now))
         burstUntil_ = now + BurstWindow;
+      pendingSince_ = now;
+      pendingUntil_ = now + PendingWindow;
       // `selected_` is deliberately kept across the burst. Clearing it here is
       // what made every round start over by clicking the card again, which is
       // the seven-second loop this replaced.
@@ -165,6 +251,23 @@ public:
       selectedAt_ = now;
     }
   }
+};
+// An explicit "already in this room" start is tied to one process and a short
+// confirmation window; it still needs fresh HUD observations before any input.
+class CNRoomStart {
+  std::uint32_t pid_{};
+  std::uint64_t created_{};
+  Millis since_{}, until_{};
+public:
+  void reset() { *this = {}; }
+  void begin(std::uint32_t pid, std::uint64_t created, Millis now) {
+    reset();
+    if (pid && created) { pid_ = pid; created_ = created; since_ = now; until_ = now + CNJoinGate::PendingWindow; }
+  }
+  bool trusted(std::uint32_t pid, std::uint64_t created, Millis now) const {
+    return pid_ && pid_ == pid && created_ == created && now >= since_ && now <= until_;
+  }
+  void observe(CNPage page) { if (page != CNPage::None && page != CNPage::Room && page != CNPage::Hero) reset(); }
 };
 inline double colorFraction(const Frame &f, Rect roi, bool cyan) {
   if (!valid(roi) || f.width <= 0 || f.height <= 0 || f.pixels.size() != std::size_t(f.width)*f.height) return 0;

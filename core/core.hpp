@@ -79,7 +79,7 @@ inline double similarity(const std::vector<std::uint8_t> &a, const std::vector<s
 // is never clicked, and unlike Ready it stops the Shift pulses. Menus the player
 // opens deliberately -- settings, hero gallery -- belong here. Appended last so
 // the integer values already stored in settings.ini keep their meaning.
-enum class Action { Click, Enter, Escape, Text, Ready, Restart, Launch, Ignore };
+enum class Action { Click, Enter, Escape, Text, Ready, Restart, Launch, Ignore, Wait, Combat, Space, Endorse, DoubleClick };
 struct Step {
   std::wstring label, text;
   bool launcher{};
@@ -97,11 +97,11 @@ struct Match {
 };
 inline bool equivalentObservation(const Step &a, const Step &b) {
   return a.launcher == b.launcher && a.action == b.action &&
-         (a.action == Action::Ready || a.action == Action::Restart);
+         (a.action == Action::Ready || a.action == Action::Restart || a.action == Action::Combat);
 }
 inline int observationKey(const Step &s, int index) {
   // Configuration admits at most 32 templates. Non-action observations may have variants.
-  return s.action == Action::Ready ? 32 : (s.action == Action::Restart ? 33 : index);
+  return s.action == Action::Ready ? 32 : (s.action == Action::Restart ? 33 : (s.action == Action::Combat ? 34 : index));
 }
 inline double templateScore(const Frame &f, const Step &s) {
   double best = similarity(sample(f, s.roi), s.image);
@@ -261,27 +261,20 @@ public:
     }
   }
 };
+// Recovery remains available indefinitely. Pace repeated failures without a
+// rolling-hour cap that can strand an unattended session.
 class RecoveryBudget {
-  std::deque<Millis> attempts_;
+  unsigned failures_{};
   Millis next_{};
-
 public:
-  bool available(Millis now) {
-    while (!attempts_.empty() && now - attempts_.front() >= 3600000)
-      attempts_.pop_front();
-    return attempts_.size() < 3 && now >= next_;
-  }
+  bool available(Millis now) const {return now>=next_;}
   bool take(Millis now) {
-    if (!available(now))
-      return false;
-    attempts_.push_back(now);
-    constexpr Millis delays[] = {30000, 60000, 120000};
-    next_ = now + delays[attempts_.size() - 1];
-    return true;
+    if (!available(now)) return false;
+    failures_=std::min(3u,failures_+1);
+    constexpr Millis delays[]{30000,60000,120000};
+    next_=now+delays[failures_-1];return true;
   }
-  Millis retryAt() const {
-    return attempts_.size() >= 3 ? std::max(next_, attempts_.front() + 3600000) : next_;
-  }
+  Millis retryAt() const {return next_;}
 };
 inline std::string jsonEscape(const std::string &s) {
   std::string r;
