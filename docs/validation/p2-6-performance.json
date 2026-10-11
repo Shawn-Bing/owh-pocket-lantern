@@ -1,0 +1,1376 @@
+{
+  "schema_version": 1,
+  "scope": "Isolated real dashboard plus actual-main telemetry fixture; optional real sensor bridge. No automation worker, OCR, GUI or real-game proof.",
+  "phase_result_scope": "PASS denotes completed timed run with accepted telemetry and continuous owned SSE; it is not a memory-stability or leak verdict.",
+  "source_evidence_directory": "monitor-performance-20261010-134307-897",
+  "conditions": "Sequential hardware_off/on runs, each fresh dashboard and cache; existing real Overwatch/FanControl/GameViewer may run in background. Not a controlled whole-machine A/B.",
+  "cpu_accounting": "Owned server+agent(+bridge) process CPU only; one core is 100%. Script/test tools and unrelated processes excluded. Machine percent divides by logical_processors.",
+  "steady_accounting": "Elapsed samples >= warmup and < active_seconds; excludes startup warmup and shutdown tail. CPU means use cumulative process CPU difference between first and last sample.",
+  "window_accounting": "Five-minute nominal half-open windows; first/last observed samples and sample counts reported. Endpoint slopes describe changes, not leak diagnoses.",
+  "sse_accounting": "One owned independent SSE connection; snapshots drained every sample interval. Observed gaps have sample-interval quantization.",
+  "network_accounting": "GET/SSE response bodies only; heartbeat uploads, HTTP headers, TCP, ZeroTier and NIC counters excluded.",
+  "total_network_bytes_sent": null,
+  "total_network_bytes_received": null,
+  "total_network_result": "NOT MEASURED",
+  "whole_machine_power_watts": null,
+  "whole_machine_power_result": "NOT MEASURED",
+  "phases": [
+    {
+      "phase": "hardware_off",
+      "result": "PASS",
+      "started_at_utc": "2026-10-10T19:43:08.6967807Z",
+      "active_seconds": 1800,
+      "elapsed_seconds": 1809.145703,
+      "warmup_seconds": 300,
+      "sample_interval_ms": 5000,
+      "status_interval_seconds": 30,
+      "sample_count": 361,
+      "logical_processors": 24,
+      "binary_sha256": {
+        "dashboard.exe": "5726466C7D4E79B654723FAFE73950FBE87ED9619EB6DB19B52B83961B17ADFA",
+        "agent-telemetry-integration.exe": "29EF2152987A491EBC6F97F0C3F2DFC95EA14148D7AB6E972C65B053B079D4E6",
+        "owh-sensors.exe": "08F0FFD663B84DCAD9F6C9B293470FF25B83A7BCE62DC10F3469B2744F3E8F18"
+      },
+      "whole_run": {
+        "cpu_percent_one_core_average": 0.025046,
+        "cpu_percent_one_core_peak": 0.937378,
+        "cpu_percent_machine_average": 0.001044,
+        "get_requests": 61,
+        "get_rtt_ms_average": 0.658331,
+        "get_rtt_ms_maximum": 9.0699,
+        "get_sse_response_body_bytes_sent": 536392,
+        "get_sse_payload_bytes_per_second": 296.48911,
+        "sse_connections_owned": 1,
+        "sse_connection_attempts": 1,
+        "sse_snapshots": 182,
+        "sse_max_observed_snapshot_gap_seconds": 15.055698,
+        "sse_closed_unexpectedly": false
+      },
+      "steady_state": {
+        "first_elapsed_seconds": 300.81379,
+        "last_elapsed_seconds": 1799.118603,
+        "sample_count": 300,
+        "cpu_percent_one_core_mean": 0.022943,
+        "cpu_percent_one_core_peak": 0.937378,
+        "combined_working_set_bytes": {
+          "first": 22249472,
+          "last": 24322048,
+          "minimum": 22233088.0,
+          "maximum": 25673728.0,
+          "mean": 23470749.013333
+        },
+        "get_requests_delta": 49,
+        "sse_snapshots_delta": 148,
+        "get_sse_response_body_bytes_delta": 438501,
+        "processes": {
+          "agent": {
+            "cpu_percent_one_core_mean": 0.015643,
+            "cpu_percent_one_core_peak": 0.312459,
+            "private_bytes": {
+              "first": 2850816,
+              "last": 2928640,
+              "minimum": 2834432.0,
+              "maximum": 2973696.0,
+              "mean": 2935043.413333
+            },
+            "working_set_bytes": {
+              "first": 11239424,
+              "last": 11313152,
+              "minimum": 11223040.0,
+              "maximum": 11530240.0,
+              "mean": 11342520.32
+            },
+            "threads": {
+              "first": 7,
+              "last": 7,
+              "minimum": 7.0,
+              "maximum": 7.0,
+              "mean": 7.0
+            },
+            "handles": {
+              "first": 242,
+              "last": 242,
+              "minimum": 241.0,
+              "maximum": 242.0,
+              "mean": 241.96
+            },
+            "private_endpoint_bytes_per_minute": 3116.482015,
+            "working_set_endpoint_bytes_per_minute": 2952.456645
+          },
+          "server": {
+            "cpu_percent_one_core_mean": 0.0073,
+            "cpu_percent_one_core_peak": 0.624919,
+            "private_bytes": {
+              "first": 49405952,
+              "last": 51662848,
+              "minimum": 49405952.0,
+              "maximum": 52969472.0,
+              "mean": 50639325.866667
+            },
+            "working_set_bytes": {
+              "first": 11010048,
+              "last": 13008896,
+              "minimum": 11010048.0,
+              "maximum": 14319616.0,
+              "mean": 12128228.693333
+            },
+            "threads": {
+              "first": 9,
+              "last": 12,
+              "minimum": 8.0,
+              "maximum": 12.0,
+              "mean": 9.223333
+            },
+            "handles": {
+              "first": 172,
+              "last": 204,
+              "minimum": 172.0,
+              "maximum": 204.0,
+              "mean": 180.286667
+            },
+            "private_endpoint_bytes_per_minute": 90377.978425,
+            "working_set_endpoint_bytes_per_minute": 80044.380166
+          }
+        }
+      },
+      "five_minute_windows": [
+        {
+          "first_elapsed_seconds": 300.81379,
+          "last_elapsed_seconds": 596.556685,
+          "sample_count": 60,
+          "cpu_percent_one_core_mean": 0.021133,
+          "cpu_percent_one_core_peak": 0.312385,
+          "combined_working_set_bytes": {
+            "first": 22249472,
+            "last": 22708224,
+            "minimum": 22233088.0,
+            "maximum": 22708224.0,
+            "mean": 22505949.866667
+          },
+          "get_requests_delta": 9,
+          "sse_snapshots_delta": 29,
+          "get_sse_response_body_bytes_delta": 84514,
+          "processes": {
+            "agent": {
+              "cpu_percent_one_core_mean": 0.021133,
+              "cpu_percent_one_core_peak": 0.312385,
+              "private_bytes": {
+                "first": 2850816,
+                "last": 2928640,
+                "minimum": 2834432.0,
+                "maximum": 2936832.0,
+                "mean": 2903995.733333
+              },
+              "working_set_bytes": {
+                "first": 11239424,
+                "last": 11317248,
+                "minimum": 11223040.0,
+                "maximum": 11325440.0,
+                "mean": 11292603.733333
+              },
+              "threads": {
+                "first": 7,
+                "last": 7,
+                "minimum": 7.0,
+                "maximum": 7.0,
+                "mean": 7.0
+              },
+              "handles": {
+                "first": 242,
+                "last": 242,
+                "minimum": 241.0,
+                "maximum": 242.0,
+                "mean": 241.95
+              },
+              "private_endpoint_bytes_per_minute": 15788.84933,
+              "working_set_endpoint_bytes_per_minute": 15788.84933
+            },
+            "server": {
+              "cpu_percent_one_core_mean": 0.0,
+              "cpu_percent_one_core_peak": 0.0,
+              "private_bytes": {
+                "first": 49405952,
+                "last": 50003968,
+                "minimum": 49405952.0,
+                "maximum": 50003968.0,
+                "mean": 49612253.866667
+              },
+              "working_set_bytes": {
+                "first": 11010048,
+                "last": 11390976,
+                "minimum": 11010048.0,
+                "maximum": 11390976.0,
+                "mean": 11213346.133333
+              },
+              "threads": {
+                "first": 9,
+                "last": 8,
+                "minimum": 8.0,
+                "maximum": 9.0,
+                "mean": 8.35
+              },
+              "handles": {
+                "first": 172,
+                "last": 172,
+                "minimum": 172.0,
+                "maximum": 172.0,
+                "mean": 172.0
+              },
+              "private_endpoint_bytes_per_minute": 121324.842217,
+              "working_set_endpoint_bytes_per_minute": 77282.262508
+            }
+          },
+          "nominal_from_seconds": 300,
+          "nominal_to_seconds": 600
+        },
+        {
+          "first_elapsed_seconds": 601.564514,
+          "last_elapsed_seconds": 897.246351,
+          "sample_count": 60,
+          "cpu_percent_one_core_mean": 0.042275,
+          "cpu_percent_one_core_peak": 0.935299,
+          "combined_working_set_bytes": {
+            "first": 22728704,
+            "last": 23072768,
+            "minimum": 22728704.0,
+            "maximum": 23072768.0,
+            "mean": 22894865.066667
+          },
+          "get_requests_delta": 9,
+          "sse_snapshots_delta": 29,
+          "get_sse_response_body_bytes_delta": 84525,
+          "processes": {
+            "agent": {
+              "cpu_percent_one_core_mean": 0.015853,
+              "cpu_percent_one_core_peak": 0.311766,
+              "private_bytes": {
+                "first": 2928640,
+                "last": 2953216,
+                "minimum": 2891776.0,
+                "maximum": 2961408.0,
+                "mean": 2931097.6
+              },
+              "working_set_bytes": {
+                "first": 11317248,
+                "last": 11333632,
+                "minimum": 11284480.0,
+                "maximum": 11345920.0,
+                "mean": 11315950.933333
+              },
+              "threads": {
+                "first": 7,
+                "last": 7,
+                "minimum": 7.0,
+                "maximum": 7.0,
+                "mean": 7.0
+              },
+              "handles": {
+                "first": 242,
+                "last": 242,
+                "minimum": 241.0,
+                "maximum": 242.0,
+                "mean": 241.95
+              },
+              "private_endpoint_bytes_per_minute": 4986.982006,
+              "working_set_endpoint_bytes_per_minute": 3324.65467
+            },
+            "server": {
+              "cpu_percent_one_core_mean": 0.026422,
+              "cpu_percent_one_core_peak": 0.624232,
+              "private_bytes": {
+                "first": 50032640,
+                "last": 50302976,
+                "minimum": 50032640.0,
+                "maximum": 50302976.0,
+                "mean": 50151628.8
+              },
+              "working_set_bytes": {
+                "first": 11411456,
+                "last": 11739136,
+                "minimum": 11411456.0,
+                "maximum": 11739136.0,
+                "mean": 11578914.133333
+              },
+              "threads": {
+                "first": 9,
+                "last": 8,
+                "minimum": 8.0,
+                "maximum": 9.0,
+                "mean": 8.233333
+              },
+              "handles": {
+                "first": 172,
+                "last": 172,
+                "minimum": 172.0,
+                "maximum": 172.0,
+                "mean": 172.0
+              },
+              "private_endpoint_bytes_per_minute": 54856.802061,
+              "working_set_endpoint_bytes_per_minute": 66493.093408
+            }
+          },
+          "nominal_from_seconds": 600,
+          "nominal_to_seconds": 900
+        },
+        {
+          "first_elapsed_seconds": 902.257407,
+          "last_elapsed_seconds": 1197.872891,
+          "sample_count": 60,
+          "cpu_percent_one_core_mean": 0.031713,
+          "cpu_percent_one_core_peak": 0.937378,
+          "combined_working_set_bytes": {
+            "first": 23056384,
+            "last": 23445504,
+            "minimum": 23056384.0,
+            "maximum": 23445504.0,
+            "mean": 23260910.933333
+          },
+          "get_requests_delta": 9,
+          "sse_snapshots_delta": 29,
+          "get_sse_response_body_bytes_delta": 84632,
+          "processes": {
+            "agent": {
+              "cpu_percent_one_core_mean": 0.021142,
+              "cpu_percent_one_core_peak": 0.312459,
+              "private_bytes": {
+                "first": 2936832,
+                "last": 2945024,
+                "minimum": 2932736.0,
+                "maximum": 2953216.0,
+                "mean": 2944409.6
+              },
+              "working_set_bytes": {
+                "first": 11317248,
+                "last": 11325440,
+                "minimum": 11313152.0,
+                "maximum": 11333632.0,
+                "mean": 11324825.6
+              },
+              "threads": {
+                "first": 7,
+                "last": 7,
+                "minimum": 7.0,
+                "maximum": 7.0,
+                "mean": 7.0
+              },
+              "handles": {
+                "first": 242,
+                "last": 242,
+                "minimum": 241.0,
+                "maximum": 242.0,
+                "mean": 241.983333
+              },
+              "private_endpoint_bytes_per_minute": 1662.700453,
+              "working_set_endpoint_bytes_per_minute": 1662.700453
+            },
+            "server": {
+              "cpu_percent_one_core_mean": 0.010571,
+              "cpu_percent_one_core_peak": 0.624919,
+              "private_bytes": {
+                "first": 50302976,
+                "last": 50671616,
+                "minimum": 50302976.0,
+                "maximum": 50671616.0,
+                "mean": 50495351.466667
+              },
+              "working_set_bytes": {
+                "first": 11739136,
+                "last": 12120064,
+                "minimum": 11739136.0,
+                "maximum": 12120064.0,
+                "mean": 11936085.333333
+              },
+              "threads": {
+                "first": 8,
+                "last": 8,
+                "minimum": 8.0,
+                "maximum": 8.0,
+                "mean": 8.0
+              },
+              "handles": {
+                "first": 172,
+                "last": 172,
+                "minimum": 172.0,
+                "maximum": 172.0,
+                "mean": 172.0
+              },
+              "private_endpoint_bytes_per_minute": 74821.520386,
+              "working_set_endpoint_bytes_per_minute": 77315.571066
+            }
+          },
+          "nominal_from_seconds": 900,
+          "nominal_to_seconds": 1200
+        },
+        {
+          "first_elapsed_seconds": 1202.882702,
+          "last_elapsed_seconds": 1498.510786,
+          "sample_count": 60,
+          "cpu_percent_one_core_mean": 0.015856,
+          "cpu_percent_one_core_peak": 0.312241,
+          "combined_working_set_bytes": {
+            "first": 23453696,
+            "last": 25276416,
+            "minimum": 23453696.0,
+            "maximum": 25276416.0,
+            "mean": 24182920.533333
+          },
+          "get_requests_delta": 9,
+          "sse_snapshots_delta": 29,
+          "get_sse_response_body_bytes_delta": 84655,
+          "processes": {
+            "agent": {
+              "cpu_percent_one_core_mean": 0.015856,
+              "cpu_percent_one_core_peak": 0.312241,
+              "private_bytes": {
+                "first": 2945024,
+                "last": 2973696,
+                "minimum": 2920448.0,
+                "maximum": 2973696.0,
+                "mean": 2943726.933333
+              },
+              "working_set_bytes": {
+                "first": 11325440,
+                "last": 11358208,
+                "minimum": 11300864.0,
+                "maximum": 11358208.0,
+                "mean": 11326259.2
+              },
+              "threads": {
+                "first": 7,
+                "last": 7,
+                "minimum": 7.0,
+                "maximum": 7.0,
+                "mean": 7.0
+              },
+              "handles": {
+                "first": 242,
+                "last": 242,
+                "minimum": 241.0,
+                "maximum": 242.0,
+                "mean": 241.966667
+              },
+              "private_endpoint_bytes_per_minute": 5819.203574,
+              "working_set_endpoint_bytes_per_minute": 6650.51837
+            },
+            "server": {
+              "cpu_percent_one_core_mean": 0.0,
+              "cpu_percent_one_core_peak": 0.0,
+              "private_bytes": {
+                "first": 50671616,
+                "last": 52629504,
+                "minimum": 50671616.0,
+                "maximum": 52629504.0,
+                "mean": 51475592.533333
+              },
+              "working_set_bytes": {
+                "first": 12128256,
+                "last": 13918208,
+                "minimum": 12128256.0,
+                "maximum": 13918208.0,
+                "mean": 12856661.333333
+              },
+              "threads": {
+                "first": 8,
+                "last": 12,
+                "minimum": 8.0,
+                "maximum": 12.0,
+                "mean": 9.533333
+              },
+              "handles": {
+                "first": 172,
+                "last": 200,
+                "minimum": 172.0,
+                "maximum": 200.0,
+                "mean": 182.466667
+              },
+              "private_endpoint_bytes_per_minute": 397368.472607,
+              "working_set_endpoint_bytes_per_minute": 363284.56596
+            }
+          },
+          "nominal_from_seconds": 1200,
+          "nominal_to_seconds": 1500
+        },
+        {
+          "first_elapsed_seconds": 1503.516031,
+          "last_elapsed_seconds": 1799.118603,
+          "sample_count": 60,
+          "cpu_percent_one_core_mean": 0.005286,
+          "cpu_percent_one_core_peak": 0.311254,
+          "combined_working_set_bytes": {
+            "first": 25673728,
+            "last": 24322048,
+            "minimum": 24260608.0,
+            "maximum": 25673728.0,
+            "mean": 24509098.666667
+          },
+          "get_requests_delta": 9,
+          "sse_snapshots_delta": 28,
+          "get_sse_response_body_bytes_delta": 82410,
+          "processes": {
+            "agent": {
+              "cpu_percent_one_core_mean": 0.005286,
+              "cpu_percent_one_core_peak": 0.311254,
+              "private_bytes": {
+                "first": 2969600,
+                "last": 2928640,
+                "minimum": 2904064.0,
+                "maximum": 2973696.0,
+                "mean": 2951987.2
+              },
+              "working_set_bytes": {
+                "first": 11354112,
+                "last": 11313152,
+                "minimum": 11300864.0,
+                "maximum": 11530240.0,
+                "mean": 11452962.133333
+              },
+              "threads": {
+                "first": 7,
+                "last": 7,
+                "minimum": 7.0,
+                "maximum": 7.0,
+                "mean": 7.0
+              },
+              "handles": {
+                "first": 242,
+                "last": 242,
+                "minimum": 241.0,
+                "maximum": 242.0,
+                "mean": 241.95
+              },
+              "private_endpoint_bytes_per_minute": -8313.865432,
+              "working_set_endpoint_bytes_per_minute": -8313.865432
+            },
+            "server": {
+              "cpu_percent_one_core_mean": 0.0,
+              "cpu_percent_one_core_peak": 0.0,
+              "private_bytes": {
+                "first": 52969472,
+                "last": 51662848,
+                "minimum": 51265536.0,
+                "maximum": 52969472.0,
+                "mean": 51461802.666667
+              },
+              "working_set_bytes": {
+                "first": 14319616,
+                "last": 13008896,
+                "minimum": 12902400.0,
+                "maximum": 14319616.0,
+                "mean": 13056136.533333
+              },
+              "threads": {
+                "first": 12,
+                "last": 12,
+                "minimum": 12.0,
+                "maximum": 12.0,
+                "mean": 12.0
+              },
+              "handles": {
+                "first": 200,
+                "last": 204,
+                "minimum": 200.0,
+                "maximum": 204.0,
+                "mean": 202.966667
+              },
+              "private_endpoint_bytes_per_minute": -265212.307284,
+              "working_set_endpoint_bytes_per_minute": -266043.693827
+            }
+          },
+          "nominal_from_seconds": 1500,
+          "nominal_to_seconds": 1800
+        }
+      ],
+      "hardware_sample": null
+    },
+    {
+      "phase": "hardware_on",
+      "result": "PASS",
+      "started_at_utc": "2026-10-10T20:13:18.5381513Z",
+      "active_seconds": 1800,
+      "elapsed_seconds": 1808.398496,
+      "warmup_seconds": 300,
+      "sample_interval_ms": 5000,
+      "status_interval_seconds": 30,
+      "sample_count": 361,
+      "logical_processors": 24,
+      "binary_sha256": {
+        "dashboard.exe": "5726466C7D4E79B654723FAFE73950FBE87ED9619EB6DB19B52B83961B17ADFA",
+        "agent-telemetry-integration.exe": "29EF2152987A491EBC6F97F0C3F2DFC95EA14148D7AB6E972C65B053B079D4E6",
+        "owh-sensors.exe": "08F0FFD663B84DCAD9F6C9B293470FF25B83A7BCE62DC10F3469B2744F3E8F18"
+      },
+      "whole_run": {
+        "cpu_percent_one_core_average": 0.147748,
+        "cpu_percent_one_core_peak": 3.432623,
+        "cpu_percent_machine_average": 0.006156,
+        "get_requests": 61,
+        "get_rtt_ms_average": 0.40629,
+        "get_rtt_ms_maximum": 1.492,
+        "get_sse_response_body_bytes_sent": 810431,
+        "get_sse_payload_bytes_per_second": 448.148459,
+        "sse_connections_owned": 1,
+        "sse_connection_attempts": 1,
+        "sse_snapshots": 300,
+        "sse_max_observed_snapshot_gap_seconds": 15.055056,
+        "sse_closed_unexpectedly": false
+      },
+      "steady_state": {
+        "first_elapsed_seconds": 300.659065,
+        "last_elapsed_seconds": 1798.383889,
+        "sample_count": 300,
+        "cpu_percent_one_core_mean": 0.135623,
+        "cpu_percent_one_core_peak": 0.936464,
+        "combined_working_set_bytes": {
+          "first": 64425984,
+          "last": 65073152,
+          "minimum": 64425984.0,
+          "maximum": 71991296.0,
+          "mean": 68399322.453333
+        },
+        "get_requests_delta": 49,
+        "sse_snapshots_delta": 246,
+        "get_sse_response_body_bytes_delta": 665954,
+        "processes": {
+          "agent": {
+            "cpu_percent_one_core_mean": 0.062595,
+            "cpu_percent_one_core_peak": 0.623193,
+            "private_bytes": {
+              "first": 3063808,
+              "last": 3088384,
+              "minimum": 2990080.0,
+              "maximum": 3112960.0,
+              "mean": 3066620.586667
+            },
+            "working_set_bytes": {
+              "first": 11468800,
+              "last": 11657216,
+              "minimum": 11395072.0,
+              "maximum": 11677696.0,
+              "mean": 11527673.173333
+            },
+            "threads": {
+              "first": 8,
+              "last": 8,
+              "minimum": 8.0,
+              "maximum": 8.0,
+              "mean": 8.0
+            },
+            "handles": {
+              "first": 249,
+              "last": 249,
+              "minimum": 248.0,
+              "maximum": 249.0,
+              "mean": 248.903333
+            },
+            "private_endpoint_bytes_per_minute": 984.533325,
+            "working_set_endpoint_bytes_per_minute": 7548.088822
+          },
+          "bridge": {
+            "cpu_percent_one_core_mean": 0.065725,
+            "cpu_percent_one_core_peak": 0.312478,
+            "private_bytes": {
+              "first": 37171200,
+              "last": 40620032,
+              "minimum": 37171200.0,
+              "maximum": 40620032.0,
+              "mean": 38872036.693333
+            },
+            "working_set_bytes": {
+              "first": 41476096,
+              "last": 40038400,
+              "minimum": 39919616.0,
+              "maximum": 46862336.0,
+              "mean": 43650580.48
+            },
+            "threads": {
+              "first": 6,
+              "last": 5,
+              "minimum": 5.0,
+              "maximum": 6.0,
+              "mean": 5.116667
+            },
+            "handles": {
+              "first": 295,
+              "last": 295,
+              "minimum": 295.0,
+              "maximum": 295.0,
+              "mean": 295.0
+            },
+            "private_endpoint_bytes_per_minute": 138162.843218,
+            "working_set_endpoint_bytes_per_minute": -57595.199489
+          },
+          "server": {
+            "cpu_percent_one_core_mean": 0.007303,
+            "cpu_percent_one_core_peak": 0.624309,
+            "private_bytes": {
+              "first": 50139136,
+              "last": 52609024,
+              "minimum": 50139136.0,
+              "maximum": 53141504.0,
+              "mean": 52269561.173333
+            },
+            "working_set_bytes": {
+              "first": 11481088,
+              "last": 13377536,
+              "minimum": 11481088.0,
+              "maximum": 14127104.0,
+              "mean": 13221068.8
+            },
+            "threads": {
+              "first": 9,
+              "last": 13,
+              "minimum": 8.0,
+              "maximum": 13.0,
+              "mean": 11.926667
+            },
+            "handles": {
+              "first": 170,
+              "last": 212,
+              "minimum": 170.0,
+              "maximum": 212.0,
+              "mean": 201.82
+            },
+            "private_endpoint_bytes_per_minute": 98945.599121,
+            "working_set_endpoint_bytes_per_minute": 75973.154881
+          }
+        }
+      },
+      "five_minute_windows": [
+        {
+          "first_elapsed_seconds": 300.659065,
+          "last_elapsed_seconds": 596.281833,
+          "sample_count": 60,
+          "cpu_percent_one_core_mean": 0.100424,
+          "cpu_percent_one_core_peak": 0.624371,
+          "combined_working_set_bytes": {
+            "first": 64425984,
+            "last": 67530752,
+            "minimum": 64425984.0,
+            "maximum": 67530752.0,
+            "mean": 65269009.066667
+          },
+          "get_requests_delta": 9,
+          "sse_snapshots_delta": 48,
+          "get_sse_response_body_bytes_delta": 128631,
+          "processes": {
+            "agent": {
+              "cpu_percent_one_core_mean": 0.052855,
+              "cpu_percent_one_core_peak": 0.31242,
+              "private_bytes": {
+                "first": 3063808,
+                "last": 3059712,
+                "minimum": 3031040.0,
+                "maximum": 3063808.0,
+                "mean": 3056435.2
+              },
+              "working_set_bytes": {
+                "first": 11468800,
+                "last": 11464704,
+                "minimum": 11427840.0,
+                "maximum": 11468800.0,
+                "mean": 11461222.4
+              },
+              "threads": {
+                "first": 8,
+                "last": 8,
+                "minimum": 8.0,
+                "maximum": 8.0,
+                "mean": 8.0
+              },
+              "handles": {
+                "first": 249,
+                "last": 249,
+                "minimum": 248.0,
+                "maximum": 249.0,
+                "mean": 248.883333
+              },
+              "private_endpoint_bytes_per_minute": -831.329744,
+              "working_set_endpoint_bytes_per_minute": -831.329744
+            },
+            "bridge": {
+              "cpu_percent_one_core_mean": 0.047569,
+              "cpu_percent_one_core_peak": 0.312391,
+              "private_bytes": {
+                "first": 37171200,
+                "last": 37855232,
+                "minimum": 37171200.0,
+                "maximum": 37855232.0,
+                "mean": 37505160.533333
+              },
+              "working_set_bytes": {
+                "first": 41476096,
+                "last": 42139648,
+                "minimum": 41476096.0,
+                "maximum": 42139648.0,
+                "mean": 41806779.733333
+              },
+              "threads": {
+                "first": 6,
+                "last": 5,
+                "minimum": 5.0,
+                "maximum": 6.0,
+                "mean": 5.35
+              },
+              "handles": {
+                "first": 295,
+                "last": 295,
+                "minimum": 295.0,
+                "maximum": 295.0,
+                "mean": 295.0
+              },
+              "private_endpoint_bytes_per_minute": 138832.067177,
+              "working_set_endpoint_bytes_per_minute": 134675.418459
+            },
+            "server": {
+              "cpu_percent_one_core_mean": 0.0,
+              "cpu_percent_one_core_peak": 0.0,
+              "private_bytes": {
+                "first": 50139136,
+                "last": 53010432,
+                "minimum": 50139136.0,
+                "maximum": 53010432.0,
+                "mean": 50601096.533333
+              },
+              "working_set_bytes": {
+                "first": 11481088,
+                "last": 13926400,
+                "minimum": 11481088.0,
+                "maximum": 13926400.0,
+                "mean": 12001006.933333
+              },
+              "threads": {
+                "first": 9,
+                "last": 12,
+                "minimum": 8.0,
+                "maximum": 12.0,
+                "mean": 8.55
+              },
+              "handles": {
+                "first": 170,
+                "last": 200,
+                "minimum": 170.0,
+                "maximum": 200.0,
+                "mean": 171.366667
+              },
+              "private_endpoint_bytes_per_minute": 582762.150247,
+              "working_set_endpoint_bytes_per_minute": 496303.856915
+            }
+          },
+          "nominal_from_seconds": 300,
+          "nominal_to_seconds": 600
+        },
+        {
+          "first_elapsed_seconds": 601.300097,
+          "last_elapsed_seconds": 896.855938,
+          "sample_count": 60,
+          "cpu_percent_one_core_mean": 0.12688,
+          "cpu_percent_one_core_peak": 0.936464,
+          "combined_working_set_bytes": {
+            "first": 67616768,
+            "last": 67559424,
+            "minimum": 67031040.0,
+            "maximum": 67960832.0,
+            "mean": 67476480.0
+          },
+          "get_requests_delta": 9,
+          "sse_snapshots_delta": 48,
+          "get_sse_response_body_bytes_delta": 128639,
+          "processes": {
+            "agent": {
+              "cpu_percent_one_core_mean": 0.0793,
+              "cpu_percent_one_core_peak": 0.312512,
+              "private_bytes": {
+                "first": 3059712,
+                "last": 3112960,
+                "minimum": 3035136.0,
+                "maximum": 3112960.0,
+                "mean": 3062101.333333
+              },
+              "working_set_bytes": {
+                "first": 11464704,
+                "last": 11513856,
+                "minimum": 11440128.0,
+                "maximum": 11513856.0,
+                "mean": 11466410.666667
+              },
+              "threads": {
+                "first": 8,
+                "last": 8,
+                "minimum": 8.0,
+                "maximum": 8.0,
+                "mean": 8.0
+              },
+              "handles": {
+                "first": 249,
+                "last": 249,
+                "minimum": 248.0,
+                "maximum": 249.0,
+                "mean": 248.883333
+              },
+              "private_endpoint_bytes_per_minute": 10809.733914,
+              "working_set_endpoint_bytes_per_minute": 9978.21592
+            },
+            "bridge": {
+              "cpu_percent_one_core_mean": 0.037007,
+              "cpu_percent_one_core_peak": 0.312467,
+              "private_bytes": {
+                "first": 37896192,
+                "last": 38510592,
+                "minimum": 37896192.0,
+                "maximum": 38510592.0,
+                "mean": 38191377.066667
+              },
+              "working_set_bytes": {
+                "first": 42172416,
+                "last": 42827776,
+                "minimum": 42172416.0,
+                "maximum": 42827776.0,
+                "mean": 42495726.933333
+              },
+              "threads": {
+                "first": 6,
+                "last": 5,
+                "minimum": 5.0,
+                "maximum": 6.0,
+                "mean": 5.233333
+              },
+              "handles": {
+                "first": 295,
+                "last": 295,
+                "minimum": 295.0,
+                "maximum": 295.0,
+                "mean": 295.0
+              },
+              "private_endpoint_bytes_per_minute": 124727.699004,
+              "working_set_endpoint_bytes_per_minute": 133042.878937
+            },
+            "server": {
+              "cpu_percent_one_core_mean": 0.010573,
+              "cpu_percent_one_core_peak": 0.624309,
+              "private_bytes": {
+                "first": 53088256,
+                "last": 52371456,
+                "minimum": 52289536.0,
+                "maximum": 53141504.0,
+                "mean": 52676471.466667
+              },
+              "working_set_bytes": {
+                "first": 13979648,
+                "last": 13217792,
+                "minimum": 13139968.0,
+                "maximum": 14127104.0,
+                "mean": 13514342.4
+              },
+              "threads": {
+                "first": 13,
+                "last": 12,
+                "minimum": 12.0,
+                "maximum": 13.0,
+                "mean": 12.233333
+              },
+              "handles": {
+                "first": 200,
+                "last": 204,
+                "minimum": 200.0,
+                "maximum": 204.0,
+                "mean": 203.066667
+              },
+              "private_endpoint_bytes_per_minute": -145515.648838,
+              "working_set_endpoint_bytes_per_minute": -154662.346765
+            }
+          },
+          "nominal_from_seconds": 600,
+          "nominal_to_seconds": 900
+        },
+        {
+          "first_elapsed_seconds": 901.856476,
+          "last_elapsed_seconds": 1197.418236,
+          "sample_count": 60,
+          "cpu_percent_one_core_mean": 0.163884,
+          "cpu_percent_one_core_peak": 0.93634,
+          "combined_working_set_bytes": {
+            "first": 67596288,
+            "last": 68628480,
+            "minimum": 67596288.0,
+            "maximum": 68628480.0,
+            "mean": 68149111.466667
+          },
+          "get_requests_delta": 9,
+          "sse_snapshots_delta": 48,
+          "get_sse_response_body_bytes_delta": 128699,
+          "processes": {
+            "agent": {
+              "cpu_percent_one_core_mean": 0.063439,
+              "cpu_percent_one_core_peak": 0.312466,
+              "private_bytes": {
+                "first": 3072000,
+                "last": 3088384,
+                "minimum": 2990080.0,
+                "maximum": 3096576.0,
+                "mean": 3066129.066667
+              },
+              "working_set_bytes": {
+                "first": 11468800,
+                "last": 11489280,
+                "minimum": 11395072.0,
+                "maximum": 11493376.0,
+                "mean": 11464635.733333
+              },
+              "threads": {
+                "first": 8,
+                "last": 8,
+                "minimum": 8.0,
+                "maximum": 8.0,
+                "mean": 8.0
+              },
+              "handles": {
+                "first": 249,
+                "last": 249,
+                "minimum": 248.0,
+                "maximum": 249.0,
+                "mean": 248.883333
+              },
+              "private_endpoint_bytes_per_minute": 3326.005376,
+              "working_set_endpoint_bytes_per_minute": 4157.50672
+            },
+            "bridge": {
+              "cpu_percent_one_core_mean": 0.084585,
+              "cpu_percent_one_core_peak": 0.312396,
+              "private_bytes": {
+                "first": 38510592,
+                "last": 39231488,
+                "minimum": 38510592.0,
+                "maximum": 39231488.0,
+                "mean": 38869947.733333
+              },
+              "working_set_bytes": {
+                "first": 42835968,
+                "last": 43515904,
+                "minimum": 42835968.0,
+                "maximum": 43515904.0,
+                "mean": 43179895.466667
+              },
+              "threads": {
+                "first": 5,
+                "last": 5,
+                "minimum": 5.0,
+                "maximum": 5.0,
+                "mean": 5.0
+              },
+              "handles": {
+                "first": 295,
+                "last": 295,
+                "minimum": 295.0,
+                "maximum": 295.0,
+                "mean": 295.0
+              },
+              "private_endpoint_bytes_per_minute": 146344.236538,
+              "working_set_endpoint_bytes_per_minute": 138029.223098
+            },
+            "server": {
+              "cpu_percent_one_core_mean": 0.01586,
+              "cpu_percent_one_core_peak": 0.624226,
+              "private_bytes": {
+                "first": 52371456,
+                "last": 52928512,
+                "minimum": 52371456.0,
+                "maximum": 52985856.0,
+                "mean": 52681250.133333
+              },
+              "working_set_bytes": {
+                "first": 13291520,
+                "last": 13623296,
+                "minimum": 13291520.0,
+                "maximum": 13647872.0,
+                "mean": 13504580.266667
+              },
+              "threads": {
+                "first": 12,
+                "last": 13,
+                "minimum": 12.0,
+                "maximum": 13.0,
+                "mean": 12.85
+              },
+              "handles": {
+                "first": 204,
+                "last": 212,
+                "minimum": 204.0,
+                "maximum": 212.0,
+                "mean": 210.7
+              },
+              "private_endpoint_bytes_per_minute": 113084.182779,
+              "working_set_endpoint_bytes_per_minute": 67351.608861
+            }
+          },
+          "nominal_from_seconds": 900,
+          "nominal_to_seconds": 1200
+        },
+        {
+          "first_elapsed_seconds": 1202.432321,
+          "last_elapsed_seconds": 1497.882519,
+          "sample_count": 60,
+          "cpu_percent_one_core_mean": 0.142791,
+          "cpu_percent_one_core_peak": 0.624734,
+          "combined_working_set_bytes": {
+            "first": 68632576,
+            "last": 71458816,
+            "minimum": 68632576.0,
+            "maximum": 71458816.0,
+            "mean": 70467788.8
+          },
+          "get_requests_delta": 9,
+          "sse_snapshots_delta": 48,
+          "get_sse_response_body_bytes_delta": 128724,
+          "processes": {
+            "agent": {
+              "cpu_percent_one_core_mean": 0.052885,
+              "cpu_percent_one_core_peak": 0.312506,
+              "private_bytes": {
+                "first": 3084288,
+                "last": 3088384,
+                "minimum": 2998272.0,
+                "maximum": 3104768.0,
+                "mean": 3070156.8
+              },
+              "working_set_bytes": {
+                "first": 11485184,
+                "last": 11661312,
+                "minimum": 11427840.0,
+                "maximum": 11669504.0,
+                "mean": 11594888.533333
+              },
+              "threads": {
+                "first": 8,
+                "last": 8,
+                "minimum": 8.0,
+                "maximum": 8.0,
+                "mean": 8.0
+              },
+              "handles": {
+                "first": 249,
+                "last": 248,
+                "minimum": 248.0,
+                "maximum": 249.0,
+                "mean": 248.916667
+              },
+              "private_endpoint_bytes_per_minute": 831.815317,
+              "working_set_endpoint_bytes_per_minute": 35768.058628
+            },
+            "bridge": {
+              "cpu_percent_one_core_mean": 0.084617,
+              "cpu_percent_one_core_peak": 0.312478,
+              "private_bytes": {
+                "first": 39231488,
+                "last": 39890944,
+                "minimum": 39231488.0,
+                "maximum": 39890944.0,
+                "mean": 39552546.133333
+              },
+              "working_set_bytes": {
+                "first": 43524096,
+                "last": 46280704,
+                "minimum": 43524096.0,
+                "maximum": 46280704.0,
+                "mean": 45290222.933333
+              },
+              "threads": {
+                "first": 5,
+                "last": 5,
+                "minimum": 5.0,
+                "maximum": 5.0,
+                "mean": 5.0
+              },
+              "handles": {
+                "first": 295,
+                "last": 295,
+                "minimum": 295.0,
+                "maximum": 295.0,
+                "mean": 295.0
+              },
+              "private_endpoint_bytes_per_minute": 133922.266024,
+              "working_set_endpoint_bytes_per_minute": 559811.708287
+            },
+            "server": {
+              "cpu_percent_one_core_mean": 0.005289,
+              "cpu_percent_one_core_peak": 0.312367,
+              "private_bytes": {
+                "first": 52928512,
+                "last": 52658176,
+                "minimum": 52600832.0,
+                "maximum": 52936704.0,
+                "mean": 52771771.733333
+              },
+              "working_set_bytes": {
+                "first": 13623296,
+                "last": 13516800,
+                "minimum": 13467648.0,
+                "maximum": 13729792.0,
+                "mean": 13582677.333333
+              },
+              "threads": {
+                "first": 13,
+                "last": 13,
+                "minimum": 13.0,
+                "maximum": 13.0,
+                "mean": 13.0
+              },
+              "handles": {
+                "first": 212,
+                "last": 212,
+                "minimum": 211.0,
+                "maximum": 212.0,
+                "mean": 211.966667
+              },
+              "private_endpoint_bytes_per_minute": -54899.810917,
+              "working_set_endpoint_bytes_per_minute": -21627.19824
+            }
+          },
+          "nominal_from_seconds": 1200,
+          "nominal_to_seconds": 1500
+        },
+        {
+          "first_elapsed_seconds": 1502.887252,
+          "last_elapsed_seconds": 1798.383889,
+          "sample_count": 60,
+          "cpu_percent_one_core_mean": 0.148056,
+          "cpu_percent_one_core_peak": 0.934789,
+          "combined_working_set_bytes": {
+            "first": 71467008,
+            "last": 65073152,
+            "minimum": 64909312.0,
+            "maximum": 71991296.0,
+            "mean": 70634222.933333
+          },
+          "get_requests_delta": 9,
+          "sse_snapshots_delta": 48,
+          "get_sse_response_body_bytes_delta": 128741,
+          "processes": {
+            "agent": {
+              "cpu_percent_one_core_mean": 0.063452,
+              "cpu_percent_one_core_peak": 0.623193,
+              "private_bytes": {
+                "first": 3072000,
+                "last": 3088384,
+                "minimum": 3031040.0,
+                "maximum": 3108864.0,
+                "mean": 3078280.533333
+              },
+              "working_set_bytes": {
+                "first": 11644928,
+                "last": 11657216,
+                "minimum": 11599872.0,
+                "maximum": 11677696.0,
+                "mean": 11651208.533333
+              },
+              "threads": {
+                "first": 8,
+                "last": 8,
+                "minimum": 8.0,
+                "maximum": 8.0,
+                "mean": 8.0
+              },
+              "handles": {
+                "first": 249,
+                "last": 249,
+                "minimum": 248.0,
+                "maximum": 249.0,
+                "mean": 248.95
+              },
+              "private_endpoint_bytes_per_minute": 3326.738366,
+              "working_set_endpoint_bytes_per_minute": 2495.053775
+            },
+            "bridge": {
+              "cpu_percent_one_core_mean": 0.079316,
+              "cpu_percent_one_core_peak": 0.312473,
+              "private_bytes": {
+                "first": 39890944,
+                "last": 40620032,
+                "minimum": 39890944.0,
+                "maximum": 40620032.0,
+                "mean": 40241152.0
+              },
+              "working_set_bytes": {
+                "first": 46297088,
+                "last": 40038400,
+                "minimum": 39919616.0,
+                "maximum": 46862336.0,
+                "mean": 45480277.333333
+              },
+              "threads": {
+                "first": 5,
+                "last": 5,
+                "minimum": 5.0,
+                "maximum": 5.0,
+                "mean": 5.0
+              },
+              "handles": {
+                "first": 295,
+                "last": 295,
+                "minimum": 295.0,
+                "maximum": 295.0,
+                "mean": 295.0
+              },
+              "private_endpoint_bytes_per_minute": 148039.857287,
+              "working_set_endpoint_bytes_per_minute": -1270814.055816
+            },
+            "server": {
+              "cpu_percent_one_core_mean": 0.005288,
+              "cpu_percent_one_core_peak": 0.312341,
+              "private_bytes": {
+                "first": 52658176,
+                "last": 52609024,
+                "minimum": 52502528.0,
+                "maximum": 52715520.0,
+                "mean": 52617216.0
+              },
+              "working_set_bytes": {
+                "first": 13524992,
+                "last": 13377536,
+                "minimum": 13320192.0,
+                "maximum": 13598720.0,
+                "mean": 13502737.066667
+              },
+              "threads": {
+                "first": 13,
+                "last": 13,
+                "minimum": 13.0,
+                "maximum": 13.0,
+                "mean": 13.0
+              },
+              "handles": {
+                "first": 212,
+                "last": 212,
+                "minimum": 212.0,
+                "maximum": 212.0,
+                "mean": 212.0
+              },
+              "private_endpoint_bytes_per_minute": -9980.215098,
+              "working_set_endpoint_bytes_per_minute": -29940.645294
+            }
+          },
+          "nominal_from_seconds": 1500,
+          "nominal_to_seconds": 1800
+        }
+      ],
+      "hardware_sample": {
+        "cpu_package_temperature": {
+          "value": null,
+          "unit": "celsius",
+          "source": "lhm-pawnio",
+          "reason": "cpu_access_denied"
+        },
+        "cpu_package_power": {
+          "value": null,
+          "unit": "watts",
+          "source": "lhm-pawnio",
+          "reason": "cpu_access_denied"
+        },
+        "gpu_power": {
+          "value": 10.987,
+          "unit": "watts",
+          "source": "nvml",
+          "reason": ""
+        }
+      }
+    }
+  ]
+}
