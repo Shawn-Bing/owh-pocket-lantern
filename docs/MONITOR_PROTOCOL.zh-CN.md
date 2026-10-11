@@ -108,17 +108,13 @@ Agent 常规心跳约每 30 秒发送；有新的局内确认、局外视觉或�
 
 传感器显示有效值与来源，缺失显示 `—` 和具体原因，过期显示 `sample_expired`；完整 sensor 和采样UTC可通过提示读取。没有在浏览器根据刷新请求重新采样。
 
-## Tailscale 与联调范围
+## ZeroTier 与联调范围（P2.6）
 
-保持服务端默认监听 `127.0.0.1:8765`，在 Windows 主机通过 Tailscale Serve 复用原服务：
+当前采用用户已有的 ZeroTier 网络。Go 服务保持默认监听 `127.0.0.1:8765`，本地助手继续访问回环地址；Windows `netsh interface portproxy` 仅绑定本机 ZeroTier Managed IPv4，转发到 `127.0.0.1:8765`。防火墙规则限定 ZeroTier 目标地址和获准的 Mac 地址。精确命令、配置前核对、回滚及 Mac 验证见 [ZeroTier 设置指南](P2_6_ZEROTIER_SETUP.zh-CN.md)。
 
-```powershell
-tailscale serve --bg 8765
-```
+Mac 通过 ZeroTier 私网地址使用 View Token 读取 GET/SSE 和登录 Dashboard。Token 仍只放认证请求头，不放 URL；Agent/View 角色不可互换。端口转发不为 HTTP 增加 TLS，链路加密依赖既有 ZeroTier 网络；不可将该入口复制到公网、LAN 或 `0.0.0.0`。网络管理员写操作须由用户审核并执行，不自动改现有 VPN、代理或 ZeroTier 网络。
 
-在 tailnet 内访问对应 HTTPS 地址，使用 View Token 调用 `/api/status` 或登录 Dashboard。不要开放公网端口，也不要启用 Funnel。Serve 用法见 [Tailscale 官方文档](https://tailscale.com/docs/reference/tailscale-cli/serve)。令牌不放链接。
-
-本轮可以开始 Tailscale + Mac API 联调；尚未开启 Tailscale、部署远端服务或进行 macOS 实机验收，也未开发完整 Mac 菜单栏客户端。真实对局截图覆盖、后台效果、长时间远程连接与实际 CPU/内存/整机功耗对比仍需实机验证，不用估计值填报。
+P2.5 文档中的 Tailscale Serve 步骤保留为历史记录，已被本节及 ZeroTier 指南取代，不需要安装 Tailscale。当前实测结果与真实游戏待验收项见 [P2.6 验收记录](P2_6_ZEROTIER_VALIDATION.zh-CN.md)。不以本地回环、模拟游戏事实或已有其他 TCP 连接推断 Mac/API/真实对局通过；原生 Mac 客户端属于后续阶段。
 
 ## 验证入口
 

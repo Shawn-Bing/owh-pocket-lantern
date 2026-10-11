@@ -148,6 +148,6 @@ reverse-analysis/  原始样本的静态分析与证据
 
 更多信息：[架构与协议](docs/ARCHITECTURE.md)、[验证记录](docs/VALIDATION.md)。
 
-本分支已完成 P0–P2 第一轮：共享状态协议、独立对局观察器和可选 v2 硬件遥测。`ACTIVE` 不再作为远端已确认局内的依据；证据默认 15 秒过期。详见[本轮交付记录](docs/P0_P2_REPORT.zh-CN.md)、[远程协议与 Tailscale 联调](docs/MONITOR_PROTOCOL.zh-CN.md)、[硬件来源、缺失原因与实测边界](docs/HARDWARE_TELEMETRY.zh-CN.md)。原生 Mac 客户端及真实游戏端到端验收仍属后续阶段。
+本分支已完成 P0–P2 第一轮：共享状态协议、独立对局观察器和可选 v2 硬件遥测。`ACTIVE` 不再作为远端已确认局内的依据；证据默认 15 秒过期。详见[本轮交付记录](docs/P0_P2_REPORT.zh-CN.md)、[远程协议与 ZeroTier 联调](docs/MONITOR_PROTOCOL.zh-CN.md)、[硬件来源、缺失原因与实测边界](docs/HARDWARE_TELEMETRY.zh-CN.md)。原生 Mac 客户端及真实游戏端到端验收仍属后续阶段。
 
-P2.5 已新增服务端连续异常告警，并完成本地 HTTP/SSE、过期与重启检查。测试范围、性能数据和未验证事项见 [P2.5 验收记录](docs/P2_5_VALIDATION_REPORT.zh-CN.md)；真实游戏与 Tailnet/Mac 联调请按[人工验收指南](docs/P2_5_MANUAL_VALIDATION.zh-CN.md)执行。
+P2.5 已新增服务端连续异常告警，并完成本地 HTTP/SSE、过期与重启检查。历史测试范围见 [P2.5 验收记录](docs/P2_5_VALIDATION_REPORT.zh-CN.md)。P2.6 改用已有 ZeroTier，Go 与本地助手保持回环地址；远程入口和 Mac 手工命令见 [ZeroTier 设置指南](docs/P2_6_ZEROTIER_SETUP.zh-CN.md)，实测和真实游戏勾选表见 [P2.6 验收记录](docs/P2_6_ZEROTIER_VALIDATION.zh-CN.md)。旧人工指南中的 Tailscale 流程已被此流程取代。
