@@ -85,6 +85,25 @@ int main() {
   require(matchEvidence(hud(),{},fakeBuiltin,WorkflowMode::CustomRoom,manual.process,
       manual.join,manual.explicitStart,manual.deathmatch,3000).kind==MatchVisualKind::Unknown,"Arbitrary Ready template cannot supply trustworthy live HUD");
 
+  // P2.7 uses the exact production ordering: observer before join reset.
+  Fixture longRoom;longRoom.join.acted(CNPage::RoomList,true,500,Action::DoubleClick);
+  auto steadyHud=hud();
+  for(Millis at=1000;at<=602000;at+=1000){
+    longRoom.monitor.selectProcess(longRoom.ticket,longRoom.process,at);
+    auto result=longRoom.observe(steadyHud,words(),at);
+    if(at>=2000)require(result.state==MatchState::InMatch&&result.source==MatchSource::TargetJoin&&result.lastConfirmedAt==at,"Ten minutes of fresh actual-order fixtures retain independent target source");
+  }
+  require(!longRoom.join.awaitingRoom(602000),"Join gate resets independently of retained observer source");
+  Fixture manualRecover;
+  manualRecover.observe(steadyHud,words(),1000);
+  require(manualRecover.observe(steadyHud,words(),2000).lastError=="mode_source_unverified","Ordinary start and HUD alone are still unverified");
+  manualRecover.declared(2500);
+  require(manualRecover.observe(steadyHud,words(),3000).state==MatchState::Unverified&&
+    manualRecover.observe(steadyHud,words(),4000).source==MatchSource::ExplicitStart&&
+    manualRecover.monitor.snapshot(4000).state==MatchState::InMatch,"Explicit process-bound manual confirmation plus two fresh HUDs recovers");
+  Fixture refreshOnly;refreshOnly.join.acted(CNPage::RoomList,true,500,Action::Click);
+  refreshOnly.observe(steadyHud,words(),1000);
+  require(refreshOnly.observe(steadyHud,words(),2000).state==MatchState::Unverified,"Refresh cannot become an automatic room source");
   // 2. Queue, requested backfill hero selection, explicit start, and scoreboard.
   auto queue=words({{L"正在搜索比赛",{.36,.1,.25,.04}},{L"预计时间",{.4,.18,.15,.03}},{L"自由死斗",{.35,.24,.2,.04}}});
   Fixture dm(WorkflowMode::Deathmatch);

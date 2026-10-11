@@ -200,6 +200,13 @@ int main(int argc,char **argv) {
     if (result && !semanticStillVisible(frame,frame,result))
       throw std::runtime_error("Recognized page fails the fresh evidence check even on an unchanged frame");
     if (result) std::cout << "fresh_evidence=passed room_instances=" << result.observation.cards.size() << '\n';
+    if(result.roomListVerified) {
+      std::cout<<"room_list="<<roomRowStateName(result.roomList.state)<<" targets="<<result.roomList.target
+        <<" parsed="<<result.roomList.parsed<<" unknown="<<result.roomList.unparsed
+        <<" refresh_anchor="<<valid(result.refreshButton)<<'\n';
+      for(auto row:result.roomList.rows)std::cout<<"row_y="<<center(row.title).y<<" state="<<roomRowStateName(row.state)
+        <<" capacity="<<row.capacity.players<<'/'<<row.capacity.maximum<<" glyph_title="<<row.glyphTitle<<'\n';
+    }
     auto learned = learnSemantic(frame,result,context);
     if (learned) {
       SemanticCache cache; cache.remember(*learned);

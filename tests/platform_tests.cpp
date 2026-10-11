@@ -266,6 +266,17 @@ int main(int argc, char **argv) {
     require(!input.tapMouse(foregroundWindow,false,3) && !input.tapMouse(foregroundWindow,true,3),
             "Stopped input cannot inject either mouse button");
     require(!input.doubleClick(foregroundWindow,{.5,.5},3),"Stopped input cannot double click");
+    input.enable(false,4);
+    require(!input.click(foregroundWindow,{.5,.5},4,true),"Dry-run/stopped refresh cannot click");
+    input.enable(true,5);
+    require(!input.click(foregroundWindow,{.5,.5},4,true),"Stale refresh epoch cannot click");
+    input.blockForeground(true);
+    require(!input.click(foregroundWindow,{.5,.5},5,true),"Foreground-use pause cancels refresh");
+    input.blockForeground(false);
+    require(!input.click(nullptr,{.5,.5},5,true),"Lost target focus cannot receive refresh");
+    require(!input.click(foregroundWindow,{.5,.5},5,true,[]{return false;}),"Revoked session authorization cannot click");
+    require(!input.doubleClick(foregroundWindow,{.5,.5},5,[]{return false;}),"Revoked filter version cannot double click");
+    input.enable(false,6);
     // Only this test's console child is terminated; no desktop input or game process is touched.
     wchar_t executable[32768]{};
     GetModuleFileNameW(nullptr, executable, 32768);

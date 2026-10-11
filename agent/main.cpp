@@ -82,7 +82,8 @@ enum {
   FailureList,
   OpenFailures,
   FailureHeading,
-  ModeHeading
+  ModeHeading,
+  ConfirmJoinFilter
 };
 HINSTANCE instance{};
 HWND mainWindow{}, calibrationWindow{};
@@ -95,6 +96,10 @@ std::wstring directory;
 std::mutex configMutex, statusMutex, networkMutex, logMutex;
 std::atomic<bool> running{}, quitting{};
 std::atomic<unsigned> generation{};
+std::atomic<unsigned> filterEpoch{~0u};
+std::atomic<std::uint64_t> filterRevision{};
+std::atomic<DWORD> filterPid{};
+std::atomic<ULONGLONG> filterCreated{};
 std::atomic<unsigned> restartRequested{~0u};
 std::atomic<DWORD> roomStartPid{};
 std::atomic<ULONGLONG> roomStartCreated{};
@@ -223,8 +228,12 @@ void countRecovery(const std::wstring &what) {
   }
   log(L"恢复计数 " + std::to_wstring(n) + L"：" + what);
 }
-void publish(AutomationState value, const std::wstring &detail, DWORD pid = 0, double score = 0,
+void publish(AutomationState value, const std::wstring &rawDetail, DWORD pid = 0, double score = 0,
              Millis next = 0) {
+  std::wstring detail=rawDetail;
+  auto observed=matchObserver.snapshot(GetTickCount64());
+  if(observed.lastError=="mode_source_unverified" && (observed.page==CNPage::Room || observed.page==CNPage::Combat))
+    detail+=L" 已检测到局内画面，但缺少目标模式来源。若是手动进入的目标房间，请点『已在局内，开始挂机』显式重新确认。";
   const auto *state = automationStateName(value);
   bool changed;
   {
@@ -311,6 +320,11 @@ void worker() {
   // across player standby; returning still requires current page confirmation.
   ContinuousEvidence disconnect{5 * 60 * 1000};
   CNJoinGate cnJoin;
+  RoomListRefresh roomRefresh;
+  Millis roomDiagnosticAt{};
+  std::string roomDiagnostic,observerDiagnostic;
+  double lastCandidateY{};
+  std::string lastCandidateResult{"none"};
   CNRoomStart explicitRoom;
   std::uint64_t seenPlayerActivity{};
   RecoveryBudget budget;
@@ -363,7 +377,7 @@ void worker() {
       deathmatch.reset();
       vision.reset(directory);
       disconnect.reset();
-      cnJoin.reset();
+      cnJoin.reset();roomRefresh.reset();roomDiagnosticAt=0;roomDiagnostic.clear();
       semanticBurst = false;
       explicitRoom.begin(roomStartPid.load(),roomStartCreated.load(),now);
       seenPlayerActivity = input.playerActivityRevision();
@@ -549,7 +563,8 @@ void worker() {
         deathmatch.reset();
         vision.cancel();
         disconnect.reset();
-        cnJoin.reset();
+        cnJoin.reset();roomRefresh.reset();filterEpoch=~0u;++filterRevision;
+        PostMessageW(control(ConfirmJoinFilter),BM_SETCHECK,BST_UNCHECKED,0);
         hungSince = windowSince = 0;
         typedPage = -1;
         cleanupChecked = false;
@@ -974,6 +989,8 @@ void worker() {
       context.endorsementClicks=deathmatch.endorsementClicks();
       context.trustedCustomRoom = !isLauncher && c.mode == WorkflowMode::CustomRoom &&
           (room.active() || cnJoin.awaitingRoom(now) || explicitRoom.trusted(game.pid,game.created,now));
+      context.filterRevision=filterRevision.load();
+      context.onlyJoinableFilterConfirmed=filterEpoch.load()==epoch && filterPid.load()==game.pid && filterCreated.load()==game.created;
       const auto activityAtRecognition = input.playerActivityRevision();
       semantic = vision.recognize(frame,context,[&] { return running && !foregroundUse && !quitting && epoch == generation.load(); },
                                   !cnJoin.bursting(now));
@@ -1032,6 +1049,20 @@ void worker() {
     if (!isLauncher)
       observationTick.visual(target,c.gameExe,frame,semantic,builtin,c.mode,cnJoin,explicitRoom,
           deathmatch,observationCapturedAt,observationSequence,m.ambiguous && !semantic && !builtin);
+    const auto observerNow=matchObserver.snapshot(now);
+    const auto observerKey=std::string(matchStateName(observerNow.state))+"/"+matchSourceName(observerNow.source)+"/"+matchConfidenceName(observerNow.confidence)+"/"+observerNow.lastError;
+    if(semantic.roomListVerified || observerKey!=observerDiagnostic) {
+      std::ostringstream diagnostic;
+      diagnostic<<"page="<<cnPageName(builtin.page)<<" rows="<<roomRowStateName(semantic.roomList.state)
+        <<" target="<<semantic.roomList.target<<" parsed="<<semantic.roomList.parsed<<" unknown="<<semantic.roomList.unparsed
+        <<" matched="<<semantic.roomList.matched<<" ambiguous="<<semantic.roomList.ambiguous<<" capacity="<<semantic.roomList.capacitySummary<<" raw_capacity="<<semantic.roomList.rawCapacitySummary
+        <<" filter="<<semantic.filterConfirmed<<" refresh_last="<<roomRefresh.last()<<" refresh_count="<<roomRefresh.count()
+        <<" candidate_y="<<lastCandidateY<<" candidate_result="<<lastCandidateResult
+        <<" observer="<<matchStateName(observerNow.state)<<" source="<<matchSourceName(observerNow.source)
+        <<" confidence="<<matchConfidenceName(observerNow.confidence)<<" error="<<observerNow.lastError;
+      if((diagnostic.str()!=roomDiagnostic && now-roomDiagnosticAt>=3000)||now-roomDiagnosticAt>=30000){
+        roomDiagnostic=diagnostic.str();observerDiagnostic=observerKey;roomDiagnosticAt=now;log(L"房间诊断 | "+wide(roomDiagnostic));}
+    }
     // Read the evidence before anything else touches the gate. `prepare` below
     // resets it the moment the page is neither browse nor join, so asking it
     // second would throw away the very observation that confirms the join --
@@ -1043,9 +1074,15 @@ void worker() {
       if (observedPage!=CNPage::None && observedPage!=CNPage::Hero && observedPage!=CNPage::Combat && observedPage!=CNPage::Respawn) explicitRoom.reset();
     } else explicitRoom.observe(observedPage);
     if (c.mode == WorkflowMode::Deathmatch) deathmatch.observe(observedPage,now);
+    const bool wasWaitingList=cnJoin.waitingListResponse();
     const auto joinState=cnJoin.observe(observedPage,now);
+    if(wasWaitingList && !cnJoin.waitingListResponse() && observedPage==CNPage::RoomList)lastCandidateResult="server_response_timeout_or_filled";
+    if(observedPage==CNPage::RoomList && cnJoin.gaveUp())lastCandidateResult="server_response_timeout_backoff";
+    roomRefresh.observe(observedPage==CNPage::RoomList,semantic.roomList.state==RoomRowState::Joinable,
+        semantic.roomList.state==RoomRowState::UnknownCapacity,cnJoin.gaveUp());
     auto card = builtin.hasCard ? builtin.card : cnCardClick(c.cnProfile);
     if (c.mode == WorkflowMode::CustomRoom) builtin=cnJoin.prepare(std::move(builtin),now,card);
+    if(roomRefresh.unknownExhausted()){builtin.step.action=Action::Wait;builtin.step.label=L"未知人数候选尝试已耗尽，等待经核验刷新后再尝试。";}
     // Only two positive room observations confirm a join. Loading, unknown
     // frames and menus stop the burst without claiming that its click worked.
     if (joinState.joined && !c.dryRun) {
@@ -1132,9 +1169,30 @@ void worker() {
       continue;
     }
     input.release();
+    const bool refreshDue=roomRefresh.due(semantic.roomListVerified && observedPage==CNPage::RoomList,
+        !semantic.observation.cards.empty() && !cnJoin.gaveUp() && !roomRefresh.unknownExhausted(),cnJoin.waitingListResponse() || cnJoin.bursting(now),now);
     if (s.action == Action::Wait) {
       if (c.mode == WorkflowMode::Deathmatch && observedPage == CNPage::Queue && semantic.verifiedDeathmatch)
         deathmatch.matched();
+      if(refreshDue) {
+        if(!valid(semantic.refreshButton)) {
+          publish(AutomationState::WAITING_PAGE,L"等待空位：刷新控件尚未通过图标/文字核验，未点击。",target.pid,m.score);
+          continue;
+        }
+        if(c.dryRun){publish(AutomationState::DRY_RUN,L"演练：目标列表已确认，将按冷却刷新；未发送点击。",target.pid,m.score);continue;}
+        if(background || input.playerBusy()) {publish(AutomationState::WAITING_FOCUS,L"等待前台与用户操作结束后刷新目标列表。",target.pid,m.score);continue;}
+        if(!running || foregroundUse || epoch!=generation.load() || !sameProcess(target,c.gameExe))continue;
+        // Fresh OCR evidence was recaptured above. Recheck player activity
+        // inside Input's mutex immediately before sending the single click.
+        bool ok=input.click(target.window,center(semantic.refreshButton),epoch,true,[&]{return sameProcess(target,c.gameExe) && IsWindowVisible(target.window) && !IsIconic(target.window);});
+        bool exhaustedCandidates=roomRefresh.unknownExhausted() || cnJoin.gaveUp();
+        roomRefresh.acted(ok,now);
+        if(ok && exhaustedCandidates)cnJoin.reset();
+        log(L"目标列表刷新 | count="+std::to_wstring(roomRefresh.count())+(ok?L" request_sent":L" input_blocked"));
+        publish(ok?AutomationState::WAITING_PAGE:AutomationState::INPUT_BLOCKED,
+            ok?L"已请求刷新目标列表，等待加载并重新识别；画面未变不代表失败。":L"刷新未发送，冷却退避后重试。",target.pid,m.score);
+        continue;
+      }
       publish(c.dryRun ? AutomationState::DRY_RUN : (observedPage == CNPage::Queue ? AutomationState::MATCHMAKING : AutomationState::WAITING_PAGE),
               s.label,target.pid,m.score,cnJoin.retryAt());
       continue;
@@ -1239,13 +1297,16 @@ void worker() {
               target.pid, m.score);
       continue;
     }
+    if(semantic.filterConfirmed && s.action==Action::DoubleClick && observedPage==CNPage::RoomList &&
+        (filterRevision.load()!=semantic.filterRevision || filterEpoch.load()!=epoch || filterPid.load()!=target.pid || filterCreated.load()!=target.created))continue;
     switch (s.action) {
     case Action::Click:
     case Action::Launch:
       ok = input.click(target.window, s.click, epoch);
       break;
     case Action::DoubleClick:
-      ok = input.doubleClick(target.window, s.click, epoch);
+      ok = input.doubleClick(target.window, s.click, epoch,[&]{return sameProcess(target,isLauncher?L"Battle.net.exe":c.gameExe) && IsWindowVisible(target.window) && !IsIconic(target.window) && (!semantic.filterConfirmed ||
+        (filterRevision.load()==semantic.filterRevision && filterEpoch.load()==epoch && filterPid.load()==target.pid && filterCreated.load()==target.created));});
       break;
     case Action::Enter:
       ok = input.press(target.window, VK_RETURN, epoch);
@@ -1269,7 +1330,8 @@ void worker() {
     }
     // Partial SendInput failures are attempts too: never retry them every second forever.
     gate.acted(m.index, now);
-    if (useBuiltin) cnJoin.acted(builtin.page,ok,now);
+    if (useBuiltin) cnJoin.acted(builtin.page,ok,now,s.action);
+    if(useBuiltin && builtin.page==CNPage::RoomList && s.action==Action::DoubleClick){lastCandidateY=s.click.y;lastCandidateResult=ok?"join_requested_waiting_server":"input_blocked";}
     if (useBuiltin && builtin.page == CNPage::Join && ok) semanticBurst = bool(semantic);
     if (!cnJoin.bursting(now)) semanticBurst = false;
     if (useBuiltin && c.mode == WorkflowMode::Deathmatch) deathmatch.acted(builtin.page,ok,s.action,GetTickCount64());
@@ -1425,6 +1487,8 @@ void setRunning(bool on, bool manualRestart = false, bool alreadyInRoom = false)
       return;
     }
   }
+  filterEpoch=~0u;++filterRevision;filterPid=0;filterCreated=0;
+  SendMessageW(control(ConfirmJoinFilter),BM_SETCHECK,BST_UNCHECKED,0);
   ++generation;
   if (on) matchObserver.begin(generation.load(),snapshotConfig().mode,GetTickCount64());
   else matchObserver.stop(generation.load(),GetTickCount64());
@@ -1857,7 +1921,8 @@ void controls() {
   add(L"EDIT",c.roomTarget,RoomTarget,361,433,220,26,ES_AUTOHSCROLL | WS_TABSTOP);
   add(L"BUTTON",L"本地 OCR / 自动校准",Semantic,602,433,216,26,BS_AUTOCHECKBOX);
   SendMessageW(control(Semantic),BM_SETCHECK,c.semanticRecognition ? BST_CHECKED : BST_UNCHECKED,0);
-  add(L"STATIC", L"页面校准 · 手动打开一个页面，选择操作，录制特征与点击位置", 0, 22, 477, 800, 24);
+  add(L"BUTTON",L"仅本会话：我已确认当前游戏筛选只显示可加入大厅（人数未知时有界尝试）",ConfirmJoinFilter,22,462,796,22,BS_AUTOCHECKBOX);
+  add(L"STATIC", L"页面校准 · 手动打开一个页面，选择操作，录制特征与点击位置", 0, 22, 488, 800, 18);
   add(L"COMBOBOX", L"", Scope, 22, 510, 92, 140, CBS_DROPDOWNLIST | WS_TABSTOP);
   for (auto t : {L"游戏", L"战网"})
     SendMessageW(control(Scope), CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(t));
@@ -2004,6 +2069,16 @@ LRESULT CALLBACK mainProc(HWND w, UINT msg, WPARAM wp, LPARAM lp) {
     case Start:
       setRunning(true,false,SimpleEdition && bool(findProcess(snapshotConfig().gameExe,snapshotConfig().gameClass).window));
       break;
+    case ConfirmJoinFilter: {
+      bool checked=SendMessageW(control(ConfirmJoinFilter),BM_GETCHECK,0,0)==BST_CHECKED;
+      filterEpoch=~0u;++filterRevision;
+      auto current=snapshotConfig();auto target=findProcess(current.gameExe,current.gameClass);
+      if(checked && running && current.mode==WorkflowMode::CustomRoom && sameProcess(target,current.gameExe) &&
+          MessageBoxW(w,L"请先在游戏中核实当前筛选确实仅显示可加入大厅。确认后仅对完整目标标题且人数未知的行尝试加入；停止、重启、模式或进程变化后失效。是否确认？",L"仅本次会话确认",MB_YESNO|MB_ICONQUESTION)==IDYES){
+        filterPid=target.pid;filterCreated=target.created;filterEpoch=generation.load();
+      }else SendMessageW(control(ConfirmJoinFilter),BM_SETCHECK,BST_UNCHECKED,0);
+      break;
+    }
     case StartInRoom:
       if (learning::isOpen()) {
         setRunning(true,false,true);

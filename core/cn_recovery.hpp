@@ -226,8 +226,9 @@ public:
     }
     return observation;
   }
-  void acted(CNPage page, bool success, Millis now) {
-    if (page==CNPage::RoomList && success) {
+  bool waitingListResponse() const { return listAttemptAt_!=0; }
+  void acted(CNPage page, bool success, Millis now, Action action=Action::DoubleClick) {
+    if (page==CNPage::RoomList && success && action==Action::DoubleClick) {
       listAttemptAt_=now; pendingSince_=now; pendingUntil_=now+PendingWindow;
       burstUntil_=0; selected_=false;
     }

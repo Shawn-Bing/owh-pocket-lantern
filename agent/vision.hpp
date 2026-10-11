@@ -107,14 +107,14 @@ public:
   }
   const std::string &error() const { return error_; }
   bool recognize(const Frame &frame, const std::wstring &dir, OcrFrame &result,
-                 const std::function<bool()> &alive, bool deskew = true, bool highDetail = false) {
+                 const std::function<bool()> &alive, bool deskew = true, bool highDetail = false, bool numeric = false) {
     if (!start(alive,dir) || !alive()) return false;
     auto folder = std::filesystem::path(dir)/L"adaptive";
     std::error_code ec; std::filesystem::create_directories(folder,ec);
     imagePath_ = (folder/(L"ocr-frame-"+std::to_wstring(GetCurrentProcessId())+L".bmp")).wstring();
     if (!saveFrameBmp(frame,imagePath_)) { error_ = "Cannot write local OCR frame"; return false; }
     auto id = ++serial_;
-    auto request = "{\"id\":"+std::to_string(id)+",\"image\":\""+jsonEscape(utf8(imagePath_))+"\",\"deskew\":"+(deskew ? "true" : "false")+",\"high_detail\":"+(highDetail ? "true" : "false")+"}\n";
+    auto request = "{\"id\":"+std::to_string(id)+",\"image\":\""+jsonEscape(utf8(imagePath_))+"\",\"deskew\":"+(deskew ? "true" : "false")+",\"high_detail\":"+(highDetail ? "true" : "false")+",\"numeric\":"+(numeric ? "true" : "false")+"}\n";
     DWORD written{};
     std::string reply, parseError; Json root;
     bool ok = WriteFile(request_,request.data(),DWORD(request.size()),&written,nullptr) && written == request.size() &&
@@ -231,7 +231,7 @@ inline bool readCustomRoomText(LocalOcr &ocr,const Frame &frame,const std::wstri
     OcrFrame &out,const std::function<bool()> &alive) {
   if (frame.width<640 || frame.height<360 || frame.pixels.size()!=std::size_t(frame.width)*frame.height) return false;
   out={frame.width,frame.height,{}};
-  for (Rect area:{Rect{300./1024,52./576,440./1024,48./576},Rect{.17,.22,.42,.59},Rect{777./1024,160./576,64./1024,300./576}}) {
+  for (Rect area:{Rect{300./1024,52./576,440./1024,48./576},Rect{.17,.22,.42,.59}}) {
     if (!alive()) return false;
     const int x=int(frame.width*area.x),y=int(frame.height*area.y);
     const int width=int(frame.width*area.w),height=int(frame.height*area.h);
@@ -248,6 +248,26 @@ inline bool readCustomRoomText(LocalOcr &ocr,const Frame &frame,const std::wstri
           double(y)/frame.height+word.roi.y*height/frame.height,word.roi.w*width/frame.width,word.roi.h*height/frame.height};
       out.lines.push_back(std::move(line));
     }
+  }
+  // Per-row numeric crops avoid Chinese substitution of tiny "11/12".
+  // All positions come from current client OCR rows, never desktop pixels.
+  if(!UiText(out).one({L"当前地图"},{.3,.18,.4,.16}))return true;
+  std::vector<double> ys;
+  for(const auto &line:out.lines)for(auto word:line.words){auto p=center(word.roi);
+    if(p.x<.17||p.x>.47||p.y<.27||p.y>.81)continue;
+    if(std::none_of(ys.begin(),ys.end(),[&](double y){return std::abs(y-p.y)<.012;}))ys.push_back(p.y);
+  }
+  std::sort(ys.begin(),ys.end());if(ys.size()>12)ys.resize(12);
+  for(auto row:ys){
+    if(!alive())return false;
+    int x=int(frame.width*.75),y=std::max(0,int((row-.019)*frame.height));
+    int width=int(frame.width*.07),height=std::min(int(frame.height*.038),frame.height-y);
+    Frame crop{width,height,std::vector<std::uint32_t>(std::size_t(width)*height)};
+    for(int cy=0;cy<height;++cy)for(int cx=0;cx<width;++cx)crop.pixels[std::size_t(cy)*width+cx]=frame.pixels[std::size_t(y+cy)*frame.width+x+cx];
+    OcrFrame numeric;
+    if(!ocr.recognize(crop,directory,numeric,alive,false,true,true))continue;
+    for(auto line:numeric.lines){for(auto &word:line.words)word.roi={double(x)/frame.width+word.roi.x*width/frame.width,
+      double(y)/frame.height+word.roi.y*height/frame.height,word.roi.w*width/frame.width,word.roi.h*height/frame.height};out.lines.push_back(std::move(line));}
   }
   return true;
 }

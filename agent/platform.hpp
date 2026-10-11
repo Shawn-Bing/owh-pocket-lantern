@@ -27,6 +27,7 @@
 #include <tlhelp32.h>
 #include <windowsx.h>
 #include <winhttp.h>
+#include <functional>
 
 namespace owh {
 inline std::string utf8(const std::wstring &s) {
@@ -1051,10 +1052,10 @@ public:
     activity_.sent(GetTickCount64());
     return true; // Events requested, not proof that the game accepted them.
   }
-  bool click(HWND w, Point p, unsigned epoch) {
+  bool click(HWND w, Point p, unsigned epoch, bool protectPlayer = false, const std::function<bool()> &authorized = {}) {
     std::lock_guard lock(mutex_);
     if (!enabled_ || foregroundBlocked_ || epoch != epoch_ || !foreground(w) || !interactiveDesktop() ||
-        !std::isfinite(p.x) || !std::isfinite(p.y) || p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1)
+        (protectPlayer && playerBusyLocked()) || (authorized && !authorized()) || !std::isfinite(p.x) || !std::isfinite(p.y) || p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1)
       return false;
     RECT r{};
     GetClientRect(w, &r);
@@ -1080,8 +1081,8 @@ public:
     activity_.sent(GetTickCount64());
     return n == 3;
   }
-  bool doubleClick(HWND w, Point p, unsigned epoch) {
-    if (playerBusy() || !click(w,p,epoch)) return false;
+  bool doubleClick(HWND w, Point p, unsigned epoch, const std::function<bool()> &authorized = {}) {
+    if (playerBusy() || !click(w,p,epoch,true,authorized)) return false;
     const Millis delay=std::clamp<Millis>(GetDoubleClickTime()/4,20,80);
     const auto until=GetTickCount64()+delay;
     while (GetTickCount64()<until) {
@@ -1090,7 +1091,7 @@ public:
       if (!enabled_ || foregroundBlocked_ || epoch!=epoch_ || !foreground(w) || !interactiveDesktop() || playerBusyLocked()) return false;
     }
     // Stop, a real player event, or a focus change cancels the second click.
-    return !playerBusy() && click(w,p,epoch);
+    return !playerBusy() && click(w,p,epoch,true,authorized);
   }
   bool press(HWND w, WORD vk, unsigned epoch) {
     std::lock_guard lock(mutex_);

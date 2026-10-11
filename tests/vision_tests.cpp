@@ -431,10 +431,10 @@ int main() {
     require(!parseRoomCapacity(bad),"Unreadable or impossible capacities are never selectable");
   auto roomList=words({{L"托比昂战令最稳轮换版",{.30,.09,.42,.08}},
       {L"当前地图",{.49,.24,.07,.02}},{L"创建新的大厅",{.37,.85,.09,.03}},
-      {L"目标模式",{.19,.32,.12,.018}},{L"12/12",{.77,.32,.035,.018}},
-      {L"目标模式",{.19,.36,.12,.018}},{L"11/12",{.77,.36,.035,.018}},
-      {L"目标模式",{.19,.40,.12,.018}},{L"9／12",{.77,.40,.035,.018}},
-      {L"目标模式",{.19,.44,.12,.018}},{L"112",{.77,.44,.035,.018}}});
+      {L"托比昂战令最稳轮换版",{.19,.32,.12,.018}},{L"12/12",{.77,.32,.035,.018}},
+      {L"托比昂战令最稳轮换版",{.19,.36,.12,.018}},{L"11/12",{.77,.36,.035,.018}},
+      {L"托比昂战令最稳轮换版",{.19,.40,.12,.018}},{L"9／12",{.77,.40,.035,.018}},
+      {L"托比昂战令最稳轮换版",{.19,.44,.12,.018}},{L"112",{.77,.44,.035,.018}}});
   auto available=recognizeSemantic(frame,roomList,custom);
   require(available.observation.page==CNPage::RoomList && available.observation.step.action==Action::DoubleClick &&
           available.observation.cards.size()==2 && std::abs(available.observation.step.click.y-.409)<.001,
@@ -456,9 +456,77 @@ int main() {
           "Conflicting OCR counts invalidate only their own row");
   auto orphanCount=words({{L"11/12",{.77,.60,.035,.018}}});
   require(vacantRoomRows(orphanCount).empty(),"A capacity without a matching row title cannot be clicked");
-  auto splitCount=words({{L"目标模式",{.19,.40,.12,.018}}});
+  auto splitCount=words({{L"托比昂战令最稳轮换版",{.19,.40,.12,.018}}});
   splitCount.lines.push_back({{{L"11",{.77,.40,.015,.018}},{L"/",{.785,.40,.005,.018}},{L"12",{.79,.40,.015,.018}}}});
-  require(vacantRoomRows(splitCount).size()==1,"Capacity split into OCR words remains readable");
+  require(vacantRoomRows(splitCount,L"托比昂战令最稳轮换版").size()==1,"Capacity split into OCR words remains readable");
+  // P2.7: row geometry is independent of OCR Line boundaries and pixels.
+  auto splitLines=words({{L"托比昂战令最稳轮换版",{.19,.28,.12,.018}},
+    {L"１１",{.77,.28,.015,.018}},{L"／",{.785,.28,.005,.018}},{L"１２",{.79,.28,.015,.018}},
+    {L"托比昂战令最稳轮换版",{.19,.79,.12,.018}},{L"11 / 12",{.77,.79,.035,.018}},
+    {L"另一个最稳轮换版",{.19,.5,.12,.018}},{L"0/12",{.77,.5,.035,.018}},
+    {L"0/12",{.51,.28,.035,.018}}});
+  for(auto size:{Point{640,360},Point{1024,576},Point{1920,1080}}){
+    splitLines.width=int(size.x);splitLines.height=int(size.y);
+    auto rows=vacantRoomRows(splitLines,L"托比昂战令最稳轮换版");
+    require(rows.size()==2 && center(rows.front().title).y<.30 && center(rows.back().title).y>.78,
+      "First/last rows and normalized geometry survive resolution changes; other modes/columns are excluded");
+  }
+  auto unknown=roomList;for(auto &line:unknown.lines)for(auto &word:line.words)if(word.roi.x>.7)word.text=L"112";
+  auto unknownResult=recognizeSemantic(frame,unknown,custom);
+  require(unknownResult.roomList.state==RoomRowState::UnknownCapacity && unknownResult.observation.cards.empty(),"Unknown capacity is distinct from full and absent");
+  require(unknownResult.roomList.rawCapacitySummary.find("112")!=std::string::npos &&
+      redactRoomCapacity(L"11的2")=="11?2" && redactRoomCapacity(L"１２ ／ １２")=="12?/?12" &&
+      redactRoomCapacity(std::wstring(100,L'8')).size()==24,"Raw occupancy diagnostics preserve bounded digits/slash and redact all other OCR characters");
+  auto confirmedFilter=custom;confirmedFilter.onlyJoinableFilterConfirmed=true;
+  require(recognizeSemantic(frame,unknown,confirmedFilter).observation.cards.size()==4,"Only current-session explicit filter confirmation permits unknown-capacity fallback");
+  for(auto impossible:{L"13/12",L"11/0",L"129/128"}){
+    auto contradiction=unknown;for(auto &line:contradiction.lines)for(auto &word:line.words)if(word.roi.x>.7)word.text=impossible;
+    auto result=recognizeSemantic(frame,contradiction,confirmedFilter);
+    require(result.observation.cards.empty()&&result.roomList.ambiguous==4,"Impossible counts remain ambiguous even with filter confirmation");
+  }
+  require(recognizeSemantic(frame,fullList,confirmedFilter).observation.cards.empty(),"Explicitly full rows never enter filter fallback");
+  auto nearRows=words({{L"目标模式",{.19,.4,.12,.02}},{L"目标模式",{.19,.412,.12,.02}},
+                       {L"11/12",{.77,.406,.035,.02}}});
+  require(vacantRoomRows(nearRows).empty(),"A count with two possible row owners cannot authorize either candidate");
+  RoomListRefresh refresh;
+  require(!refresh.due(true,false,false,1000)&&!refresh.due(true,false,false,15999)&&refresh.due(true,false,false,16000),"Empty room list refreshes after 15 seconds");
+  CNJoinGate refreshJoin;refreshJoin.acted(CNPage::RoomList,true,16000,Action::Click);refresh.acted(true,16000);
+  require(!refreshJoin.awaitingRoom(16001)&&refresh.count()==1&&!refresh.due(true,false,false,30000),"Refresh request cannot establish target-join source and has cooldown");
+  require(!refresh.due(true,true,false,31000)&&!refresh.due(true,false,true,31000),"Fresh candidates and pending joins take priority over refreshing");
+  require(refresh.due(true,false,false,31000),"Unchanged list is allowed another limited refresh");
+  refresh.acted(false,31000);require(!refresh.due(true,false,false,60000)&&refresh.due(true,false,false,61000),"Failed input uses exponential refresh backoff");
+  refresh.reset();require(!refresh.due(false,false,false,70000)&&!refresh.due(true,false,false,70000),"Stop/mode reset removes scheduled refresh");
+  refresh.observe(true,false,true,true);
+  require(refresh.unknownExhausted()&&refresh.due(true,true,false,85000),"Exhausted unknown candidates request a real refresh despite remaining visible rows");
+  refresh.observe(true,false,true,false);
+  require(refresh.unknownExhausted(),"Elapsed join backoff alone cannot re-arm unknown fallback");
+  refresh.acted(false,85000);require(refresh.unknownExhausted(),"Failed refresh cannot re-arm fallback");
+  refresh.acted(true,115000);require(!refresh.unknownExhausted(),"Only sent verified refresh re-arms bounded unknown candidates");
+  auto appearing=available.observation;refreshJoin.prepare(appearing,80000,appearing.card);
+  refreshJoin.acted(CNPage::RoomList,true,80000,Action::DoubleClick);
+  require(refreshJoin.awaitingRoom(80001)&&!refreshJoin.observe(CNPage::Room,81000).joined&&refreshJoin.observe(CNPage::Room,82000).joined,"Room appearing after refresh still needs a target request and two live confirmations");
+  auto maskFrame=Frame{1024,576,std::vector<std::uint32_t>(1024*576,0xff202838)};
+  auto paintMask=[&](const char *const *mask,int w,int h,int x0,int y0){for(int y=0;y<h;++y)for(int x=0;x<w;++x)
+    maskFrame.pixels[std::size_t(y0+y)*1024+x0+x]=mask[y][x]=='1'?0xffeeeeee:0xff202838;};
+  paintMask(RoomTitleMask,101,12,195,165);
+  require(bool(roomTitleGlyph(maskFrame,171./576)),"Complete first-row glyph template matches");
+  paintMask(RoomTitleMaskSecond,101,12,195,208);
+  require(bool(roomTitleGlyph(maskFrame,214./576)),"Complete last-row subpixel variant matches");
+  for(int y=166;y<175;++y)for(int x=215;x<225;++x)maskFrame.pixels[std::size_t(y)*1024+x]=0xff202838;
+  require(!roomTitleGlyph(maskFrame,171./576),"Changing one character cannot hide in whole-title similarity");
+  paintMask(RoomTitleMask,101,12,195,165);paint(maskFrame,{.30,166./576,.02,9./576},0xffeeeeee);
+  require(!roomTitleGlyph(maskFrame,171./576),"Full target plus a suffix is rejected");
+  paint(maskFrame,{.30,166./576,.02,9./576},0xff202838);paint(maskFrame,{.18,166./576,.01,9./576},0xffeeeeee);
+  require(!roomTitleGlyph(maskFrame,171./576),"Full target with additional prefix is rejected");
+  paint(maskFrame,{.18,166./576,.01,9./576},0xff202838);paint(maskFrame,{.19,.28,.06,.04},0xff202838);
+  require(!roomTitleGlyph(maskFrame,171./576),"Occluded/truncated title is rejected");
+  auto unsupported=maskFrame;unsupported.height=700;unsupported.pixels.resize(1024*700);
+  require(!roomTitleGlyph(unsupported,171./576),"Unsupported client aspect never uses a title template");
+  paint(maskFrame,{800./1024,110./576,32./1024,18./576},0xffe85524);
+  for(int y=0;y<18;++y)for(int x=0;x<32;++x)if(RoomRefreshMask[y][x]=='1')maskFrame.pixels[std::size_t(110+y)*1024+800+x]=0xffffffff;
+  require(bool(roomRefreshGlyph(maskFrame,{.49,140./576,.07,.02})),"Orange double-arrow control is structurally anchored to the table");
+  paint(maskFrame,{800./1024,110./576,32./1024,18./576},0xff555555);
+  require(!roomRefreshGlyph(maskFrame,{.49,140./576,.07,.02}),"Disabled or missing refresh glyph is never clicked");
   auto joiningText=words({{L"正在尝试自动加入",{.3,.35,.4,.05}},{L"返回",{.4,.6,.1,.04}}});
   require(recognizeSemantic(frame,joiningText,custom).observation.page==CNPage::Joining &&
           recognizeSemantic(frame,joiningText,custom).observation.step.action==Action::Wait,

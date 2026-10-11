@@ -1,4 +1,4 @@
-param([string]$Image = '', [switch]$Deskew, [switch]$HighDetail)
+﻿param([string]$Image = '', [switch]$Deskew, [switch]$HighDetail, [switch]$Numeric)
 # Runs in Windows PowerShell 5.1, hidden by the agent. All recognition is local.
 # stdin/stdout carry one JSON object per line; no screen or input APIs are used.
 $ErrorActionPreference = 'Stop'
@@ -28,6 +28,8 @@ try {
     if (-not $script:engine) {
         throw 'Chinese OCR is unavailable. Install the Windows Chinese (Simplified) OCR language feature.'
     }
+    $script:numericEngine = $null
+    try { $script:numericEngine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromLanguage((New-Object Windows.Globalization.Language('en-US'))) } catch { }
     function Add-OcrLines($Result, $Bitmap, $Lines, [double]$OriginalWidth, [double]$OriginalHeight,
                           [double]$Shear = 0) {
         $imageWidth = $OriginalWidth + $Shear * $OriginalHeight
@@ -47,7 +49,9 @@ try {
             $Lines.Add(@{ text = $line.Text; words = $words })
         }
     }
-    function Read-ImageText([string]$Path, [long]$Id, [bool]$FixItalic = $false, [bool]$Detail = $false) {
+    function Read-ImageText([string]$Path, [long]$Id, [bool]$FixItalic = $false, [bool]$Detail = $false, [bool]$Numbers = $false) {
+        $selectedEngine = if ($Numbers) { $script:numericEngine } else { $script:engine }
+        if (-not $selectedEngine) { throw 'Numeric OCR is unavailable' }
         $scaleLimit = if ($Detail) { 3.0 } else { 2.0 }
         # Decode an in-memory copy. WinRT's decoder may retain its stream after
         # recognition; binding it to the disk file blocked the next overwrite
@@ -71,7 +75,7 @@ try {
                 [Windows.Graphics.Imaging.BitmapAlphaMode]::Ignore, $transform,
                 [Windows.Graphics.Imaging.ExifOrientationMode]::IgnoreExifOrientation,
                 [Windows.Graphics.Imaging.ColorManagementMode]::DoNotColorManage)) ([Windows.Graphics.Imaging.SoftwareBitmap])
-            $result = Await-Operation ($script:engine.RecognizeAsync($bitmap)) ([Windows.Media.Ocr.OcrResult])
+            $result = Await-Operation ($selectedEngine.RecognizeAsync($bitmap)) ([Windows.Media.Ocr.OcrResult])
             $lines = New-Object 'System.Collections.Generic.List[object]'
             Add-OcrLines $result $bitmap $lines $decoder.PixelWidth $decoder.PixelHeight
             if ($FixItalic) {
@@ -123,7 +127,7 @@ try {
         }
     }
     if ($Image) {
-        Read-ImageText ([System.IO.Path]::GetFullPath($Image)) 1 $Deskew.IsPresent $HighDetail.IsPresent | ConvertTo-Json -Depth 8 -Compress
+        Read-ImageText ([System.IO.Path]::GetFullPath($Image)) 1 $Deskew.IsPresent $HighDetail.IsPresent $Numeric.IsPresent | ConvertTo-Json -Depth 8 -Compress
         exit 0
     }
     [Console]::WriteLine('{"ready":true,"language":"zh-Hans"}')
@@ -132,7 +136,7 @@ try {
         try {
             $request = $requestLine | ConvertFrom-Json
             if (-not $request.image -or $request.id -lt 1) { throw 'Invalid OCR request' }
-            $reply = Read-ImageText ([System.IO.Path]::GetFullPath([string]$request.image)) ([long]$request.id) ([bool]$request.deskew) ([bool]$request.high_detail)
+            $reply = Read-ImageText ([System.IO.Path]::GetFullPath([string]$request.image)) ([long]$request.id) ([bool]$request.deskew) ([bool]$request.high_detail) ([bool]$request.numeric)
         } catch {
             $reply = @{ id = $request.id; error = $_.Exception.Message }
         }

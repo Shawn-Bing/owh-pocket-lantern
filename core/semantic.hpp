@@ -1,6 +1,7 @@
 #pragma once
 #include "core/cn_profile.hpp"
 #include "core/deathmatch.hpp"
+#include "core/room_list.hpp"
 #include <optional>
 
 namespace owh {
@@ -178,37 +179,113 @@ inline std::optional<RoomCapacity> parseRoomCapacity(const std::wstring &raw) {
   if (result.maximum<1 || result.maximum>128 || result.players>result.maximum) return {};
   return result;
 }
-struct VacantRoomRow { Rect count, title; RoomCapacity capacity; bool conflicting{}; };
-inline std::vector<VacantRoomRow> vacantRoomRows(const OcrFrame &ocr) {
+enum class RoomRowState { Joinable, Full, UnknownCapacity, NoTargetRoom, Ambiguous };
+inline const char *roomRowStateName(RoomRowState s) {
+  switch(s){case RoomRowState::Joinable:return "JOINABLE";case RoomRowState::Full:return "FULL";
+    case RoomRowState::UnknownCapacity:return "UNKNOWN_CAPACITY";case RoomRowState::NoTargetRoom:return "NO_TARGET_ROOM";
+    default:return "AMBIGUOUS";}
+}
+struct VacantRoomRow { Rect count,title; RoomCapacity capacity; bool conflicting{}; RoomRowState state{RoomRowState::UnknownCapacity}; bool glyphTitle{}; };
+struct RoomListAnalysis {
   std::vector<VacantRoomRow> rows;
-  for (const auto &line:ocr.lines) {
-    std::wstring raw; Rect bounds{};
-    for (const auto &word:line.words) {
-      if (!contains({.65,.26,.25,.56},center(word.roi))) continue;
-      raw+=word.text; bounds=bounds.w ? unite(bounds,word.roi) : word.roi;
-    }
-    auto capacity=parseRoomCapacity(raw);
-    if (!capacity || !valid(bounds)) continue;
-    auto found=std::find_if(rows.begin(),rows.end(),[&](const auto &row) {
-      return std::abs(center(row.count).y-center(bounds).y)<std::max(.005,std::min(row.count.h,bounds.h)*.5);
-    });
-    if (found!=rows.end()) {
-      if (found->capacity.players!=capacity->players || found->capacity.maximum!=capacity->maximum) found->conflicting=true;
-      continue;
-    }
-    Rect title{};
-    for (const auto &candidate:ocr.lines) for (const auto &word:candidate.words) {
-      if (word.text.empty() || !contains({.12,.26,.36,.56},center(word.roi)) ||
-          std::abs(center(word.roi).y-center(bounds).y)>std::max(.008,bounds.h*.7)) continue;
-      title=title.w ? unite(title,word.roi) : word.roi;
-    }
-    rows.push_back({bounds,title,*capacity,false});
+  unsigned target{},parsed{},unparsed{},matched{},ambiguous{};
+  RoomRowState state{RoomRowState::NoTargetRoom};
+  std::string capacitySummary,rawCapacitySummary;
+};
+inline std::string redactRoomCapacity(const std::wstring &raw) {
+  std::string summary;
+  for(auto c:raw){
+    if(summary.size()==24)break;
+    if(c>=L'０'&&c<=L'９')c=L'0'+c-L'０';
+    if(c==L'／')c=L'/';
+    summary+=(c>=L'0'&&c<=L'9')||c==L'/'?char(c):'?';
   }
-  std::erase_if(rows,[](const auto &row) { return row.conflicting || !valid(row.title) || row.capacity.players>=row.capacity.maximum; });
-  std::stable_sort(rows.begin(),rows.end(),[](const auto &a,const auto &b) {
-    const int spareA=a.capacity.maximum-a.capacity.players,spareB=b.capacity.maximum-b.capacity.players;
-    return spareA!=spareB ? spareA>spareB : center(a.count).y<center(b.count).y;
-  });
+  return summary;
+}
+inline RoomListAnalysis analyzeRoomRows(const OcrFrame &ocr,const std::wstring &target,Rect body,
+    const Frame *frame=nullptr) {
+  struct Band {Rect title;std::vector<OcrWord> titles,counts;};
+  std::vector<OcrWord> titles,counts;
+  for(const auto &line:ocr.lines) for(const auto &word:line.words) {
+    if(!valid(word.roi)||!contains(body,center(word.roi)))continue;
+    auto x=center(word.roi).x;
+    if(x>=.17&&x<=.47) titles.push_back(word);
+    if(x>=.71&&x<=.86) counts.push_back(word);
+  }
+  std::sort(titles.begin(),titles.end(),[](const auto&a,const auto&b){return center(a.roi).y<center(b.roi).y;});
+  std::vector<Band> bands;
+  for(auto word:titles){
+    auto found=std::find_if(bands.begin(),bands.end(),[&](const auto&band){return std::abs(center(band.title).y-center(word.roi).y)<=std::max(.004,std::min(band.title.h,word.roi.h)*.55);});
+    if(found==bands.end())bands.push_back({word.roi,{word},{}});
+    else {found->titles.push_back(word);found->title=unite(found->title,word.roi);}
+  }
+  RoomListAnalysis result;
+  for(auto &band:bands){
+    std::sort(band.titles.begin(),band.titles.end(),[](const auto&a,const auto&b){return a.roi.x<b.roi.x;});
+    std::vector<OcrWord> unique;
+    for(auto word:band.titles) {
+      bool duplicate=std::any_of(unique.begin(),unique.end(),[&](const auto&other){return normalizeUiText(word.text)==normalizeUiText(other.text)&&std::abs(center(word.roi).x-center(other.roi).x)<.008;});
+      if(!duplicate)unique.push_back(word);
+    }
+    std::wstring label; for(auto word:unique)label+=normalizeUiText(word.text);
+    bool exact=label==normalizeUiText(target),glyph=false;
+    // Multiple OCR passes may disagree. A full-title glyph proof can recover
+    // this one supported title; fuzzy OCR edits never grant title provenance.
+    if(!exact&&frame&&normalizeUiText(target)==normalizeUiText(L"托比昂战令最稳轮换版"))
+      if(auto proof=roomTitleGlyph(*frame,center(band.title).y)){band.title=*proof;exact=glyph=true;}
+    if(!exact)continue;
+    ++result.target;
+    VacantRoomRow row;row.title=band.title;row.glyphTitle=glyph;
+    for(auto word:counts)if(std::abs(center(word.roi).y-center(band.title).y)<=std::max(.005,std::min(word.roi.h,band.title.h)*.65)) {
+      auto owners=std::count_if(bands.begin(),bands.end(),[&](const auto &b){return std::abs(center(word.roi).y-center(b.title).y)<=std::max(.005,std::min(word.roi.h,b.title.h)*.65);});
+      if(owners!=1)row.conflicting=true;
+      band.counts.push_back(word);
+    }
+    std::sort(band.counts.begin(),band.counts.end(),[](const auto&a,const auto&b){return a.roi.x<b.roi.x;});
+    // Keep distinct complete interpretations to detect contradictions. Merge
+    // split words by geometry, across arbitrary original OCR Line boundaries.
+    if(result.target<=12){
+      std::wstring rawCounts;for(auto word:band.counts){rawCounts+=word.text;if(rawCounts.size()>=24)break;}
+      result.rawCapacitySummary+="["+redactRoomCapacity(rawCounts)+"]";
+    }
+    std::vector<RoomCapacity> values;std::vector<OcrWord> parts;
+    for(auto word:band.counts){
+      row.count=row.count.w?unite(row.count,word.roi):word.roi;
+      if(auto value=parseRoomCapacity(word.text))values.push_back(*value);
+      else if(std::none_of(parts.begin(),parts.end(),[&](const auto&o){return o.text==word.text&&std::abs(center(o.roi).x-center(word.roi).x)<.006;}))parts.push_back(word);
+    }
+    std::wstring raw;for(auto part:parts)raw+=part.text;
+    auto impossible=[](const std::wstring &text){
+      std::wstring v;for(auto c:text){if(c==L' '||c==L'\t')continue;if(c>=L'０'&&c<=L'９')c=L'0'+c-L'０';if(c==L'／')c=L'/';v+=c;}
+      auto slash=v.find(L'/');if(slash==std::wstring::npos||slash==0||slash+1==v.size())return false;
+      for(auto c:v)if(c!=L'/'&&(c<L'0'||c>L'9'))return false;
+      return !parseRoomCapacity(v);
+    };
+    if(impossible(raw)||std::any_of(band.counts.begin(),band.counts.end(),[&](auto word){return impossible(word.text);}))row.conflicting=true;
+    if(auto value=parseRoomCapacity(raw)) values.push_back(*value);
+    if(!values.empty()){
+      row.capacity=values.front();
+      row.conflicting=row.conflicting||std::any_of(values.begin(),values.end(),[&](auto value){return value.players!=row.capacity.players||value.maximum!=row.capacity.maximum;});
+      row.state=row.conflicting?RoomRowState::Ambiguous:(row.capacity.players<row.capacity.maximum?RoomRowState::Joinable:RoomRowState::Full);
+      ++result.parsed;++result.matched;
+      result.capacitySummary+=std::to_string(row.capacity.players)+"/"+std::to_string(row.capacity.maximum)+(row.conflicting?"!;":";");
+    } else {++result.unparsed;result.capacitySummary+="?[";
+      std::size_t length{};for(auto word:band.counts)for(auto c:word.text)if(length<32 && ((c>=L'0'&&c<=L'9')||c==L'/'||c==L'／')){result.capacitySummary+=c==L'／'?'/':char(c);++length;}
+      result.capacitySummary+="];";if(row.conflicting)row.state=RoomRowState::Ambiguous;}
+    if(row.conflicting)++result.ambiguous;
+    result.rows.push_back(row);
+  }
+  if(result.target){result.state=RoomRowState::Full;
+    for(auto row:result.rows)if(row.state==RoomRowState::Ambiguous)result.state=RoomRowState::Ambiguous;
+    for(auto row:result.rows)if(row.state==RoomRowState::UnknownCapacity)result.state=RoomRowState::UnknownCapacity;
+    for(auto row:result.rows)if(row.state==RoomRowState::Joinable)result.state=RoomRowState::Joinable;
+  }
+  return result;
+}
+inline std::vector<VacantRoomRow> vacantRoomRows(const OcrFrame &ocr,const std::wstring &target=L"目标模式") {
+  auto rows=analyzeRoomRows(ocr,target,{.12,.26,.76,.56}).rows;
+  std::erase_if(rows,[](auto row){return row.state!=RoomRowState::Joinable;});
+  std::stable_sort(rows.begin(),rows.end(),[](auto a,auto b){int sa=a.capacity.maximum-a.capacity.players,sb=b.capacity.maximum-b.capacity.players;return sa!=sb?sa>sb:center(a.title).y<center(b.title).y;});
   return rows;
 }
 struct SemanticContext {
@@ -220,6 +297,8 @@ struct SemanticContext {
   // Runtime evidence from a verified target join or an established room.
   // Never loaded from the adaptive cache or inferred from a generic HUD.
   bool trustedCustomRoom{};
+  bool onlyJoinableFilterConfirmed{};
+  std::uint64_t filterRevision{};
   bool endorsementAttempted{};
   int endorsementClicks{};
 };
@@ -231,6 +310,10 @@ struct SemanticObservation {
   bool verifiedDeathmatch{};
   bool liveRoomHud{};
   bool heroRoster{};
+  bool roomListVerified{}, filterConfirmed{};
+  Rect refreshButton;
+  std::uint64_t filterRevision{};
+  RoomListAnalysis roomList;
   explicit operator bool() const { return bool(observation); }
 };
 // Check the actual button background. Recognized grey/disabled text must not
@@ -596,18 +679,26 @@ inline SemanticObservation recognizeSemantic(const Frame &frame, const OcrFrame 
     auto mapHeader=text.one({L"当前地图"},{.3,.18,.4,.16});
     auto createLobby=text.one({L"创建新的大厅",L"创建新大厅"},{.2,.8,.55,.18});
     if (targetTitle && mapHeader && createLobby) {
-      auto rows=vacantRoomRows(ocr);
-      auto result=make(CNPage::RoomList,rows.empty() ? Action::Wait : Action::DoubleClick,
-          rows.empty() ? L"未识别到可加入的空位大厅，等待列表刷新" : L"双击加入有空位的目标大厅",*targetTitle,mapHeader);
+      const auto fullTitle=targetTitle->lineText;
+      const double top=mapHeader->roi.y+mapHeader->roi.h+.004;
+      auto analysis=analyzeRoomRows(ocr,fullTitle,{.12,top,.76,std::max(.01,createLobby->roi.y-top-.012)},&frame);
+      auto rows=analysis.rows;
+      std::erase_if(rows,[&](auto row){return row.state!=RoomRowState::Joinable &&
+          !(context.onlyJoinableFilterConfirmed&&row.state==RoomRowState::UnknownCapacity&&valid(row.title));});
+      std::stable_sort(rows.begin(),rows.end(),[](auto a,auto b){
+        if(a.state!=b.state)return a.state==RoomRowState::Joinable;
+        int sa=a.capacity.maximum-a.capacity.players,sb=b.capacity.maximum-b.capacity.players;
+        return sa!=sb?sa>sb:center(a.title).y<center(b.title).y;});
+      auto result=make(CNPage::RoomList,rows.empty()?Action::Wait:Action::DoubleClick,
+          rows.empty()?L"目标列表暂无可信空位，冷却后刷新并重试 OCR":L"双击加入完整标题匹配的目标大厅",*targetTitle,mapHeader);
+      result.roomListVerified=true;result.filterConfirmed=context.onlyJoinableFilterConfirmed;result.filterRevision=context.filterRevision;result.roomList=analysis;
       result.evidence.push_back(createLobby->roi);
-      for (const auto &row:rows) {
-        result.observation.cards.push_back(center(row.title));
-        result.evidence.push_back(row.count); result.evidence.push_back(row.title);
-      }
-      if (!rows.empty()) {
-        result.observation.hasCard=true; result.observation.card=result.observation.cards.front();
-        result.observation.step.click=result.observation.card;
-      }
+      if(auto refresh=roomRefreshGlyph(frame,mapHeader->roi))result.refreshButton=*refresh;
+      if(auto refresh=text.one({L"刷新",L"刷新列表"},{.7,.16,.18,.08},true);refresh && enabledUiButton(frame,refresh->roi))result.refreshButton=refresh->roi;
+      if(valid(result.refreshButton))result.evidence.push_back(result.refreshButton);
+      for(const auto &row:rows){result.observation.cards.push_back(center(row.title));
+        if(valid(row.count))result.evidence.push_back(row.count);result.evidence.push_back(row.title);}
+      if(!rows.empty()){result.observation.hasCard=true;result.observation.card=result.observation.cards.front();result.observation.step.click=result.observation.card;}
       return result;
     }
     // This footer belongs to the room browser, including incomplete OCR frames.
