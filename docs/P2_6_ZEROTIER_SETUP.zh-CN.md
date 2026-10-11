@@ -1,6 +1,6 @@
 # P2.6 ZeroTier 访问与回滚操作单
 
-本轮采用 **方案 A：Windows portproxy**。Go Dashboard 保持 127.0.0.1:8765；系统只在 Windows 的 ZeroTier IPv4 上增加 TCP 入口，不修改 Go 监听代码。以下管理命令供用户审核、执行；文档存在不代表已经配置或通过验收。
+本轮采用 **方案 A：Windows portproxy**。Go Dashboard 保持 127.0.0.1:8765；系统只在 Windows 的 ZeroTier IPv4 上增加 TCP 入口，不修改 Go 监听代码。用户明确授权并要求重试UAC后，已于2026-10-11 05:56 UTC（America/Denver：10月10日23:56）完成本机配置。以下管理命令用于审查、复现和局部回滚；Mac实链路尚未验收，已配置主机不要重复添加。
 
 ## 本次地址与检查
 
@@ -11,10 +11,13 @@
 | ZeroTier | 1.14.2；服务 Running / Automatic；网卡 Up；IPv6 绑定启用 |
 | IP Helper | Running / Automatic |
 | 8765 / portproxy 初始状态 | 无监听 / 无条目 |
-| 防火墙 | 三个 Profile 均 ON，默认 BlockInbound/AllowOutbound；详细规则读取被拒绝 |
-| 网络授权 | CLI 无权读取本地管理凭据；中央管理页未访问，两端授权仍需核对 |
+| 防火墙 | 三个 Profile 仍ON、BlockInbound/AllowOutbound；管理员结果实测两条精确规则存在于ActiveStore |
+| Windows网络状态 | 管理员只读CLI：ONLINE、network OK、PRIVATE，Managed IP 10.243.245.219/16 |
+| Mac/控制器授权 | Mac未操作，Central未审计；Windows ONLINE/OK不证明Mac已授权或API可达 |
+| 当前映射/监听 | 10.243.245.219:8765→127.0.0.1:8765；只见这两个IPv4监听，无0.0.0.0或IPv6入口 |
+| 当前规则 | OWH-P26-ZT-8765-Allow-Mac仅允许10.243.12.243；OWH-P26-ZT-8765-Block-Other阻止其余IPv4；均只针对本机ZT地址的TCP8765 |
 
-本轮曾在工作区启动独立 Dashboard，监听 **127.0.0.1:8765**，/healthz 已返回 200；本地验收结束后已关闭该测试进程。数据目录保留：
+此前测试服务关闭后，本次为用户远程联调重新隐藏启动独立 Dashboard，PID **4608**，仅监听 **127.0.0.1:8765**，/healthz=200；当前保持运行。ZeroTier入口由系统portproxy拥有（核验时PID5708），不是Go的第二个监听。继续复用数据目录：
 
 ~~~text
 D:\CodexWorktrees\22a0\OverwatchHelper\build\p2-6-remote-20261010
@@ -23,14 +26,25 @@ D:\CodexWorktrees\22a0\OverwatchHelper\build\p2-6-remote-20261010
 agent-token.txt 仅供 Windows 助手，view-token.txt 仅供浏览器/Mac。不要把内容贴进聊天、URL、日志或 Git。未修改现有助手配置；接入真实助手时，用户在 GUI 配置该 localhost 地址与对应 Agent Token。空 agents 列表仅说明尚无上报。
 
 
-准备人工联调时，先确认 8765 没有其他服务占用，再在一个普通 PowerShell 窗口运行下列命令并保持窗口开启；随后在另一个管理员 PowerShell 窗口配置入口。此命令复用保留的测试数据及 Token，不创建系统服务：
+当前服务已经运行；仅在它停止后，先确认8765的localhost监听没有其他服务占用，再在普通PowerShell运行下列命令并保持窗口开启。既有系统portproxy入口可保留，不能把它当成未知Go进程停止。此命令复用同一数据及Token，不创建系统服务：
 
 ~~~powershell
 Set-Location 'D:\CodexWorktrees\22a0\OverwatchHelper'
 .\dist\owh-dashboard.exe -listen '127.0.0.1:8765' -data 'D:\CodexWorktrees\22a0\OverwatchHelper\build\p2-6-remote-20261010'
 ~~~
 
-用 Ctrl+C 可停止该 Dashboard；不要结束未知 PID。之前脚本中的健康检查要求它正在运行。
+上述前台方式用Ctrl+C停止；当前隐藏服务可在普通PowerShell核对身份后停止：
+
+~~~powershell
+$p = Get-CimInstance Win32_Process -Filter 'ProcessId = 4608'
+if ($p -and $p.ExecutablePath -eq 'D:\CodexWorktrees\22a0\OverwatchHelper\dist\owh-dashboard.exe' -and $p.CommandLine.Contains('D:\CodexWorktrees\22a0\OverwatchHelper\build\p2-6-remote-20261010')) {
+    Stop-Process -Id 4608
+} else {
+    throw 'PID已变化或身份不符；先重新核对，不结束未知进程。'
+}
+~~~
+
+停止Dashboard不移除持久portproxy或防火墙规则；完整撤销入口见下方回滚。未创建开机服务或任务，Windows重启后Dashboard需要重新启动。精确管理员配置证据在忽略的`build/p2-6-remote-20261010/network-setup-result.json`，去身份状态摘要在同目录`network-verification-summary.json`；原始CLI输出不提交。
 
 ## 信任边界
 
@@ -64,7 +78,7 @@ Mac CLI 不在 PATH 时使用已安装 ZeroTier 菜单的网络详情，不重�
 
 只改变 **10.243.245.219:8765/TCP**：允许 Mac 10.243.12.243，显式阻止其他 IPv4 来源进入该地址的该端口，避免普通宽泛 Allow 规则扩大入口。不改全局策略、其他端口、ZeroTier 网络、代理、VPN、服务启动方式或 localhost 监听。系统规则不会随本次 PowerShell 退出消失。
 
-以下脚本在管理员 PowerShell **整段执行一次**。同名规则、相同入口或地址变化均停止，不覆盖。IP Helper 未运行时停止，不自行启停服务；已有 IPsec Allow-Bypass 策略时停止，先审查影响。
+下列脚本已执行成功，当前无需重复运行。以后复现时在管理员PowerShell **整段执行一次**。如果将包含中文的代码保存为`.ps1`并用Windows PowerShell5执行，必须保存为UTF-8带BOM；本次先用实际PS5的Parser确认无语法错误后执行。同名规则、相同入口或地址变化均停止，不覆盖。IP Helper 未运行时停止，不自行启停服务；已有 IPsec Allow-Bypass 策略时停止，先审查影响。
 
 ~~~powershell
 $ErrorActionPreference = 'Stop'

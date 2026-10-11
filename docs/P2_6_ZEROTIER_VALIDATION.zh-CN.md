@@ -8,9 +8,10 @@
 |---|---|---|
 | 现有 ZeroTier 网卡与服务发现 | PASS | 只读检查：ZeroTierOneService、iphlpsvc Running/Automatic；ZeroTier 1.14.2，网卡 Up，IPv4 Preferred，IPv6 绑定启用；本机与用户提供 Mac 地址属于同一 `/16` Managed 子网。精确地址见设置指南 |
 | 选定入口方案 A | PASS | 已选定方案：仅将 Windows ZeroTier Managed IPv4 的 8765 转发到 `127.0.0.1:8765`；Go 默认 localhost、本地助手行为不变；未实施双地址监听 |
-| ZeroTier 成员已授权、CLI 网络状态 | BLOCKED | CLI 读取 authtoken.secret 被拒绝；没有读取 secret 或调整权限。网卡 Up 和已有一条 Mac TCP Established 均不能证明成员授权或本项目 API 可达 |
-| Windows ZeroTier 转发/防火墙实际配置 | BLOCKED | 开始时无portproxy；独立验收Dashboard仅localhost8765、healthz200。先因授权证据不足被自动审批拒绝；用户随后明确授权实际添加限定转发及两条规则，重试获工具许可，但Windows UAC返回“操作已被用户取消”。无管理员PID、结果文件或网络写；不再自动重试，由用户执行设置指南或后续明确处理 |
-| Windows 实际 loopback Dashboard、角色与 GET/SSE | PASS | `build/p2-5-local-20261010-134345/results.json`：17 PASS、1 BLOCKED；实际 dist、独立 18773 端口和数据目录，Agent 读/View 写/未认证读均拒绝，GET 与 SSE 派生状态一致；另`build/p2-6-local8765-results.json`验证独立验收服务：正确GET/SSE200、错误角色401、30秒3快照 |
+| Windows ZeroTier CLI/网络状态 | PASS | 本次用户允许管理员配置后只读CLI返回ONLINE、network OK、PRIVATE、Managed IP 10.243.245.219/16；未打印或修改管理secret |
+| Mac成员授权/控制器配置审计 | NOT TESTED | 未操作Mac或Central；Windows ONLINE/OK和已有其他TCP连接不证明Mac授权或本项目跨机API可达 |
+| Windows ZeroTier 转发/防火墙实际配置 | PASS | 用户明确要求重试UAC后，管理员PID34392完成限定配置，05:56:32 UTC结果PASS；映射仅10.243.245.219:8765→127.0.0.1:8765；ActiveStore实测两条Inbound/TCP8765/localZT规则，Allow仅Mac10.243.12.243、Block其余IPv4，所有profile启用 |
+| Windows 实际 loopback Dashboard、角色与 GET/SSE | PASS | `build/p2-5-local-20261010-134345/results.json`：17 PASS、1 BLOCKED；实际 dist、独立 18773 端口和数据目录，Agent 读/View 写/未认证读均拒绝，GET 与 SSE 派生状态一致；另`build/p2-6-local8765-results.json`验证独立验收服务：正确GET/SSE200、错误角色401、30秒3快照 本次配置后再测`build/p2-6-remote-20261010/local-after-setup-results.json`：healthz/View GET/SSE200，错误Token/错误角色/无认证401，30秒3快照无断流；仅localhost范围 |
 | 实际 main.cpp telemetry 开始/停止 HTTP | PASS | 包含实际 main 的无输入集成 fixture；开始 ticket 模拟，真实 telemetry 线程与 setRunning(false)。无 worker、OCR、GUI 或真实局内证明 |
 | 发布助手 GUI 本轮开始/停止 | BLOCKED | 默认保护跳过需管理员的发布助手；未重新启动或操控管理员 GUI，未复用先前关闭的测试 PID |
 | 实际服务器证据过期、传感器缺失隔离、恢复和重启 | PASS | C++ 序列化模拟游戏事实，经真实 HTTP；18 秒自然失效为 UNVERIFIED；新模拟 proof 恢复；服务重启不继承绿或告警运行预期 |
@@ -135,7 +136,11 @@ E:\GitHubRepos\OverwatchHelper\build\tools\go\bin\go.exe vet ./...
 
 测试与文档变化不需要 C++ 全量重建。构建脚本已有所有 `.md` 文档复制规则，并新增复制 P2.6 性能 JSON；已将本轮文档和性能统计复制到dist，但未重新编译可执行文件或重复全量构建。原始数据及测试 Token 留在忽略的 build，未打印凭据，清理仅针对自有进程，没有批量或递归删除。
 
-网络启动失败的去凭据记录：`build/p2-6-remote-20261010/network-launch-result.json`。最终只读复核portproxy仍为空；核实可执行文件和独立数据目录后，已关闭本轮localhost验收Dashboard（PID44516）。8765、18771、18773已无测试监听，所有本轮测试进程均已退出，数据和Token仅保留在忽略的build目录；设置指南包含人工联调时重新启动服务的命令。UAC取消后没有循环申请。控制器成员授权仍未知，不将本机网卡状态或localhost API通过当作授权证明。
+原始UAC取消记录保留在`build/p2-6-remote-20261010/network-launch-result.json`。用户随后明确要求重试：首次管理员PID5512因UTF-8无BOM被Windows PowerShell5按ANSI解析，原生Parser复现语法错误，脚本未执行；仅修正BOM并实际PS5解析通过后，再次UAC确认，管理员PID34392成功完成已授权范围，随后退出。没有更改服务启动方式、VPN、代理、现有ZeroTier网络或全局防火墙策略。
+
+本次配置证据：`build/p2-6-remote-20261010/network-setup-result.json`（包含两条ActiveStore规则的地址/端口过滤器、映射注册表值和监听）；去身份状态摘要：`network-verification-summary.json`。仅两个监听：Go PID4608的127.0.0.1:8765与系统portproxy PID5708的10.243.245.219:8765，无wildcard或IPv6入口。其他本轮性能/协议测试进程已退出；为用户Mac联调保留新的localhost Dashboard PID4608运行，数据/Token复用忽略的build目录，未改现用助手配置。停止与局部网络回滚步骤见设置指南。
+
+Windows本机源地址不属于Mac唯一allow范围，因此未以Windows请求ZT入口代替Mac测试或判本地回归失败。Windows ONLINE/OK仅证明本机当前CLI状态；Mac授权、真实跨机GET/SSE/浏览器与游戏仍未验证。
 
 ## P3 决策
 
